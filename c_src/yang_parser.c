@@ -1,4 +1,4 @@
-#define _GNU_SOURCE // for getline, strndup, strchrnul
+#define _POSIX_C_SOURCE 200809L // for strndup and getline
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -53,7 +53,7 @@ tok_init(struct toks *toks, char *filename, struct yang_error_ctx *ectx)
         yang_add_err_gen(ectx, YANG_ERR_PARSE_FOPEN, filename, 0, -1,
                          strerror(errno));
         return false;
-    }    
+    }
     toks->ectx = ectx;
     toks->filename = filename;
     toks->line = 0;
@@ -189,13 +189,13 @@ tok_get_keyword(struct toks *toks,
 static bool
 tok_get_string(struct toks *toks, char **str)
 {
-    char *p, *s=NULL, *q, quotechar, *new;
+    char *p, *s=NULL, *q, quotechar, *new, *tmp;
     int indentpos, i, len, curlen, sz;
     bool have_parts;
 
     if (!tok_skip(toks)) {
         return false;
-    }        
+    }
     p = toks->p;
     if (*p == ';' || *p == '{' || *p == '}') {
         yang_add_err_gen(toks->ectx, YANG_ERR_PARSE_EXPECTED_STRING,
@@ -233,7 +233,13 @@ tok_get_string(struct toks *toks, char **str)
             curlen = len;
             /* update len so that it stores the number of chars needed */
             if (quotechar == '\'') {
-                p = strchrnul(p, '\'');
+                //p = strchrnul(p, '\'');
+                tmp = strrchr(p, '\'');
+                if (tmp) {
+                    p = tmp;
+                } else {
+                    p += strlen(p);
+                }
                 len += p-s;
             } else {
                 /* double quote; count chars, check for quoted chars */
@@ -314,7 +320,7 @@ tok_get_string(struct toks *toks, char **str)
         }
         /* p is now quotechar, check for concatenation */
         p++;
-        toks->p = p; 
+        toks->p = p;
         if (!tok_skip(toks)) {
             goto error;
         }
@@ -357,13 +363,13 @@ parse_statement(struct toks *toks, struct yang_statement **stmt)
     char *p, *arg;
     int line;
     struct yang_statement *tmp, **next;
-    
+
     arg = NULL;
     *stmt = NULL;
 
     if (!tok_skip(toks)) {
         return false;
-    }        
+    }
     line = toks->line;
     if (!tok_get_keyword(toks, &prefix, &keyword)) {
         return false;
@@ -380,7 +386,7 @@ parse_statement(struct toks *toks, struct yang_statement **stmt)
     }
     if (!tok_skip(toks)) {
         return false;
-    }        
+    }
     *stmt = (struct yang_statement *)malloc(sizeof(struct yang_statement));
     (*stmt)->prefix = prefix;
     (*stmt)->module_name = NULL;
@@ -398,7 +404,7 @@ parse_statement(struct toks *toks, struct yang_statement **stmt)
         toks->p++;
         if (!tok_skip(toks)) {
             goto error;
-        } 
+        }
         next = &(*stmt)->substmt;
         while (*toks->p != '}') {
             if (!parse_statement(toks, &tmp)) {

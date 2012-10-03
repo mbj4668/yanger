@@ -10,7 +10,7 @@ a() ->
     ok.
 
 init() ->
-    Nif = filename:join(code:priv_dir(epyang),"epyang_drv"),
+    Nif = filename:join(code:priv_dir(epyang),"yang_parser_nif"),
     ok = erlang:load_nif(Nif, 0).
 
 get_arg_type(_Types) ->
