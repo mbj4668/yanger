@@ -29,25 +29,27 @@
 
 -record(union_type_spec, {
           types :: [#type{}]
-         }). 
+         }).
 
 -spec register_type_spec(TypeName :: yang:builtin_type_name()
                                    | {ModuleName :: atom(), TypeName :: atom()},
                          type_spec_fun(),
                          #yctx{}) -> #yctx{}.
-%% Registers 
+%% Registers
 register_type_spec(TypeName, TypeSpecF, Ctx) ->
     TypeMap = yang:map_insert(TypeName, TypeSpecF, Ctx#yctx.typemap),
     #yctx{typemap = TypeMap}.
 
-%% -spec validate_value(#type{}, Val :: term(), #yctx{}) -> {boolean(), #yctx{}}.
+%% -spec validate_value(#type{}, Val :: term(), #yctx{}) ->
+%%     {boolean(), #yctx{}}.
 %% validate_value(Type, Val, Ctx) ->
 %%     TypeMap = Ctx#yctx.typemap,
-%%     {_Restrictions, ParseValF} = get_type_registration(Type, Ctx#yctx.typemap),
+%%     {_Restrictions, ParseValF} =
+%%         get_type_registration(Type, Ctx#yctx.typemap),
 %%     nyi.
 
 
-%% get_type_registration(#type{base = Base}, TypeMap) -> 
+%% get_type_registration(#type{base = Base}, TypeMap) ->
 %%     case yang:map_lookup(TypeName, TypeMap) of
 %%         {value, Registration} ->
 %%             Registration;
@@ -145,7 +147,6 @@ is_in_range([{Min, Max} | T], Val) ->
 is_in_range([], _Val) ->
     false.
 
-                  
 string_type_spec_fun({derive, TypeS}, TypeSpec, Ctx0) ->
     %% this function is called to create a new derived type
     %% 1. loop through all substatements, and make sure only patterns and
@@ -188,7 +189,7 @@ string_type_spec_fun({derive, TypeS}, TypeSpec, Ctx0) ->
     end;
 string_type_spec_fun({parse, Val}, TypeSpec, Ctx0) ->
     #string_type_spec{length = Length, patterns = Patterns} = TypeSpec,
-    LengthOk = 
+    LengthOk =
         if Length == undefined ->
                 true;
            true ->

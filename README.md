@@ -1,7 +1,9 @@
 epyang
 ======
 
-Extensible YANG validator
+Extensible YANG validator.
+
+NOTE: This project is current under development!
 
 Contributing
 ============
