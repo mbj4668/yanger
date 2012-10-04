@@ -205,8 +205,8 @@ tst(FileName, Dir) ->
             print_errors(Ctx#yctx.errors, FileName),
             error;
         {true, Ctx, _M} ->
-            pp_module(_M),
-            ?iof("** perf: ~p\n", [ets:tab2list(perf)]),
+%            pp_module(_M),
+%            ?iof("** perf: ~p\n", [ets:tab2list(perf)]),
             print_errors(Ctx#yctx.errors, FileName)
     end.
 %% END DEBUG CODE
