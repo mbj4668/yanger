@@ -67,7 +67,7 @@ mk_tree(ErlNifEnv *env, struct yang_statement *s, ERL_NIF_TERM fname)
         arg = am_undefined;
     }
     line = enif_make_tuple2(env, fname, enif_make_int(env, s->line));
-    
+
     substmts = mk_tree(env, s->substmt, fname);
     stmt = enif_make_tuple4(env, kw, arg, line, substmts);
     tmp = s->next;
@@ -79,7 +79,7 @@ static ERL_NIF_TERM
 mk_error_list(ErlNifEnv *env, struct yang_error *err)
 {
     ERL_NIF_TERM error;
-    
+
     if (!err) {
         return enif_make_list(env, 0);
     }

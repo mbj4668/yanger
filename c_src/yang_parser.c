@@ -244,14 +244,13 @@ tok_get_string(struct toks *toks, char **str)
             } else {
                 /* double quote; count chars, check for quoted chars */
                 for (; *p != '\0' && *p != '"'; p++) {
-                    if (*p != '\\') {
-                        len++;
-                    } else if (*p == 'n' || *p == '"' ||
-                               *p == '\\' || *p == 't') {
-                        p++;
-                    } else {
-                        len++;
+                    if (*p == '\\') {
+                        if (*(p+1) == 'n' || *(p+1) == '"' ||
+                            *(p+1) == '\\' || *(p+1) == 't') {
+                            p++;
+                        }
                     }
+                    len++;
                 }
             }
             /* end of line, or end of this string */
@@ -261,7 +260,6 @@ tok_get_string(struct toks *toks, char **str)
             } else {
                 sz = len;
             }
-            sz++; // FIXME
             new = (char *)realloc(*str, sz * sizeof(char));
             if (!new) {
                 goto error;
@@ -338,6 +336,10 @@ tok_get_string(struct toks *toks, char **str)
                                  YANG_ERR_PARSE_EXPECTED_QUOTED_STRING,
                                  toks->filename, toks->line, 1 + p - toks->buf,
                                  "expected quoted string after '+' operator");
+                if (*str) {
+                    free(*str);
+                    *str = NULL;
+                }
                 return false;
             }
         } else {
