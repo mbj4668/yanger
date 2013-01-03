@@ -260,6 +260,7 @@ tok_get_string(struct toks *toks, char **str)
             } else {
                 sz = len;
             }
+            sz++; // FIXME
             new = (char *)realloc(*str, sz * sizeof(char));
             if (!new) {
                 goto error;
