@@ -12,6 +12,7 @@ static ERL_NIF_TERM am_error;
 static ERL_NIF_TERM am_undefined;
 static yang_atom_t yam_identifier;
 static yang_atom_t yam_identifier_ref;
+static yang_atom_t yam_uri;
 static yang_atom_t yam_boolean;
 static yang_atom_t yam_ordered_by_arg;
 static yang_atom_t yam_enum_arg;
@@ -43,6 +44,7 @@ mk_tree(ErlNifEnv *env, struct yang_statement *s, ERL_NIF_TERM fname)
     }
     if (s->arg && s->arg_type) {
         if (s->arg_type->name == yam_identifier
+            || s->arg_type->name == yam_uri
             || s->arg_type->name == yam_boolean
             || s->arg_type->name == yam_ordered_by_arg
             || s->arg_type->name == yam_enum_arg
@@ -103,11 +105,11 @@ parse_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     ERL_NIF_TERM fname, res;
     int r;
 
-    if (argc != 1 || 
+    if (argc != 1 ||
         enif_get_string(env, argv[0], filename, BUFSIZ, ERL_NIF_LATIN1) <= 0) {
 	return enif_make_badarg(env);
     }
-    
+
     ectx = yang_alloc_err_ctx();
     r = yang_parse(filename, &stmt, ectx);
     if (r) {
@@ -119,10 +121,10 @@ parse_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
                                mk_error_list(env, ectx->err));
         yang_free_err_ctx(ectx);
         return res;
-    } 
+    }
     yang_free_err_ctx(ectx);
     fname = enif_make_string(env, filename, ERL_NIF_LATIN1);
-    
+
     return enif_make_tuple2(env,
                             enif_make_atom(env, "ok"),
                             mk_tree(env, stmt, fname));
@@ -179,7 +181,7 @@ static ERL_NIF_TERM
 install_arg_types_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
     unsigned int len;
-    
+
     if (argc != 1 || !enif_get_list_length(env, argv[0], &len)) {
 	return enif_make_badarg(env);
     }
@@ -212,6 +214,7 @@ load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info)
     am_undefined = enif_make_atom(env, "undefined");
     yam_identifier = yang_make_atom("identifier");
     yam_identifier_ref = yang_make_atom("identifier-ref");
+    yam_uri = yang_make_atom("uri");
     yam_boolean = yang_make_atom("boolean");
     yam_ordered_by_arg = yang_make_atom("ordered-by-arg");
     yam_enum_arg = yang_make_atom("enum-arg");

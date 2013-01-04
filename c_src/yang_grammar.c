@@ -47,7 +47,7 @@ get_grammar(yang_atom_t module_name)
     int i;
     for (i = 0; i < ngrammar; i++) {
         if (grammar[i].module_name == module_name) {
-            return &grammar[i]; 
+            return &grammar[i];
         }
     }
     return NULL;
@@ -231,10 +231,10 @@ chk_statements(struct yang_statement *stmt,
                 yang_add_err(ectx, YANG_ERR_GRAMMAR_UNEXPECTED_ARGUMENT, stmt,
                              "did not expect an argument to '%s', got \"%s\"",
                              buf, stmt->arg);
-                return false;     
+                return false;
             }
 
-            sz = subspec->nrules * sizeof(struct yang_statement_rule); 
+            sz = subspec->nrules * sizeof(struct yang_statement_rule);
             subrules = (struct yang_statement_rule *)malloc(sz);
             memcpy(subrules, subspec->rules, sz);
             /* a rule for this statement was found, verify its substmts */
@@ -246,7 +246,7 @@ chk_statements(struct yang_statement *stmt,
                 continue;
             }
             free(subrules);
-            
+
         } else {
             // we can't check this one; skip it.
         }
@@ -290,7 +290,7 @@ bool
 yang_install_arg_types(struct yang_arg_type new_types[], int len)
 {
     int i, j;
-    
+
     i = ntypes;
     ntypes += len;
     types =
@@ -302,7 +302,7 @@ yang_install_arg_types(struct yang_arg_type new_types[], int len)
     for (j = 0; j < len; i++, j++) {
         types[i].name = new_types[j].name;
         if (new_types[j].regexp) {
-            types[i].regexp = (char *)malloc(sizeof(char) * 
+            types[i].regexp = (char *)malloc(sizeof(char) *
                                              (strlen(new_types[j].regexp) + 1));
             strcpy(types[i].regexp, new_types[j].regexp);
         } else {
@@ -319,7 +319,7 @@ install_arg_types_str(const char *stypes[], int ntypes)
 {
     int i, j;
     struct yang_arg_type ya_type[ntypes];
-    
+
     for (i = 0, j = 0; j < ntypes; i += 2, j++) {
         ya_type[j].name = yang_make_atom(stypes[i]);
         ya_type[j].regexp = (char *)stypes[i+1];
@@ -352,7 +352,7 @@ yang_install_grammar(yang_atom_t module_name,
     int i, j, r;
     int grammar_start, specs_start, rules_start;
     int sz;
-    
+
     /* make room for one new grammar */
     grammar_start = ngrammar;
     ngrammar++;
@@ -406,7 +406,8 @@ yang_install_grammar(yang_atom_t module_name,
         r += j;
         specs[specs_start + i].nrules = new_specs[i].nrules;
     }
-    qsort(specs + specs_start, len, sizeof(struct yang_statement_spec), cmpatom);
+    qsort(specs + specs_start, len, sizeof(struct yang_statement_spec),
+          cmpatom);
     return true;
 }
 
@@ -419,7 +420,7 @@ install_grammar_str(const char *module_name,
     int i, s, r, n;
     struct yang_statement_spec spec[nspecs];
     struct yang_statement_rule rule[nrules];
-    
+
     i = 0;
     s = 0;
     r = 0;
@@ -577,7 +578,7 @@ resolve_module_names_from_prefixes(int nprefixes,
     struct prefix_map prefix_map[nprefixes];
     struct yang_statement *s, *s2;
     int n = 0;
-    
+
     /* build prefix map */
     for (s = stmt->substmt; s; s = s->next) {
         if (s->prefix == NULL) {
@@ -607,7 +608,7 @@ resolve_module_names_from_prefixes(int nprefixes,
             }
         }
     }
-    
+
     /* recurse through all statements and set module_name on all extensions */
     set_module_name_from_prefix(stmt, prefix_map, nprefixes, ectx);
 }
@@ -656,7 +657,7 @@ yang_grammar_check_module(struct yang_statement *stmt,
 
     return chk_statements(stmt, NULL, &top_rule[0], 1, ectx);
 }
-                       
+
 void
 yang_print_grammar()
 {
