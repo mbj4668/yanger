@@ -126,8 +126,9 @@
           %% for modules, same as name.  for submodules, the name
           %% of the module it belongs to.
           modulename :: atom(),
+          filename :: string(),
           kind :: 'module' | 'submodule',
-          revision :: atom(),
+          revision :: string(),
           namespace :: atom(),
           prefix :: atom(),
           submodules = [] :: [{#module{}, yang:pos()}],
@@ -159,7 +160,9 @@
 
 -record(yctx, {
           search_path = [] :: [DirName :: string()],
+          %% contains all modules and submodules found
           modrevs :: yang:map({Name :: atom(), Revision :: atom()}, #module{}),
+          revs :: yang:map(Name :: atom(), [Revision :: atom()]),
           files :: yang:map({Name :: atom(), Revision :: atom()},
                             FileName :: string()),
           hooks :: #hooks{},
@@ -181,3 +184,9 @@
          orelse (X) == 'input'
          orelse (X) == 'output'
          orelse (X) == 'notification')).
+
+-define(is_stmt(S), tuple_size(S) == 4).
+-define(STMT_KEYWORD, 1).
+-define(STMT_ARG, 2).
+-define(STMT_POS, 3).
+-define(STMT_SUBSTMTS, 4).

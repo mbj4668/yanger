@@ -3,9 +3,13 @@
 -export([init_ctx/1, add_file/2]).
 -export([tst/1, tst/2, a/0]).
 
+-export([stmt_keyword/1, stmt_arg/1, stmt_pos/1, stmt_substmts/1]).
+-export([search_one_stmt/2, search_one_stmt/3]).
+
 -export([map_new/0, map_insert/3, map_update/3,
          map_lookup/2, map_get/2, map_delete/2, map_to_list/1,
-         map_iterator/1, map_next/1]).
+         map_iterator/1, map_next/1,
+         map_foldl/3]).
 
 %% TAILF:
 %%   reject choice in case
@@ -116,14 +120,13 @@
 %% used to find cyclic definitions
 -type validate_status() :: 'undefined' | 'processing' | 'done'.
 
--type stmt() :: {keyword(), Arg :: string(), pos(), [stmt()]}.
--define(is_stmt(S), tuple_size(S) == 4).
--define(STMT_KEYWORD, 1).
--define(STMT_ARG, 2).
--define(STMT_POS, 3).
--define(STMT_SUBSTMTS, 4).
+%% see yang_parser_nif.c
+-type arg_type() :: string() | atom() | integer().
+-type stmt() :: {keyword(), Arg :: arg_type(), pos(), [stmt()]}.
 
--type identifier_ref() :: atom() | {Prefix :: atom(), Name :: atom()}.
+-type raw_identifier_ref() :: atom() | {Prefix :: atom(), Name :: atom()}.
+
+-type identifier_ref() :: atom() | {ModuleName :: atom(), Name :: atom()}.
 
 -type schema_nodeid() :: yang_identifier().
 
@@ -306,7 +309,9 @@ add_parsed_module(Ctx0, [{ModKeyword, ModuleName, Pos, Substmts}] = S, FileName,
                     Ctx2 = Ctx1#yctx{modrevs = Mods1},
                     S1 = run_hooks(#hooks.pre_parse_module, Ctx2, S),
                     case parse_module(S1, Ctx2) of
-                        {true, Ctx3, M} ->
+                        {true, Ctx3, M0} ->
+                            M = M0#module{filename = FileName,
+                                          revision = ModuleRevision},
                             Mods2 = map_update({ModuleName, ModuleRevision}, M,
                                               Ctx3#yctx.modrevs),
                             {true, Ctx3#yctx{modrevs = Mods2}, M};
@@ -1618,7 +1623,7 @@ iterate_stmt0([{Keyword, _, _, Substmts} = H | T], Keyword, Acc0, F) ->
 iterate_stmt0([], _, Acc, _F) ->
     Acc.
 
--spec resolve_idref(identifier_ref(), pos(), prefix_map(), #yctx{}) ->
+-spec resolve_idref(raw_identifier_ref(), pos(), prefix_map(), #yctx{}) ->
     {self
      | undefined
      | {ModuleName :: atom(), Revision :: string() | undefined},
@@ -1850,6 +1855,12 @@ run_hooks(HookNumber, Ctx, Arg0) ->
 sn_pos(#sn{stmt = Stmt}) ->
     stmt_pos(Stmt).
 
+stmt_keyword({Keyword, _Arg, _Pos, _Substmts}) ->
+    Keyword.
+
+stmt_arg({_Keyword, Arg, _Pos, _Substmts}) ->
+    Arg.
+
 stmt_pos({_Keyword, _Arg, Pos, _Substmts}) ->
     Pos.
 
@@ -1913,6 +1924,3 @@ pp_children([H | T], Indent) ->
     pp_children(T, Indent);
 pp_children([], _Indent) ->
     ok.
-
-
-

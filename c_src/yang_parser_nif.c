@@ -107,7 +107,7 @@ parse_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 
     if (argc != 1 ||
         enif_get_string(env, argv[0], filename, BUFSIZ, ERL_NIF_LATIN1) <= 0) {
-	return enif_make_badarg(env);
+        return enif_make_badarg(env);
     }
 
     ectx = yang_alloc_err_ctx();
@@ -183,7 +183,7 @@ install_arg_types_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     unsigned int len;
 
     if (argc != 1 || !enif_get_list_length(env, argv[0], &len)) {
-	return enif_make_badarg(env);
+        return enif_make_badarg(env);
     }
     return install_arg_types(env, argv[0], len);
 }
