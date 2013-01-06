@@ -35,7 +35,7 @@ struct yang_error {
 
 struct yang_error_ctx {
     struct yang_error *err;
-};    
+};
 
 extern struct yang_error_ctx *yang_alloc_err_ctx(void);
 extern void yang_free_err_ctx(struct yang_error_ctx *ectx);
@@ -52,5 +52,5 @@ extern void yang_add_err(struct yang_error_ctx *ectx,
                          const char *fmt, ...);
 extern void yang_add_alloc_err(struct yang_error_ctx *ectx,
                                int nbytes);
-                          
+
 #endif

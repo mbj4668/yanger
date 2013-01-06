@@ -32,7 +32,7 @@ yang_make_atom_len(const char *str, int len)
     unsigned long h;
     int idx;
     struct bucket *p;
-    
+
     h = hash(str, len);
     idx = h % NATOMS;
     for (p = atom_table[idx]; p != NULL; p = p->next) {
@@ -63,7 +63,7 @@ yang_is_atom_len(const char *str, int len)
     unsigned long h;
     int idx;
     struct bucket *p;
-    
+
     h = hash(str, len);
     idx = h % NATOMS;
     for (p = atom_table[idx]; p != NULL; p = p->next) {

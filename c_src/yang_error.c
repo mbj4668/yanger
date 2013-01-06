@@ -105,4 +105,3 @@ yang_add_alloc_err(struct yang_error_ctx *ectx,
     yang_add_err_gen(ectx, YANG_ERR_MEMORY_ERROR, NULL, 0, 0,
                      "failed to allocate %d bytes of memory", nbytes);
 }
-                          
