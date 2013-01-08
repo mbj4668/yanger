@@ -260,7 +260,6 @@ tok_get_string(struct toks *toks, char **str)
             } else {
                 sz = len;
             }
-            sz++; // FIXME
             new = (char *)realloc(*str, sz * sizeof(char));
             if (!new) {
                 goto error;
@@ -295,8 +294,10 @@ tok_get_string(struct toks *toks, char **str)
                         *q = *s;
                     }
                 }
-                *q = '\0';
-                assert(len = q - new);
+                if (*p == quotechar) {
+                    *q = '\0';
+                }
+                assert(len == q - new);
             }
             if (*p == '\0') {
                 /* end of line, read a new line */
