@@ -136,9 +136,6 @@
 -type typedef_rec() :: #typedef{}.
 
 init_ctx(SearchPath) ->
-    %% FIXME: debug tables; remove!
-    ets:new(perf, [named_table]),
-    ets:insert(perf, {exp, 0}),
     {ok, Files} = file:list_dir(SearchPath),
     Fm = lists:foldl(
            fun(FName, M) ->
@@ -209,7 +206,6 @@ tst(FileName, Dir) ->
             error;
         {true, Ctx, _M} ->
 %            pp_module(_M),
-%            ?iof("** perf: ~p\n", [ets:tab2list(perf)]),
             print_errors(Ctx#yctx.errors, FileName)
     end.
 %% END DEBUG CODE
@@ -1132,7 +1128,6 @@ expand_uses(GroupingChildren, UsesSubstmts, Typedefs, Groupings,
     {AugmentedChildren, Ctx4}.
 
 expand_uses2([Sn0 | T], RefTree0, UsesPos, M, Ctx0, ParentConfig, Acc) ->
-    ets:update_counter(perf, exp, 1),
     %% Check if there are any refinements for this node
     {{Sn1, Ctx1}, Subtree, RefTree2} =
         case take_from_tree(Sn0#sn.name, RefTree0) of

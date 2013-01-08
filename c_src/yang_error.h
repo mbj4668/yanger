@@ -21,6 +21,7 @@
 #define YANG_ERR_GRAMMAR_DUPLICATE_PREFIX           204
 #define YANG_ERR_GRAMMAR_MISSING_ARGUMENT           205
 #define YANG_ERR_GRAMMAR_UNEXPECTED_ARGUMENT        206
+#define YANG_ERR_GRAMMAR_BAD_ARGUMENT               207
 
 struct yang_statement;
 

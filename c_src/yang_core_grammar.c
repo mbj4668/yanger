@@ -1,33 +1,12 @@
+#define _POSIX_C_SOURCE 200809L // for strdup
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <ctype.h>
+#include <assert.h>
+
 #include "yang_core_grammar.h"
 #include "yang_grammar.h"
-
-static const char *types[] = {
-    "identifier",     "[_A-Za-z][._\\-A-Za-z0-9]*",
-    "string",         NULL,
-    "version",        "1",
-    "uri",            ".*", // FIXME
-    "date",           "[1-2][0-9]{3}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])",
-    "length-arg",     ".*",
-    "key-arg",        ".*",
-    "ordered-by-arg", ".*",
-    "descendant-schema-nodeid", ".*",
-    "max-value",      ".*",
-    "boolean",        ".*",
-    "enum-arg",       ".*",
-    "absolute-schema-nodeid", ".*",
-    "range-arg",      ".*",
-    "non-negative-integer", ".*",
-    "deviate-arg",    ".*",
-    "identifier-ref", ".*",
-    "integer",        ".*",
-    "status-arg",     ".*",
-    "fraction-digits-arg", ".*",
-    "unique-arg",     ".*",
-    "path-arg",       ".*",
-    "absolute-path-arg", ".*",
-    "schema-nodeid",  ".*",
-    NULL, NULL
-};
 
 static const char *stmts[] = {
     "module",           "identifier",
@@ -479,12 +458,304 @@ static const char *stmts[] = {
     NULL,              NULL
 };
 
+static bool
+chk_enum_arg(char *arg, void *opaque)
+{
+    int len;
+    len = strlen(arg);
+    if (len == 0 || isspace(arg[0]) || isspace(arg[len-1])) {
+        return false;
+    }
+    return true;
+}
+
+static bool
+chk_fraction_digits_arg(char *arg, void *opaque)
+{
+    char *end;
+    long int i;
+    if (isspace(arg[0])) {
+        return false;
+    }
+    i = strtol(arg, &end, 10);
+    if (*end == '\0') {
+        /* not an integer */
+        return false;
+    }
+    if (i < 1 || i > 18) {
+        return false;
+    }
+    return true;
+}
+
+bool
+chk_(char *arg, void *opaque)
+{
+    return true;
+}
+
+#define NTYPES 23
+
 int
 yang_init_core_stmt_grammar(void)
 {
-    if (!yang_install_arg_types_str(types)) {
+    struct yang_arg_type types[NTYPES];
+    int i = 0;
+    const char *identifier;
+    const char *prefix;
+    char keyword[BUFSIZ];
+    const char *length_str;
+    char length_expr[BUFSIZ];
+    const char *range_str;
+    char range_expr[BUFSIZ];
+    char rel_path_keyexpr[BUFSIZ];
+    char *node_id;
+    char *identifier_ref;
+    char path_key_expr[BUFSIZ];
+    char path_equality_expr[BUFSIZ];
+    char path_predicate[BUFSIZ];
+    char absolute_path_arg[BUFSIZ];
+    char descendant_path_arg[BUFSIZ];
+    char relative_path_arg[BUFSIZ];
+    char deref_path_arg[BUFSIZ];
+    char path_arg[BUFSIZ];
+    char absolute_schema_nodeid[BUFSIZ];
+    char descendant_schema_nodeid[BUFSIZ];
+    char schema_nodeid[BUFSIZ];
+    char unique_arg[BUFSIZ];
+    char key_arg[BUFSIZ];
+    // URI - RFC 3986, Appendix A
+    const char *scheme = "[A-Za-z][-+.A-Za-z0-9]*";
+    const char *unreserved = "[-._~A-Za-z0-9]";
+    const char *pct_encoded = "%[0-9A-F]{2}";
+    const char *sub_delims = "[!$&'()*+,;=]";
+    const char *dec_octet = "([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])";
+    const char *h16 = "[0-9A-F]{1,4}";
+    const char *port = "[0-9]*";
+    char pchar[BUFSIZ];
+    char segment[BUFSIZ];
+    char segment_nz[BUFSIZ];
+    char userinfo[BUFSIZ];
+    char ipv4address[BUFSIZ];
+    char ls32[BUFSIZ];
+    char ipv6address[BUFSIZ];
+    char ipvfuture[BUFSIZ];
+    char ipliteral[BUFSIZ];
+    char reg_name[BUFSIZ];
+    char host[BUFSIZ];
+    char authority[BUFSIZ];
+    char path_abempty[BUFSIZ];
+    char path_absolute[BUFSIZ];
+    char path_rootless[BUFSIZ];
+    char path_empty[BUFSIZ];
+    char hier_part[BUFSIZ];
+    char query[BUFSIZ];
+    char *fragment;
+    char uri[BUFSIZ];
+
+    identifier = "[_A-Za-z][._\\-A-Za-z0-9]*";
+    prefix = identifier;
+    sprintf(keyword, "((%s):)?(%s)", prefix, identifier);
+
+    length_str =
+        "((min|max|[0-9]+)\\s*"
+        "(\\.\\.\\s*"
+        "(min|max|[0-9]+)\\s*)?)";
+    sprintf(length_expr, "%s(\\|\\s*%s)*", length_str, length_str);
+
+    range_str =
+        "((\\-INF|min|max|((\\+|\\-)?[0-9]+(\\.[0-9]+)?))\\s*"
+        "(\\.\\.\\s*"
+        "(INF|min|max|(\\+|\\-)?[0-9]+(\\.[0-9]+)?)\\s*)?)";
+    sprintf(range_expr, "%s(\\|\\s*%s)*", range_str, range_str);
+
+    node_id = keyword;
+    identifier_ref = node_id;
+    sprintf(rel_path_keyexpr, "(\\.\\./)+(%s/)*%s", node_id, node_id);
+    sprintf(path_key_expr, "(current\\s*\\(\\s*\\)/%s)", rel_path_keyexpr);
+    sprintf(path_equality_expr, "%s\\s*=\\s*%s", node_id, path_key_expr);
+    sprintf(path_predicate, "\\s*\\[\\s*%s\\s*\\]\\s*", path_equality_expr);
+    sprintf(absolute_path_arg, "(/%s(%s)*)+",  node_id, path_predicate);
+    sprintf(descendant_path_arg, "%s(%s)*(%s)?",
+            node_id, path_predicate, absolute_path_arg);
+    sprintf(relative_path_arg, "(\\.\\./)*%s", descendant_path_arg);
+    sprintf(deref_path_arg, "deref\\s*\\(\\s*(%s)\\s*\\)/\\.\\./%s",
+            relative_path_arg, relative_path_arg);
+    sprintf(path_arg, "(%s|%s|%s)",
+            absolute_path_arg, relative_path_arg, deref_path_arg);
+    sprintf(absolute_schema_nodeid, "(/%s)+", node_id);
+    sprintf(descendant_schema_nodeid, "%s(%s)?",
+            node_id, absolute_schema_nodeid);
+    sprintf(schema_nodeid, "(%s|%s)",
+            absolute_schema_nodeid, descendant_schema_nodeid);
+    sprintf(unique_arg, "%s(\\s+%s)*",
+            descendant_schema_nodeid,  descendant_schema_nodeid);
+    sprintf(key_arg, "%s(\\s+%s)*", node_id, node_id);
+
+    sprintf(pchar, "(%s|%s|%s|[:@])", unreserved, pct_encoded, sub_delims);
+    sprintf(segment, "%s*", pchar);
+    sprintf(segment_nz, "%s+", pchar);
+    sprintf(userinfo, "(%s|%s|%s|:)*", unreserved, pct_encoded, sub_delims);
+    sprintf(ipv4address, "(%s.){3}%s", dec_octet, dec_octet);
+    sprintf(ls32, "(%s:%s|%s)", h16, h16, ipv4address);
+    sprintf(ipv6address,
+            "((%s:){6}%s"
+            "|::(%s:){5}%s"
+            "|(%s)?::(%s:){4}%s"
+            "|((%s:)?%s)?::(%s:){3}%s"
+            "|((%s:){,2}%s)?::(%s:){2}%s"
+            "|((%s:){,3}%s)?::%s:%s"
+            "|((%s:){,4}%s)?::%s"
+            "|((%s:){,5}%s)?::%s"
+            "|((%s:){,6}%s)?::)",
+            h16, ls32,
+            h16, ls32,
+            h16, h16, ls32,
+            h16, h16, h16, ls32,
+            h16, h16, h16, ls32,
+            h16, h16, h16, ls32,
+            h16, h16, ls32,
+            h16, h16, ls32,
+            h16, h16);
+    sprintf(ipvfuture, "v[0-9A-F]+\\.(%s|%s|:)+", unreserved, sub_delims);
+    sprintf(ipliteral, "\\[(%s|%s)\\]", ipv6address, ipvfuture);
+    sprintf(reg_name, "(%s|%s|%s)*", unreserved, pct_encoded, sub_delims);
+    sprintf(host, "(%s|%s|%s)", ipliteral, ipv4address, reg_name);
+    sprintf(authority, "(%s@)?%s(:%s)?", userinfo, host, port);
+    sprintf(path_abempty, "(/%s)*", segment);
+    sprintf(path_absolute, "/(%s(/%s)*)?", segment_nz, segment);
+    sprintf(path_rootless, "%s(/%s)*", segment_nz, segment);
+    sprintf(path_empty, "%s{0}", pchar);
+    sprintf(hier_part, "(//%s%s|%s|%s|%s)",
+            authority, path_abempty, path_absolute, path_rootless, path_empty);
+    sprintf(query, "(%s|[/?])*", pchar);
+    fragment = query;
+    sprintf(uri, "%s:%s(\\?%s)?(#%s)?",
+            scheme, hier_part, query, fragment);
+
+    /* Install the core types */
+    i = 0;
+    types[i].name = yang_make_atom("string");
+    i++;
+
+    types[i].name = yang_make_atom("identifier");
+    types[i].syntax.xsd_regexp = (char *)identifier;
+    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    i++;
+
+    types[i].name = yang_make_atom("version");
+    types[i].syntax.xsd_regexp = (char *)"1";
+    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    i++;
+
+    types[i].name = yang_make_atom("date");
+    types[i].syntax.xsd_regexp =
+        (char *)"[1-2][0-9]{3}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])";
+    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    i++;
+
+    types[i].name = yang_make_atom("ordered-by-arg");
+    types[i].syntax.xsd_regexp = (char *)"user|system";
+    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    i++;
+
+    types[i].name = yang_make_atom("boolean");
+    types[i].syntax.xsd_regexp = (char *)"true|false";
+    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    i++;
+
+    types[i].name = yang_make_atom("max-value");
+    types[i].syntax.xsd_regexp = (char *)"unbounded|[1-9][0-9]*";
+    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    i++;
+
+    types[i].name = yang_make_atom("non-negative-integer");
+    types[i].syntax.xsd_regexp = (char *)"(0|[1-9])[0-9]*";
+    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    i++;
+
+    types[i].name = yang_make_atom("deviate-arg");
+    types[i].syntax.xsd_regexp = (char *)"add|delete|replace|not-supported";
+    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    i++;
+
+    types[i].name = yang_make_atom("integer");
+    types[i].syntax.xsd_regexp = (char *)"\\d*";
+    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    i++;
+
+    types[i].name = yang_make_atom("status-arg");
+    types[i].syntax.xsd_regexp = (char *)"current|obsolete|deprecated";
+    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    i++;
+
+    types[i].name = yang_make_atom("uri");
+    types[i].syntax.xsd_regexp = uri;
+    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    i++;
+
+    types[i].name = yang_make_atom("length-arg");
+    types[i].syntax.xsd_regexp = length_expr;
+    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    i++;
+
+    sprintf(key_arg, "%s(\\s+%s)*", node_id, node_id);
+    types[i].name = yang_make_atom("key-arg");
+    types[i].syntax.xsd_regexp = key_arg;
+    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    i++;
+
+    types[i].name = yang_make_atom("descendant-schema-nodeid");
+    types[i].syntax.xsd_regexp = descendant_schema_nodeid;
+    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    i++;
+
+    types[i].name = yang_make_atom("absolute-schema-nodeid");
+    types[i].syntax.xsd_regexp = absolute_schema_nodeid;
+    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    i++;
+
+    types[i].name = yang_make_atom("enum-arg");
+    types[i].syntax.cb.validate = &chk_enum_arg;
+    types[i].flags = F_ARG_TYPE_SYNTAX_CB;
+    i++;
+
+    types[i].name = yang_make_atom("range-arg");
+    types[i].syntax.xsd_regexp = range_expr;
+    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    i++;
+
+    types[i].name = yang_make_atom("identifier-ref");
+    types[i].syntax.xsd_regexp = identifier_ref;
+    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    i++;
+
+    types[i].name = yang_make_atom("fraction-digits-arg");
+    types[i].syntax.cb.validate = &chk_fraction_digits_arg;
+    types[i].flags = F_ARG_TYPE_SYNTAX_CB;
+    i++;
+
+    types[i].name = yang_make_atom("unique-arg");
+    types[i].syntax.xsd_regexp = (char *)unique_arg;
+    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    i++;
+
+    types[i].name = yang_make_atom("path-arg");
+    types[i].syntax.xsd_regexp = (char *)path_arg;
+    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    i++;
+
+    types[i].name = yang_make_atom("schema-nodeid");
+    types[i].syntax.xsd_regexp = (char *)schema_nodeid;
+    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    i++;
+
+    assert(i == NTYPES);
+
+    if (!yang_install_arg_types(types, i)) {
         return 0;
     }
+
     if (!yang_install_grammar_str(NULL, stmts)) {
         return 0;
     }

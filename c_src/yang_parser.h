@@ -6,9 +6,23 @@
 #include "yang_atom.h"
 #include "yang_error.h"
 
+struct yang_statement;
+
+#define F_ARG_TYPE_SYNTAX_REGEXP (1 << 0)
+#define F_ARG_TYPE_SYNTAX_CB     (1 << 1)
+
 struct yang_arg_type {
     yang_atom_t name;
-    char *regexp;
+    union {
+        char *xsd_regexp;
+        struct {
+            bool (*validate)(char *arg, void *opaque);
+            void *opaque; /* any data needed by the validate function */
+        } cb;
+    } syntax;
+    /* if none of F_ARG_TYPE_SYNTAX_CB and F_ARG_TYPE_SYNTAX_REGEXP is
+       set, no validation of the argument is done */
+    unsigned int flags;
 };
 
 struct yang_statement {

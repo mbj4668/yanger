@@ -1,8 +1,10 @@
+#define _POSIX_C_SOURCE 200809L // for strdup
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
 #include <assert.h>
+#include <libxml/xmlregexp.h>
 
 #include "yang_atom.h"
 #include "yang_parser.h"
@@ -219,7 +221,18 @@ chk_statements(struct yang_statement *stmt,
             /* check that the argument is there */
             if (subspec->arg_type && stmt->arg) {
                 stmt->arg_type = subspec->arg_type;
-                // FIXME: verify argument type */
+                if (stmt->arg_type->flags & F_ARG_TYPE_SYNTAX_CB) {
+                    if (!stmt->arg_type->syntax.cb.validate(
+                            stmt->arg,
+                            stmt->arg_type->syntax.cb.opaque)) {
+                        yang_add_err(ectx, YANG_ERR_GRAMMAR_BAD_ARGUMENT, stmt,
+                                     "bad argument value \"%s\", "
+                                     "should be of type %s",
+                                     stmt->arg, stmt->arg_type->name);
+
+                        return false;
+                    }
+                }
             }
             else if (subspec->arg_type && !stmt->arg) {
                 build_keyword_from_rule(buf, BUFSIZ, rule);
@@ -286,10 +299,21 @@ yang_init_grammar()
     return true;
 }
 
+static bool
+chk_xsd_regexp(char *arg, void *opaque)
+{
+    xmlRegexpPtr xreg = (xmlRegexpPtr)opaque;
+    if (xmlRegexpExec(xreg, (xmlChar *)arg) != 1) {
+        return false;
+    }
+    return true;
+}
+
 bool
 yang_install_arg_types(struct yang_arg_type new_types[], int len)
 {
     int i, j;
+    xmlRegexpPtr xreg;
 
     i = ntypes;
     ntypes += len;
@@ -300,13 +324,23 @@ yang_install_arg_types(struct yang_arg_type new_types[], int len)
         return false;
     }
     for (j = 0; j < len; i++, j++) {
+        memset(&types[i], 0, sizeof(struct yang_arg_type));
         types[i].name = new_types[j].name;
-        if (new_types[j].regexp) {
-            types[i].regexp = (char *)malloc(sizeof(char) *
-                                             (strlen(new_types[j].regexp) + 1));
-            strcpy(types[i].regexp, new_types[j].regexp);
-        } else {
-            types[i].regexp = NULL;
+        types[i].flags = new_types[j].flags;
+        /* If the arg type has a regexp, compile it and install a validate
+           function. */
+        if (new_types[j].flags & F_ARG_TYPE_SYNTAX_REGEXP) {
+            xreg = xmlRegexpCompile((xmlChar *)new_types[j].syntax.xsd_regexp);
+            if (!xreg) {
+                printf("c: %s\n", new_types[j].syntax.xsd_regexp);
+                return false;
+            }
+            types[i].syntax.cb.opaque = (void *)xreg;
+            types[i].syntax.cb.validate = &chk_xsd_regexp;
+            types[i].flags &= ~F_ARG_TYPE_SYNTAX_REGEXP;
+            types[i].flags |= F_ARG_TYPE_SYNTAX_CB;
+        } else if (new_types[j].flags & F_ARG_TYPE_SYNTAX_CB) {
+            types[i].syntax.cb = new_types[j].syntax.cb;
         }
     }
     /* keep the array sorted so we can use binary search */
@@ -322,7 +356,8 @@ install_arg_types_str(const char *stypes[], int ntypes)
 
     for (i = 0, j = 0; j < ntypes; i += 2, j++) {
         ya_type[j].name = yang_make_atom(stypes[i]);
-        ya_type[j].regexp = (char *)stypes[i+1];
+        ya_type[j].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+        ya_type[j].syntax.xsd_regexp = (char *)stypes[i+1];
     }
 
     if (!yang_install_arg_types(ya_type, ntypes)) {

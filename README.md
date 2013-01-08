@@ -5,6 +5,12 @@ Extensible YANG validator.
 
 NOTE: This project is current under development!
 
+Prerequisites
+=============
+erlang
+rebar
+libxml2-dev
+
 Contributing
 ============
 

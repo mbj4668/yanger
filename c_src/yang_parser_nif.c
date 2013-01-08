@@ -1,5 +1,6 @@
-#include <stdio.h>
+#define _POSIX_C_SOURCE 200809L // for strdup
 #include <string.h>
+#include <stdio.h>
 
 #include "erl_nif.h"
 #include "yang_parser.h"
@@ -10,14 +11,12 @@
 static ERL_NIF_TERM am_ok;
 static ERL_NIF_TERM am_error;
 static ERL_NIF_TERM am_undefined;
-static yang_atom_t yam_identifier;
-static yang_atom_t yam_identifier_ref;
-static yang_atom_t yam_uri;
-static yang_atom_t yam_boolean;
-static yang_atom_t yam_ordered_by_arg;
-static yang_atom_t yam_enum_arg;
-static yang_atom_t yam_deviate_arg;
-static yang_atom_t yam_status_arg;
+
+#define F_ERL_ATOM           (1 << 16)
+#define F_ERL_INT            (1 << 17)
+#define F_ERL_IDENTIFIER_REF (1 << 18)
+#define F_ERL_ATOM_OR_INT    (1 << 19)
+
 
 static ERL_NIF_TERM
 mk_tree(ErlNifEnv *env, struct yang_statement *s, ERL_NIF_TERM fname)
@@ -43,15 +42,22 @@ mk_tree(ErlNifEnv *env, struct yang_statement *s, ERL_NIF_TERM fname)
         kw = enif_make_atom(env, yang_atom_to_str(s->keyword));
     }
     if (s->arg && s->arg_type) {
-        if (s->arg_type->name == yam_identifier
-            || s->arg_type->name == yam_uri
-            || s->arg_type->name == yam_boolean
-            || s->arg_type->name == yam_ordered_by_arg
-            || s->arg_type->name == yam_enum_arg
-            || s->arg_type->name == yam_deviate_arg
-            || s->arg_type->name == yam_status_arg) {
+        if (s->arg_type->flags & F_ERL_ATOM) {
             arg = enif_make_atom(env, s->arg);
-        } else if (s->arg_type->name == yam_identifier_ref) {
+        } else if (s->arg_type->flags & F_ERL_INT) {
+            arg = enif_make_long(env, strtol(s->arg, NULL, 10));
+        } else if (s->arg_type->flags & F_ERL_ATOM_OR_INT) {
+            char *end;
+            long int i;
+            i = strtol(s->arg, &end, 10);
+            if (end == s->arg) {
+                /* not an integer */
+                arg = enif_make_atom(env, s->arg);
+            } else {
+                /* an integer */
+                arg = enif_make_long(env, i);
+            }
+        } else if (s->arg_type->flags & F_ERL_IDENTIFIER_REF) {
             if ((p = strchr(s->arg, ':'))) {
                 arg = enif_make_tuple2(
                     env,
@@ -137,7 +143,7 @@ install_arg_types(ErlNifEnv *env, ERL_NIF_TERM etypes, unsigned int len)
     ERL_NIF_TERM tmp, head, tail;
     const ERL_NIF_TERM *type_spec;
     char buf[BUFSIZ];
-    int arity = 2;
+    int arity;
     struct yang_arg_type types[len];
     int r;
 
@@ -150,25 +156,46 @@ install_arg_types(ErlNifEnv *env, ERL_NIF_TERM etypes, unsigned int len)
         if (!enif_get_tuple(env, head, &arity, &type_spec)) {
             return enif_make_badarg(env);
         }
+        if (arity != 3) {
+            return enif_make_badarg(env);
+        }
         if (!enif_get_atom(env, type_spec[0], buf, BUFSIZ, ERL_NIF_LATIN1)) {
             return enif_make_badarg(env);
         }
         types[i].name = yang_make_atom(buf);
         if (enif_get_string(env, type_spec[1], buf, BUFSIZ, ERL_NIF_LATIN1)
             <= 0) {
+            if (!enif_get_atom(env, type_spec[1], buf, BUFSIZ,
+                               ERL_NIF_LATIN1)) {
+                return enif_make_badarg(env);
+            } else if (strcmp(buf, "undefined") != 0) {
+                return enif_make_badarg(env);
+            }
+        } else {
+            types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+            types[i].syntax.xsd_regexp = strdup(buf);
+        }
+        if (!enif_get_atom(env, type_spec[2], buf, BUFSIZ, ERL_NIF_LATIN1)) {
             return enif_make_badarg(env);
         }
-        if (strlen(buf) == 0) {
-            types[i].regexp = NULL;
+        if (strcmp(buf, "string") == 0) {
+            // default, no bit set
+        } else if (strcmp(buf, "atom") == 0) {
+            types[i].flags |= F_ERL_ATOM;
+        } else if (strcmp(buf, "int") == 0) {
+            types[i].flags |= F_ERL_INT;
+        } else if (strcmp(buf, "atom-or-int") == 0) {
+            types[i].flags |= F_ERL_ATOM_OR_INT;
+        } else if (strcmp(buf, "identifier-ref") == 0) {
+            types[i].flags |= F_ERL_IDENTIFIER_REF;
         } else {
-            types[i].regexp = (char *)malloc(sizeof(char) * strlen(buf));
-            strcpy(types[i].regexp, buf);
+            return enif_make_badarg(env);
         }
     }
     r = yang_install_arg_types(types, len);
     for (i = 0; i < len; i++) {
-        if (types[i].regexp) {
-            free(types[i].regexp);
+        if (types[i].flags & F_ARG_TYPE_SYNTAX_REGEXP) {
+            free(types[i].syntax.xsd_regexp);
         }
     }
     if (!r) {
@@ -188,23 +215,43 @@ install_arg_types_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     return install_arg_types(env, argv[0], len);
 }
 
-static ERL_NIF_TERM
-get_arg_type_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+static void
+set_type_bits(void)
 {
-    char buf[BUFSIZ];
     struct yang_arg_type *t;
+    const char *atom_types[] = {
+        "identifier",
+        "uri",
+        "boolean",
+        "ordered-by-arg",
+        "enum-arg",
+        "deviate-arg",
+        "status-arg",
+        NULL};
+    const char *int_types[] = {
+        "non-negative-integer",
+        NULL};
+    const char *atom_or_int_types[] = {
+        "length-arg",
+        "max-value",
+        NULL};
+    int i;
 
-    if (argc != 1 ||
-        !enif_get_atom(env, argv[0], buf, BUFSIZ, ERL_NIF_LATIN1)) {
-        return enif_make_badarg(env);
+    for (i = 0; atom_types[i]; i++) {
+        t = yang_get_arg_type(yang_make_atom(atom_types[i]));
+        t->flags |= F_ERL_ATOM;
     }
-    t = yang_get_arg_type(yang_make_atom(buf));
-    if (!t) {
-        return am_error;
+    for (i = 0; int_types[i]; i++) {
+        t = yang_get_arg_type(yang_make_atom(int_types[i]));
+        t->flags |= F_ERL_INT;
     }
-    return am_ok;
+    for (i = 0; atom_or_int_types[i]; i++) {
+        t = yang_get_arg_type(yang_make_atom(atom_or_int_types[i]));
+        t->flags |= F_ERL_ATOM_OR_INT;
+    }
+    t = yang_get_arg_type(yang_make_atom("identifier-ref"));
+    t->flags |= F_ERL_IDENTIFIER_REF;
 }
-
 
 static int
 load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info)
@@ -212,15 +259,8 @@ load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info)
     am_ok = enif_make_atom(env, "ok");
     am_error = enif_make_atom(env, "error");
     am_undefined = enif_make_atom(env, "undefined");
-    yam_identifier = yang_make_atom("identifier");
-    yam_identifier_ref = yang_make_atom("identifier-ref");
-    yam_uri = yang_make_atom("uri");
-    yam_boolean = yang_make_atom("boolean");
-    yam_ordered_by_arg = yang_make_atom("ordered-by-arg");
-    yam_enum_arg = yang_make_atom("enum-arg");
-    yam_deviate_arg = yang_make_atom("deviate-arg");
-    yam_status_arg = yang_make_atom("status-arg");
     yang_init_grammar();
+    set_type_bits();
     return 0;
 }
 
@@ -242,7 +282,6 @@ upgrade(ErlNifEnv* env, void** priv_data, void** old_priv_data,
 
 static ErlNifFunc nif_funcs[] = {
     {"install_arg_types", 1, install_arg_types_nif},
-    {"get_arg_type", 1, get_arg_type_nif},
     {"parse", 1, parse_nif}
 };
 
