@@ -1,6 +1,8 @@
 -module(yang_llerror).
 -export([code2err/1]).
 
+%% FIXME: generate this file from yang_error.h
+
 code2err(1) -> 'YANG_ERR_INTERNAL';
 code2err(2) -> 'YANG_ERR_MEMORY_ERROR';
 code2err(100) -> 'YANG_ERR_PARSE_EOF';

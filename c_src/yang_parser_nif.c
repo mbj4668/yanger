@@ -215,6 +215,142 @@ install_arg_types_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     return install_arg_types(env, argv[0], len);
 }
 
+static ERL_NIF_TERM
+install_grammar(ErlNifEnv *env, ERL_NIF_TERM module, ERL_NIF_TERM specs,
+                unsigned int nspecs, unsigned int nrules)
+{
+    struct yang_statement_spec spec[nspecs];
+    struct yang_statement_rule rule[nrules];
+    ERL_NIF_TERM tmp, spec_head, spec_tail, rule_head, rule_tail;
+    const ERL_NIF_TERM *stmt_spec, *rule_spec, *kw;
+    char buf[BUFSIZ];
+    unsigned int len;
+    int arity;
+    unsigned int i, j, rule_idx=0;
+
+    tmp = specs;
+    for (i = 0; i < nspecs; i++) {
+        if (!enif_get_list_cell(env, tmp, &spec_head, &spec_tail)) {
+            fprintf(stderr, "bad grammar %d\n", __LINE__);
+            return enif_make_badarg(env);
+        }
+        if (!enif_get_tuple(env, spec_head, &arity, &stmt_spec) || arity != 3) {
+            fprintf(stderr, "bad grammar %d\n", __LINE__);
+            return enif_make_badarg(env);
+        }
+        if (!enif_get_atom(env, stmt_spec[0], buf, BUFSIZ, ERL_NIF_LATIN1)) {
+            fprintf(stderr, "bad grammar %d\n", __LINE__);
+            return enif_make_badarg(env);
+        }
+        spec[i].keyword = yang_make_atom(buf);
+        if (!enif_get_atom(env, stmt_spec[1], buf, BUFSIZ, ERL_NIF_LATIN1)) {
+            if (enif_is_empty_list(env, stmt_spec[1])) {
+                spec[i].arg_type = NULL;
+            } else
+                fprintf(stderr, "bad grammar %d\n", __LINE__);
+                return enif_make_badarg(env);
+        } else {
+            if (!(spec[i].arg_type = yang_get_arg_type(yang_make_atom(buf)))) {
+                fprintf(stderr, "bad grammar %d\n", __LINE__);
+                return enif_make_badarg(env);
+            }
+        }
+        if (!enif_get_list_length(env, stmt_spec[2], &len)) {
+            fprintf(stderr, "bad grammar %d\n", __LINE__);
+            return enif_make_badarg(env);
+        }
+        spec[i].nrules = len;
+        spec[i].rules = &rule[rule_idx];
+        tmp = stmt_spec[2];
+        for (j = 0; j < len; j++, rule_idx++) {
+            if (!enif_get_list_cell(env, tmp, &rule_head, &rule_tail)) {
+                fprintf(stderr, "bad grammar %d\n", __LINE__);
+                return enif_make_badarg(env);
+            }
+            if (!enif_get_tuple(env, rule_head, &arity, &rule_spec) ||
+                arity != 2) {
+                fprintf(stderr, "bad grammar %d\n", __LINE__);
+                return enif_make_badarg(env);
+            }
+            if (enif_is_atom(env, rule_spec[0])) {
+                enif_get_atom(env, rule_spec[0], buf, BUFSIZ, ERL_NIF_LATIN1);
+                rule[rule_idx].module_name = NULL;
+                rule[rule_idx].keyword = yang_make_atom(buf);
+            } else {
+                if (!enif_get_tuple(env, rule_spec[0], &arity, &kw) ||
+                    arity != 2) {
+                    fprintf(stderr, "bad grammar %d\n", __LINE__);
+                    return enif_make_badarg(env);
+                }
+                if (!enif_get_atom(env, kw[0], buf, BUFSIZ, ERL_NIF_LATIN1)) {
+                    fprintf(stderr, "bad grammar %d\n", __LINE__);
+                    return enif_make_badarg(env);
+                }
+                rule[rule_idx].module_name = yang_make_atom(buf);
+                if (!enif_get_atom(env, kw[1], buf, BUFSIZ, ERL_NIF_LATIN1)) {
+                    fprintf(stderr, "bad grammar %d\n", __LINE__);
+                    return enif_make_badarg(env);
+                }
+                rule[rule_idx].keyword = yang_make_atom(buf);
+            }
+            if (!enif_get_atom(env, rule_spec[1], buf, BUFSIZ,ERL_NIF_LATIN1)) {
+                fprintf(stderr, "bad grammar %d\n", __LINE__);
+                return enif_make_badarg(env);
+            }
+            if ((buf[0] == '?'
+                 || buf[0] == '1'
+                 || buf[0] == '*'
+                 || buf[0] == '+') && buf[1] == '\0') {
+                rule[rule_idx].occurance = buf[0];
+            } else {
+                fprintf(stderr, "bad grammar %d\n", __LINE__);
+                return enif_make_badarg(env);
+            }
+            tmp = rule_tail;
+        }
+
+        tmp = spec_tail;
+    }
+
+    return am_ok;
+}
+
+static ERL_NIF_TERM
+install_grammar_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    unsigned int nspecs;
+    unsigned int nrules;
+    ERL_NIF_TERM tmp, head, tail;
+    const ERL_NIF_TERM *stmt_spec;
+    unsigned int i;
+    int arity;
+    unsigned int len;
+
+    if (argc != 2 ||
+        !enif_get_list_length(env, argv[1], &nspecs)) {
+        return enif_make_badarg(env);
+    }
+    tmp = argv[1];
+    nrules = 0;
+    for (i = 0; i < nspecs; i++) {
+        if (!enif_get_list_cell(env, tmp, &head, &tail)) {
+            return enif_make_badarg(env);
+        }
+        if (!enif_get_tuple(env, head, &arity, &stmt_spec)) {
+            return enif_make_badarg(env);
+        }
+        if (arity != 3) {
+            return enif_make_badarg(env);
+        }
+        if (!enif_get_list_length(env, stmt_spec[2], &len)) {
+            return enif_make_badarg(env);
+        }
+        nrules += len;
+        tmp = tail;
+    }
+    return install_grammar(env, argv[0], argv[1], nspecs, nrules);
+}
+
 static void
 set_type_bits(void)
 {
@@ -282,6 +418,7 @@ upgrade(ErlNifEnv* env, void** priv_data, void** old_priv_data,
 
 static ErlNifFunc nif_funcs[] = {
     {"install_arg_types", 1, install_arg_types_nif},
+    {"install_grammar", 2, install_grammar_nif},
     {"parse", 1, parse_nif}
 };
 

@@ -121,7 +121,8 @@
 -type validate_status() :: 'undefined' | 'processing' | 'done'.
 
 %% see yang_parser_nif.c
--type arg_type() :: string() | atom() | integer().
+-type arg_type() :: string() | atom() | integer() | identifier_ref().
+
 -type stmt() :: {keyword(), Arg :: arg_type(), pos(), [stmt()]}.
 
 -type raw_identifier_ref() :: atom() | {Prefix :: atom(), Name :: atom()}.
