@@ -110,6 +110,7 @@ parse_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     struct yang_error_ctx *ectx;
     ERL_NIF_TERM fname, res;
     int r;
+    bool canonical = false;
 
     if (argc != 1 ||
         enif_get_string(env, argv[0], filename, BUFSIZ, ERL_NIF_LATIN1) <= 0) {
@@ -119,7 +120,7 @@ parse_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     ectx = yang_alloc_err_ctx();
     r = yang_parse(filename, &stmt, ectx);
     if (r) {
-        yang_grammar_check_module(stmt, ectx);
+        yang_grammar_check_module(stmt, canonical, ectx);
     }
     if (ectx->err != NULL) {
         res = enif_make_tuple2(env,
@@ -216,7 +217,7 @@ install_arg_types_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 }
 
 static ERL_NIF_TERM
-install_grammar(ErlNifEnv *env, ERL_NIF_TERM module, ERL_NIF_TERM specs,
+install_grammar(ErlNifEnv *env, ERL_NIF_TERM module_name, ERL_NIF_TERM specs,
                 unsigned int nspecs, unsigned int nrules)
 {
     struct yang_statement_spec spec[nspecs];
@@ -312,6 +313,13 @@ install_grammar(ErlNifEnv *env, ERL_NIF_TERM module, ERL_NIF_TERM specs,
         tmp = spec_tail;
     }
 
+    if (!enif_get_atom(env, module_name, buf, BUFSIZ,ERL_NIF_LATIN1)) {
+        fprintf(stderr, "bad grammar %d\n", __LINE__);
+        return enif_make_badarg(env);
+    }
+    if (!yang_install_grammar(yang_make_atom(buf), spec, nspecs)) {
+        return am_error;
+    }
     return am_ok;
 }
 

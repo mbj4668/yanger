@@ -13,6 +13,7 @@ struct yang_statement_rule {
        extension */
     yang_atom_t module_name;
     yang_atom_t keyword;
+    struct yang_statement_spec *spec;
     char occurance; /* '?', '1', '*', '+' */
 };
 
@@ -61,8 +62,10 @@ extern bool yang_install_grammar(yang_atom_t module_name,
 */
 extern bool yang_install_grammar_str(const char *module_name,
                                      const char *stmts[]);
+
 extern struct yang_arg_type *yang_get_arg_type(yang_atom_t name);
 extern bool yang_grammar_check_module(struct yang_statement *stmt,
+                                      bool canonical,
                                       struct yang_error_ctx *ectx);
 extern void yang_print_grammar(void);
 

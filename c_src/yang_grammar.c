@@ -31,14 +31,6 @@ struct grammar {
 static struct grammar *grammar = NULL;
 static int ngrammar = 0;
 
-/* array of specs; shared by all grammars */
-static struct yang_statement_spec *specs = NULL;
-static int nspecs = 0;
-
-/* array of rules; shared by all statement specs */
-static struct yang_statement_rule *rules = NULL;
-static int nrules = 0;
-
 /* array of keyword's argument types */
 static struct yang_arg_type *types = NULL;
 static int ntypes = 0;
@@ -110,6 +102,7 @@ match_rule(struct yang_statement *stmt,
            int *start,
            int nrules,
            struct yang_statement_rule **found,
+           bool canonical,
            struct yang_error_ctx *ectx)
 {
     int i;
@@ -137,8 +130,7 @@ match_rule(struct yang_statement *stmt,
                              "keyword '%s' already given", buf);
                 return false;
             }
-        }
-        if (rules[i].keyword == am_sp_cut) {
+        } else if (rules[i].keyword == am_sp_cut) {
             /* any non-optional statements left are errors */
             int j;
             for (j = *start; j < i; j++) {
@@ -153,6 +145,14 @@ match_rule(struct yang_statement *stmt,
             }
             /* everything before the cut is now done */
             *start = i+1;
+        } else if (canonical &&
+                   (rules[i].occurance == '1' || rules[i].occurance == '+')) {
+            /* consume it, so we don't report the same error again */
+            rules[i].occurance = '0';
+            build_keyword_from_rule(buf, BUFSIZ, &rules[i]);
+            yang_add_err(ectx, YANG_ERR_GRAMMAR_EXPECTED_KEYWORD, stmt,
+                         "expected keyword '%s'", buf);
+            return false;
         }
     }
     /* no statement matched */
@@ -166,20 +166,13 @@ static struct yang_statement_spec *
 get_spec_from_rule(struct grammar *g,
                    struct yang_statement_rule *rule)
 {
-    int low = 0;
-    int high = g->nspecs;
-    int mid;
+    int i;
 
     assert(g->module_name == rule->module_name);
 
-    while (low < high) {
-        mid = low + (high-low) / 2;
-        if (rule->keyword < g->specs[mid].keyword) {
-            high = mid;
-        } else if (rule->keyword > g->specs[mid].keyword) {
-            low = mid + 1;
-        } else {
-            return &g->specs[mid];
+    for (i = 0; i < g->nspecs; i++) {
+        if (rule->keyword == g->specs[i].keyword) {
+            return &g->specs[i];
         }
     }
     return NULL;
@@ -190,6 +183,7 @@ chk_statements(struct yang_statement *stmt,
                struct yang_statement *parent,
                struct yang_statement_rule *rules,
                int nrules,
+               bool canonical,
                struct yang_error_ctx *ectx)
 {
     struct yang_statement_rule *rule;
@@ -206,18 +200,20 @@ chk_statements(struct yang_statement *stmt,
         g = get_grammar(stmt->module_name);
         if (g) {
             /* this statement is known to us, verify that it is valid here */
-            if (!match_rule(stmt, rules, &start, nrules, &rule, ectx)) {
-                //return false;
-                stmt = stmt->next;
-                continue;
+            if (!match_rule(stmt, rules, &start,
+                            nrules, &rule, canonical, ectx)) {
+                return false;
             }
             /* it is valid here, get its spec */
+            subspec = rule->spec;
+            /*
             if (!(subspec = get_spec_from_rule(g, rule))) {
                 build_keyword_from_rule(buf, BUFSIZ, rule);
                 yang_add_err(ectx, YANG_ERR_INTERNAL, stmt,
                              "spec for '%s' not found", buf);
                 return false;
             }
+            */
             /* check that the argument is there */
             if (subspec->arg_type && stmt->arg) {
                 stmt->arg_type = subspec->arg_type;
@@ -252,11 +248,9 @@ chk_statements(struct yang_statement *stmt,
             memcpy(subrules, subspec->rules, sz);
             /* a rule for this statement was found, verify its substmts */
             if (!chk_statements(stmt->substmt, stmt, subrules,
-                                subspec->nrules, ectx)) {
+                                subspec->nrules, canonical, ectx)) {
                 free(subrules);
-                //return false;
-                stmt = stmt->next;
-                continue;
+                return false;
             }
             free(subrules);
 
@@ -294,6 +288,8 @@ yang_init_grammar()
     am_sp_cut = yang_make_atom("$cut");
 
     if (!yang_init_core_stmt_grammar()) {
+        fprintf(stderr, "%s:%d: init grammar failed\n",
+                __FILE__, __LINE__);
         return false;
     }
     return true;
@@ -380,70 +376,83 @@ yang_install_arg_types_str(const char *stypes[])
     return true;
 }
 
+/* set rule's spec ptr */
+static bool
+fix_grammar(void)
+{
+    int i, j, k;
+    struct yang_statement_spec *s;
+    struct yang_statement_rule *r;
+    struct grammar *g;
+
+    for (i = 0; i < ngrammar; i++) {
+        for (j = 0; j < grammar[i].nspecs; j++) {
+            s = &grammar[i].specs[j];
+            for (k = 0; k < s->nrules; k++) {
+                r = &s->rules[k];
+                if (!r->spec && r->keyword != am_sp_cut) {
+                    if (!(g = get_grammar(r->module_name))) {
+                        fprintf(stderr, "grammar for %s not found\n",
+                                r->module_name?r->module_name:"(null)");
+                        return false;
+                    }
+                    if (!(r->spec = get_spec_from_rule(g, r))) {
+                        fprintf(stderr, "spec not found %s %s\n",
+                                r->module_name, r->keyword);
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+    return true;
+}
+
 bool
 yang_install_grammar(yang_atom_t module_name,
                      struct yang_statement_spec new_specs[], int len)
 {
-    int i, j, r;
-    int grammar_start, specs_start, rules_start;
-    int sz;
+    int i, j;
+    int grammar_start;
+    struct grammar *g;
 
     /* make room for one new grammar */
     grammar_start = ngrammar;
     ngrammar++;
     grammar =
         (struct grammar *)
-        realloc(grammar, sz = ngrammar * sizeof(struct grammar));
+        realloc(grammar, ngrammar * sizeof(struct grammar));
     if (!grammar) {
         return false;
     }
+    g = &grammar[grammar_start];
 
-    /* make room for len new specs */
-    specs_start = nspecs;
-    nspecs += len;
-    specs =
+    g->specs =
         (struct yang_statement_spec *)
-        realloc(specs, sz = nspecs * sizeof(struct yang_statement_spec));
-    if (!specs) {
-        return false;
-    }
+        malloc(len * sizeof(struct yang_statement_spec));
+    g->nspecs = len;
 
-    /* calculate the total number of rules in the spec */
-    r = 0;
-    for (i = 0; i < len; i++) {
-        r += new_specs[i].nrules;
-    }
-
-    /* make room for r new rules */
-    rules_start = nrules;
-    nrules += r;
-    rules =
-        (struct yang_statement_rule *)
-        realloc(rules, sz = nrules * sizeof(struct yang_statement_rule));
-    if (!rules) {
+    if (!g->specs) {
         return false;
     }
 
     /* add the module to the list of known extension modules */
-    grammar[grammar_start].module_name = module_name;
-    grammar[grammar_start].specs = &specs[specs_start];
-    grammar[grammar_start].nspecs = len;
+    g->module_name = module_name;
 
     /* copy the input spec and all rules */
-    r = 0;
     for (i = 0; i < len; i++) {
-        specs[specs_start + i].keyword = new_specs[i].keyword;
-        specs[specs_start + i].arg_type = new_specs[i].arg_type;
-        specs[specs_start + i].rules = &rules[rules_start + r];
+        g->specs[i].keyword = new_specs[i].keyword;
+        g->specs[i].arg_type = new_specs[i].arg_type;
+        g->specs[i].rules =
+            (struct yang_statement_rule *)
+            malloc(new_specs[i].nrules * sizeof(struct yang_statement_rule));
         for (j = 0; j < new_specs[i].nrules; j++) {
-            rules[rules_start + r + j] = new_specs[i].rules[j];
+            g->specs[i].rules[j] = new_specs[i].rules[j];
+            g->specs[i].rules[j].spec = NULL;
         }
-        r += j;
-        specs[specs_start + i].nrules = new_specs[i].nrules;
+        g->specs[i].nrules = new_specs[i].nrules;
     }
-    qsort(specs + specs_start, len, sizeof(struct yang_statement_spec),
-          cmpatom);
-    return true;
+    return fix_grammar();
 }
 
 static bool
@@ -650,6 +659,7 @@ resolve_module_names_from_prefixes(int nprefixes,
 
 bool
 yang_grammar_check_module(struct yang_statement *stmt,
+                          bool canonical,
                           struct yang_error_ctx *ectx)
 {
     struct yang_statement_rule top_rule[1];
@@ -670,6 +680,7 @@ yang_grammar_check_module(struct yang_statement *stmt,
         return false;
     }
     top_rule[0].occurance = '1';
+    top_rule[0].spec = get_spec_from_rule(get_grammar(NULL), &top_rule[0]);
 
     /* resolve all prefixes to module names.  first count the prefixes */
     nprefixes = 1; // we always have our own prefix
@@ -690,7 +701,7 @@ yang_grammar_check_module(struct yang_statement *stmt,
     }
     resolve_module_names_from_prefixes(nprefixes, stmt, ectx);
 
-    return chk_statements(stmt, NULL, &top_rule[0], 1, ectx);
+    return chk_statements(stmt, NULL, &top_rule[0], 1, canonical, ectx);
 }
 
 void
@@ -711,7 +722,8 @@ yang_print_grammar()
                    sp->arg_type ? sp->arg_type->name : "null");
             for (r = 0; r < sp->nrules; r++) {
                 rp = &sp->rules[r];
-                printf("    %s %c\n", rp->keyword, rp->occurance);
+                printf("    %s %c (%d)\n",
+                       rp->keyword, rp->occurance, (int)rp->spec);
             }
         }
     }
