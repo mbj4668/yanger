@@ -166,6 +166,9 @@
           files :: yang:map({Name :: atom(), Revision :: atom()},
                             FileName :: string()),
           typemap :: yang:map(), % FIXME map/2
+          error_codes = [] :: [{ErrCode :: atom(),
+                                Level :: 'error' | 'warning',
+                                Fmt :: string()}],
           %% FIXME: make ets tables of errors and unused_augments?
           %% then we don't have to return an updated Ctx all over the code...
           errors = [] :: [#yerror{}],

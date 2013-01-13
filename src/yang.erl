@@ -209,9 +209,12 @@ is_plugin(Module) ->
 -spec new_ctx(Plugins :: [ModuleName :: atom()]) -> #yctx{}.
 %% @doc Creates a new YANG compiler context and initializes the plugins.
 new_ctx(Plugins) ->
-    lists:foldl(fun(M, Ctx1) -> M:init(Ctx1) end,
-                #yctx{plugins = Plugins},
-                Plugins).
+    ErrorCodes =
+        yang_error:codes() ++
+        yang_llerror:codes(),
+    Ctx0 = #yctx{error_codes = ErrorCodes,
+                 plugins = Plugins},
+    lists:foldl(fun(M, Ctx1) -> M:init(Ctx1) end, Ctx0, Plugins).
 
 -spec init_ctx(#yctx{}, SearchPath :: [Dir :: string()]) ->
         #yctx{}.
@@ -270,6 +273,8 @@ search_path() ->
            end.
 
 %% called when a filename is given on the cmdline
+-spec add_file(#yctx{}, FileName :: string()) ->
+        {Success :: boolean(), #yctx{}}.
 add_file(Ctx, FileName) ->
     try
         add_file0(Ctx, FileName)
@@ -313,17 +318,17 @@ tst([FileName]) when is_atom(FileName) ->
 tst(FileName) ->
     case add_file(init_ctx([], load_plugins([])), FileName) of
         {false, Ctx} ->
-            print_errors(Ctx#yctx.errors, FileName),
+            print_errors(Ctx, FileName),
             error;
         {true, Ctx, _M} ->
 %            pp_module(_M),
-            print_errors(Ctx#yctx.errors, FileName)
+            print_errors(Ctx, FileName)
     end.
 %% END DEBUG CODE
 
 
 
-print_errors(Errors, FileName) ->
+print_errors(Ctx, FileName) ->
     F = fun(#yerror{pos = PosA}, #yerror{pos = PosB}) ->
                 if element(1, PosA) == element(1, PosB) ->
                         PosA =< PosB;
@@ -333,9 +338,9 @@ print_errors(Errors, FileName) ->
                         PosA =< PosB
                 end
         end,
-    SortedErrors = lists:sort(F, Errors),
+    SortedErrors = lists:sort(F, Ctx#yctx.errors),
     lists:foreach(fun(E) ->
-                          io:format("~s\n", [yang_error:fmt_error(E)])
+                          io:format("~s\n", [yang_error:fmt_error(Ctx, E)])
                   end, SortedErrors).
 
 parse_file_name(FileName) ->
@@ -377,8 +382,17 @@ search_module(Ctx, FromPos, ModKeyword, ModuleName, Revision) ->
                             {false, add_llerrors(LLErrors, Ctx)}
                     end;
                 none ->
-                    Ctx1 = add_error(Ctx, FromPos, 'YANG_ERR_MODULE_NOT_FOUND',
-                                     [ModuleName, Revision]),
+                    Ctx1 =
+                        case Revision of
+                            undefined ->
+                                add_error(Ctx, FromPos,
+                                          'YANG_ERR_MODULE_NOT_FOUND',
+                                          [ModuleName]);
+                            _ ->
+                                add_error(Ctx, FromPos,
+                                          'YANG_ERR_MODULE_REV_NOT_FOUND',
+                                          [ModuleName, Revision])
+                        end,
                     {false, Ctx1}
             end
     end.
@@ -542,7 +556,8 @@ parse_linkage([], M, Ctx) ->
 v_include(M, Pos, SubM, Ctx1) ->
     if SubM#module.kind /= 'submodule' ->
             {_, _, SubPos, _} = SubM#module.stmt,
-            add_error(Ctx1, Pos, 'YANG_ERR_BAD_INCLUDE', [SubPos]);
+            add_error(Ctx1, Pos, 'YANG_ERR_BAD_INCLUDE',
+                      [yang_error:fmt_pos(SubPos)]);
        SubM#module.modulename /= M#module.modulename ->
             add_error(Ctx1, Pos, 'YANG_ERR_BAD_BELONGS_TO',
                       [M#module.name, SubM#module.name]);
@@ -577,7 +592,7 @@ parse_revision(Stmts, M, Ctx) ->
 
 parse_revision([{'revision', Arg, Pos, _Substmts} | T], M, Ctx, PrevRevision) ->
     if Arg > PrevRevision, PrevRevision /= undefined ->
-            Ctx1 = add_warning(Ctx, Pos, 'YANG_ERR_REVISION_ORDER', []),
+            Ctx1 = add_error(Ctx, Pos, 'YANG_ERR_REVISION_ORDER', []),
             parse_revision(T, M, Ctx1, Arg);
        true ->
             parse_revision(T, M, Ctx, Arg)
@@ -716,7 +731,7 @@ add_to_definitions_map(Name, Item, StmtPos, Map, Ctx) ->
 
 add_dup_error(Ctx, Keyword, Name, NewPos, PrevPos) ->
     add_error(Ctx, NewPos, 'YANG_ERR_DUPLICATE_DEFINITION',
-              [Keyword, Name, PrevPos]).
+              [Keyword, Name, yang_error:fmt_pos(PrevPos)]).
 
 add_from_submodules(GetMapF, GetStmtF, M, RawMap, Ctx0) ->
     %% First, create a new map with all items from all submodules
@@ -1263,7 +1278,8 @@ expand_uses2([Sn0 | T], RefTree0, UsesPos, M, Ctx0, ParentConfig, Acc) ->
             error ->
                 {Sn1,
                  add_error(Ctx1, UsesPos,
-                           'YANG_ERR_INVALID_CONFIG_USES', [sn_pos(Sn1)])}
+                           'YANG_ERR_INVALID_CONFIG_USES',
+                           [yang_error:fmt_pos(sn_pos(Sn1))])}
         end,
     %% Expand children
     {ExpChildren, Ctx3} =
@@ -1281,7 +1297,8 @@ expand_uses2([], RefTree, _, _, Ctx0, _, Acc) ->
                            fun({Pos, _}, Ctx3) ->
                                    add_error(Ctx3, Pos,
                                              'YANG_ERR_REFINE_NOT_FOUND',
-                                             [Tag])
+                                             [yang_error:fmt_yang_identifier(
+                                                Tag)])
                            end, Ctx1, Values),
                      {recurse, Ctx2}
              end, Ctx0, RefTree),
@@ -1301,7 +1318,8 @@ augment_children(Augments, Children, Ctx0) ->
     Ctx2 =
         lists:foldl(
           fun({Pos, Id}, Ctx00) ->
-                  add_error(Ctx00, Pos, 'YANG_ERR_NODE_NOT_FOUND', [Id])
+                  add_error(Ctx00, Pos, 'YANG_ERR_NODE_NOT_FOUND',
+                            [yang_error:fmt_yang_identifier(Id)])
           end, Ctx1, UndefAugNodes),
     {AugmentedChildren, Ctx2}.
 
@@ -1361,7 +1379,8 @@ insert_child(NewSn, [Sn | Sns], Acc, ParentConfig, UndefAugNodes, Ctx0)
             {lists:reverse(Acc, [NewSn | Sns]),
              UndefAugNodes1,
              add_error(Ctx0, AugPos, 'YANG_ERR_BAD_AUGMENT_NODE_TYPE',
-                       [NewSn#sn.kind, NewSn#sn.name])};
+                       [NewSn#sn.kind,
+                        yang_error:fmt_yang_identifier(NewSn#sn.name)])};
        true ->
             case chk_config(ParentConfig, NewSn#sn.config) of
                 error ->
@@ -1791,17 +1810,10 @@ mk_prefix_map([], Map) ->
     Map.
 
 add_error(Ctx, Pos, ErrCode, Args) ->
-    add_error(error, Ctx, Pos, ErrCode, Args).
-
-add_warning(Ctx, Pos, ErrCode, Args) ->
-    add_error(warning, Ctx, Pos, ErrCode, Args).
+    yang_error:add_error(Ctx, Pos, ErrCode, Args).
 
 add_error(Level, Ctx, Pos, ErrCode, Args) ->
-    Ctx#yctx{errors = [#yerror{level = Level,
-                               pos = Pos,
-                               code = ErrCode,
-                               args = Args} | Ctx#yctx.errors]}.
-
+    yang_error:add_error(Level, Ctx, Pos, ErrCode, Args).
 
 add_llerrors([{Code, FName, LineNo, Offset, Str} | T], Ctx) ->
     Pos = case Offset of
