@@ -1,0 +1,164 @@
+#!/usr/bin/env escript
+%% -*- erlang -*-
+%%! -pa ../yanger/ebin -pa ../getopt/ebin
+
+-include_lib("yanger/include/yang.hrl").
+
+vsn() ->
+    "0.1".
+
+-record(opts, {
+          canonical = false,
+          print_error_code = false,
+          path = [],
+          warnings = [],
+          errors = []
+         }).
+
+main(Args) ->
+    case application:load(yanger) of
+        ok ->
+            %% Peek into the command line and load the plugin code
+            PluginPath = get_plugin_path(Args),
+            Plugins = yang:load_plugins(PluginPath),
+            %% Create a new context and initialize the plugins
+            Ctx0 = yang:new_ctx(Plugins),
+            Ctx1 = Ctx0#yctx{option_specs = opts() ++ Ctx0#yctx.option_specs},
+            %% Parse the command line
+            case getopt:parse(Ctx1#yctx.option_specs, Args) of
+                {ok, {Options, Files}} ->
+                    Ctx2 = Ctx1#yctx{options = Options},
+                    Opts = opts(Options, Ctx2),
+                    Ctx3 = yang:init_ctx(Ctx2, Opts#opts.path),
+                    %% Figure out what to do.
+                    WarningAsError = lists:member(error, Opts#opts.warnings),
+                    NoPrintWarnings = lists:member(none, Opts#opts.warnings),
+                    Ctx4 = Ctx3#yctx{warnings = {WarningAsError,
+                                                 NoPrintWarnings,
+                                                 Opts#opts.warnings,
+                                                 Opts#opts.errors}},
+                    run(Ctx4, Opts, Files);
+                {error, {Reason, Data}} ->
+                    io:format("error: ~p ~s\n", [Reason, Data]),
+                    print_usage(Ctx1),
+                    delayed_halt(1)
+            end;
+        _error ->
+            io:format("Could not load application.  Installation problem?\n"),
+            delayed_halt(1)
+    end.
+
+opts(Options, Ctx) ->
+    lists:foldl(
+      fun(Opt, Opts) ->
+              case Opt of
+                  help ->
+                      print_usage(Ctx),
+                      delayed_halt(0);
+                  version ->
+                      print_version(),
+                      delayed_halt(0);
+                  list_errors ->
+                      yang_error:print_error_codes(Ctx),
+                      delayed_halt(0);
+                  canonical ->
+                      Opts#opts{canonical = true};
+                  print_error_code ->
+                      Opts#opts{print_error_code = true};
+                  {path, P} ->
+                      Opts#opts{path = Opts#opts.path ++ string:tokens(P, ":")};
+                  {warning, W} ->
+                      Opts#opts{warnings = [W | Opts#opts.warnings]};
+                  {error, W} ->
+                      Opts#opts{errors = [W | Opts#opts.errors]};
+                  _ ->
+                      Opts
+              end
+      end, #opts{}, Options).
+
+run(Ctx0, Opts, Files) ->
+    Ctx1 = Ctx0#yctx{canonical = Opts#opts.canonical},
+    {Success, Ctx2} =
+        lists:foldl(
+          fun(File, {Success1, Ctx00}) ->
+                  case yang:add_file(Ctx00, File) of
+                      {true, Ctx01, _M} ->
+                          {Success1, Ctx01};
+                      {false, Ctx01} ->
+                          {false, Ctx01}
+                  end
+          end, {true, Ctx1}, Files),
+    ErrorsFound = yang_error:print_errors(Ctx2, Opts#opts.print_error_code),
+    case Success andalso (not ErrorsFound) of
+        true ->
+            delayed_halt(0);
+        false ->
+            delayed_halt(1)
+    end.
+
+name() ->
+    filename:basename(escript:script_name()).
+
+print_version() ->
+    io:format("~s ~s\n", [name(), vsn()]).
+
+print_usage(Ctx) ->
+    getopt:usage(
+      Ctx#yctx.option_specs, name(),
+      "<file>...",
+      [{"<file>",
+        "Validate and optionally convert the YANG module in <file>"}]).
+
+%% parse Args for --plugindir/-P in order for thge plugins to
+%% register themselves.
+get_plugin_path(["--plugindir", Dir | T]) ->
+    [Dir | get_plugin_path(T)];
+get_plugin_path(["-P", Dir | T]) ->
+    [Dir | get_plugin_path(T)];
+get_plugin_path([_ | T]) ->
+    get_plugin_path(T);
+get_plugin_path([]) ->
+    [].
+
+opts() ->
+    [{help,             $h, "help", undefined,
+      "Show this help message and exit."},
+     {version,          $v, "version", undefined,
+      "Show version number and exit."},
+     {print_error_code, undefined, "print-error-code", undefined,
+      "On errors, print the error code instead of the error message."},
+     {path,             $p, "path", string,
+      "colon-separated path for YANG modules."},
+     {canonical,        $c, "canonical", undefined,
+      "Validate the module(s) according to the canonical YANG order."},
+     {list_errors,      $e, "list-errors", undefined,
+      "Print a listing of all error and warning codes and exit."},
+     {warning,          $W, undefined, atom,
+      "If WARNING is 'error', treat all warnings as errors,"
+      "except any listed WARNING. If WARNING is 'none', do"
+      "not report any warnings."},
+     {error,            $E, undefined, atom,
+      "Treat each WARNING as an error.  For a list of"
+      "warnings, use --list-errors."}
+    ].
+
+
+delayed_halt(Code) ->
+    %% Work around buffer flushing issue in erlang:halt if OTP older
+    %% than R15B01.
+    %% TODO: remove workaround once we require R15B01 or newer
+    %% R15B01 introduced erlang:halt/2
+    case erlang:is_builtin(erlang, halt, 2) of
+        true ->
+            halt(Code);
+        false ->
+            case os:type() of
+                {win32, nt} ->
+                    timer:sleep(100),
+                    halt(Code);
+                _ ->
+                    halt(Code),
+                    %% workaround to delay exit until all output is written
+                    receive after infinity -> ok end
+            end
+    end.

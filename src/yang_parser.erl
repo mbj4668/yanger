@@ -58,6 +58,6 @@ parse(_FileName, _Canonical) ->
 %%% Internal functions
 
 init() ->
-    Nif = filename:join(code:priv_dir(epyang),"yang_parser_nif"),
+    Nif = filename:join(code:priv_dir(yanger),"yang_parser_nif"),
     ok = erlang:load_nif(Nif, 0).
 

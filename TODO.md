@@ -76,13 +76,6 @@
               }
             }
 
-    +   Add an output format to the 'epyang' command
-
-    +   Add command line parameters to the 'epyang' command
-
-        It would be nice if the plugin can be invoked from erlang
-        code as well.
-
     +   Hook into the validation code at well-defined places
         (doesn't have to be as flexible as pyang)
 
@@ -98,7 +91,7 @@
 
 *   scanner / parser / grammar validation
 
-    Try to merge tony's parser into current epyang.
+    Try to merge tony's parser into current code.
 
     It must be possible for plugins to register their own extension
     statements; see c_src/yang_grammar.h, functions
@@ -127,7 +120,7 @@
 
     Even better would be use the same error codes as pyang, and do
     the same kind of tests in pyang.  Then we could resue test cases
-    between epyang and pyang.  This may require updating pyang with
+    between this code and pyang.  This may require updating pyang with
     better error codes...
 
     Owner: None

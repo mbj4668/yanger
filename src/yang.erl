@@ -144,7 +144,7 @@
 load_plugins(PluginPath0) ->
     PluginPath1 =
         %% Always add plugins from the priv dir
-        code:priv_dir(epyang) ++
+        code:priv_dir(yanger) ++
         %% Always add plugins from an environment variable
         case os:getenv("YANGER_PLUGINPATH") of
             Str when is_list(Str) ->
