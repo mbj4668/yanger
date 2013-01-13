@@ -123,11 +123,17 @@ match_rule(struct yang_statement *stmt,
                 rules[i].occurance = '*';
                 *found = &rules[i];
                 return true;
-            } else {
+            } else if (rules[i].occurance == '0') {
                 build_keyword_from_stmt(buf, BUFSIZ, stmt);
                 yang_add_err(ectx, YANG_ERR_GRAMMAR_KEYWORD_ALREADY_FOUND,
                              stmt,
                              "keyword '%s' already given", buf);
+                return false;
+            } else if (rules[i].occurance == '-') {
+                build_keyword_from_stmt(buf, BUFSIZ, stmt);
+                yang_add_err(ectx, YANG_ERR_GRAMMAR_KEYWORD_ALREADY_FOUND,
+                             stmt,
+                             "unexpected keyword '%s'", buf);
                 return false;
             }
         } else if (rules[i].keyword == am_sp_cut) {
@@ -147,12 +153,18 @@ match_rule(struct yang_statement *stmt,
             *start = i+1;
         } else if (canonical &&
                    (rules[i].occurance == '1' || rules[i].occurance == '+')) {
+            char buf2[BUFSIZ];
             /* consume it, so we don't report the same error again */
             rules[i].occurance = '0';
             build_keyword_from_rule(buf, BUFSIZ, &rules[i]);
+            build_keyword_from_stmt(buf2, BUFSIZ, stmt);
             yang_add_err(ectx, YANG_ERR_GRAMMAR_EXPECTED_KEYWORD, stmt,
-                         "expected keyword '%s'", buf);
+                         "expected keyword '%s' before '%s'",
+                         buf, buf2);
             return false;
+        } else if (canonical) {
+            /* consume this rule */
+            rules[i].occurance = '-';
         }
     }
     /* no statement matched */
@@ -415,6 +427,11 @@ yang_install_grammar(yang_atom_t module_name,
     int i, j;
     int grammar_start;
     struct grammar *g;
+
+    if (get_grammar(module_name)) {
+        /* already installed */
+        return false;
+    }
 
     /* make room for one new grammar */
     grammar_start = ngrammar;

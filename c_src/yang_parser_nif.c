@@ -106,14 +106,25 @@ static ERL_NIF_TERM
 parse_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
     char filename[BUFSIZ];
+    char buf[BUFSIZ];
     struct yang_statement *stmt;
     struct yang_error_ctx *ectx;
     ERL_NIF_TERM fname, res;
     int r;
-    bool canonical = false;
+    bool canonical;
 
-    if (argc != 1 ||
-        enif_get_string(env, argv[0], filename, BUFSIZ, ERL_NIF_LATIN1) <= 0) {
+
+    if (argc != 2 ||
+        enif_get_string(env, argv[0], filename, BUFSIZ, ERL_NIF_LATIN1) <= 0 ||
+        enif_get_atom(env, argv[1], buf, BUFSIZ, ERL_NIF_LATIN1) <= 0)
+    {
+        return enif_make_badarg(env);
+    }
+    if (strcmp(buf, "true") == 0) {
+        canonical = true;
+    } else if (strcmp(buf, "false") == 0) {
+        canonical = false;
+    } else {
         return enif_make_badarg(env);
     }
 
@@ -427,7 +438,7 @@ upgrade(ErlNifEnv* env, void** priv_data, void** old_priv_data,
 static ErlNifFunc nif_funcs[] = {
     {"install_arg_types", 1, install_arg_types_nif},
     {"install_grammar", 2, install_grammar_nif},
-    {"parse", 1, parse_nif}
+    {"parse", 2, parse_nif}
 };
 
 

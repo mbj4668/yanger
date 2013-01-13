@@ -2,14 +2,14 @@
 
 -export([install_arg_types/1]).
 -export([install_grammar/2]).
--export([parse/1]).
+-export([parse/2]).
 
 -on_load(init/0).
 
 % dbg
 -export([a/0]).
 a() ->
-    yang_parser:parse("big.yang"),
+    yang_parser:parse("big.yang", false),
     ok.
 
 -type return_type() :: 'string'
@@ -48,11 +48,11 @@ install_arg_types(_Types) ->
 install_grammar(_ModuleName, _Specs) ->
     exit(nif_library_not_loaded).
 
--spec parse(FileName :: string()) ->
+-spec parse(FileName :: string(), Canonical :: boolean()) ->
         {ok, [yang:stmt()]}
       | {error, [{Code :: integer(), FName :: string(),
                   LineNo :: integer(), Offset :: integer(), Str :: string()}]}.
-parse(_X) ->
+parse(_FileName, _Canonical) ->
     exit(nif_library_not_loaded).
 
 %%% Internal functions
