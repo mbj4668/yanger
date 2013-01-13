@@ -318,30 +318,13 @@ tst([FileName]) when is_atom(FileName) ->
 tst(FileName) ->
     case add_file(init_ctx([], load_plugins([])), FileName) of
         {false, Ctx} ->
-            print_errors(Ctx, FileName),
+            yang_errors:print_errors(Ctx, false),
             error;
         {true, Ctx, _M} ->
 %            pp_module(_M),
-            print_errors(Ctx, FileName)
+            yang_error:print_errors(Ctx, false)
     end.
 %% END DEBUG CODE
-
-
-
-print_errors(Ctx, FileName) ->
-    F = fun(#yerror{pos = PosA}, #yerror{pos = PosB}) ->
-                if element(1, PosA) == element(1, PosB) ->
-                        PosA =< PosB;
-                   element(1, PosA) == FileName ->
-                        true;
-                   true ->
-                        PosA =< PosB
-                end
-        end,
-    SortedErrors = lists:sort(F, Ctx#yctx.errors),
-    lists:foreach(fun(E) ->
-                          io:format("~s\n", [yang_error:fmt_error(Ctx, E)])
-                  end, SortedErrors).
 
 parse_file_name(FileName) ->
     BaseName = filename:basename(FileName, ".yang"),

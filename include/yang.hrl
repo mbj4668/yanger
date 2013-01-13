@@ -182,6 +182,10 @@
           %% The available output formats.
           fmts = [] :: [{Fmt :: string(), Module :: atom()}],
           canonical = false :: boolean(),
+          warnings = {false, false, [], []} :: {WarningsAsErrors :: boolean(),
+                                                NoPrintWarnings :: boolean(),
+                                                TreatAsWarning :: [atom()],
+                                                TreatAsError :: [atom()]},
           hooks = #hooks{} :: #hooks{},
           pmap = yang:map_new() :: yang:map() % used by plugins
           %% FIXME: see class ctx in __init__.py

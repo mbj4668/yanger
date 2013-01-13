@@ -2,8 +2,9 @@
 
 -export([codes/0]).
 -export([add_error/4, add_error/5]).
+-export([print_errors/2]).
 -export([fmt_error/2, fmt_pos/1, fmt_yang_identifier/1]).
--export([print_errors/1]).
+-export([print_error_codes/1]).
 
 -include("yang.hrl").
 
@@ -13,20 +14,69 @@
         #yctx{}.
 %% @doc Report an error
 add_error(Ctx, Pos, ErrCode, Args) ->
-    Level1 =
+    {WarningsAsErrors, _NoPrintWarnings, TreatAsWarning, TreatAsError} =
+        Ctx#yctx.warnings,
+    Level =
         case lists:keyfind(ErrCode, 1, Ctx#yctx.error_codes) of
-            {ErrCode, Level0, _Fmt} ->
-                Level0;
-            false ->
+            {ErrCode, warning, _Fmt} ->
+                if WarningsAsErrors ->
+                        %% it's a warning, but treat is all warnings as errors
+                        %% except if they are explicitly mentioned
+                        case lists:member(ErrCode, TreatAsWarning) of
+                            true ->
+                                warning;
+                            false ->
+                                error
+                        end;
+                   true ->
+                        %% it's warning, but treat it as an error if it is
+                        %% explicitly mentioned.
+                        case lists:member(ErrCode, TreatAsError) of
+                            true ->
+                                error;
+                            false ->
+                                warning
+                        end
+                end;
+            _ ->
                 error
         end,
-    add_error(Level1, Ctx, Pos, ErrCode, Args).
+    add_error(Level, Ctx, Pos, ErrCode, Args).
 
 add_error(Level, Ctx, Pos, ErrCode, Args) ->
     Ctx#yctx{errors = [#yerror{level = Level,
                                pos = Pos,
                                code = ErrCode,
                                args = Args} | Ctx#yctx.errors]}.
+
+
+print_errors(Ctx, DoPrintCode) ->
+    {_WarningsAsErrors, NoPrintWarnings, _TreatAsWarning, _TreatAsError} =
+        Ctx#yctx.warnings,
+    F = fun(#yerror{pos = PosA}, #yerror{pos = PosB}) ->
+                if element(1, PosA) == element(1, PosB) ->
+                        PosA =< PosB;
+                   %element(1, PosA) == FileName ->
+                   %     true;
+                   true ->
+                        PosA =< PosB
+                end
+        end,
+    SortedErrors = lists:sort(F, Ctx#yctx.errors),
+    lists:foldl(
+      fun(E, ErrorsFound) ->
+              if NoPrintWarnings andalso E#yerror.level == warning ->
+                      ErrorsFound;
+                 DoPrintCode ->
+                      io:format("~s: ~s\n",
+                                [fmt_pos(E#yerror.pos),
+                                 E#yerror.code]),
+                      ErrorsFound orelse E#yerror.level == error;
+                 true ->
+                      io:format("~s\n", [fmt_error(Ctx, E)]),
+                      ErrorsFound orelse E#yerror.level == error
+              end
+      end, false, SortedErrors).
 
 fmt_error(#yctx{error_codes = Codes},
           #yerror{level = Level,
@@ -85,7 +135,7 @@ codes() ->
      {'YANG_ERR_NODE_NOT_FOUND', error, "node ~s not found"}
     ].
 
-print_errors(#yctx{error_codes = Errors}) ->
+print_error_codes(#yctx{error_codes = Errors}) ->
     lists:foreach(fun({Code, Level, Fmt}) ->
                           LevelStr = case Level of
                                          error -> "Error:";
