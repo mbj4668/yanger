@@ -1,7 +1,8 @@
 -module(yang).
 
--export([init_ctx/1, add_file/2]).
--export([tst/1, tst/2, a/0]).
+-export([load_plugins/1, new_ctx/1, init_ctx/2,
+         add_file/2]).
+-export([tst/1, a/0]).
 
 -export([stmt_keyword/1, stmt_arg/1, stmt_pos/1, stmt_substmts/1]).
 -export([search_one_stmt/2, search_one_stmt/3]).
@@ -136,8 +137,96 @@
 -type grouping_rec() :: #grouping{}.
 -type typedef_rec() :: #typedef{}.
 
-init_ctx(SearchPath) ->
-    {ok, Files} = file:list_dir(SearchPath),
+-spec load_plugins(PluginPath :: [Dir :: string()]) ->
+        Plugins :: [ModuleName :: atom()].
+%% @doc Loads all available plugin modules.
+%% Call this function once!
+load_plugins(PluginPath0) ->
+    PluginPath1 =
+        %% Always add plugins from the priv dir
+        code:priv_dir(epyang) ++
+        %% Always add plugins from an environment variable
+        case os:getenv("YANGER_PLUGINPATH") of
+            Str when is_list(Str) ->
+                PluginPath0 ++ string:tokens(Str);
+            false ->
+                PluginPath0
+        end,
+    Plugins =
+        lists:foldl(
+          fun(Dir, Acc) ->
+                  case file:list_dir(Dir) of
+                      {ok, Files} ->
+                          lists:foldl(
+                            fun(FName, Acc0) ->
+                                    case load_file(Dir, FName) of
+                                        {true, Module} ->
+                                            case is_plugin(Module) of
+                                                true ->
+                                                    [Module | Acc0];
+                                                false ->
+                                                    Acc0
+                                            end;
+                                        false ->
+                                            Acc0
+                                    end
+                            end, Acc, Files);
+                      _ ->
+                          Acc
+                  end
+          end, [], PluginPath1),
+    Plugins.
+
+load_file(Dir, FName) ->
+    case filename:extension(FName) of
+        ".beam" ->
+            FullFName = filename:join(Dir, FName),
+            case file:read_file(FullFName) of
+                {ok, Bin} ->
+                    Module = filename:basename(FName),
+                    case code:load_binary(Module, FullFName, Bin) of
+                        {module, Module} ->
+                            {true, Module};
+                        _ ->
+                            false
+                    end;
+                _ ->
+                    false
+            end;
+        _ ->
+            false
+    end.
+
+is_plugin(Module) ->
+    Attrs = Module:module_info(attributes),
+    case lists:keyfind(behaviour, 1, Attrs) of
+        {behaviour, Behaviours} ->
+            lists:member(yanger_plugin, Behaviours);
+        false ->
+            false
+    end.
+
+-spec new_ctx(Plugins :: [ModuleName :: atom()]) -> #yctx{}.
+%% @doc Creates a new YANG compiler context and initializes the plugins.
+new_ctx(Plugins) ->
+    lists:foldl(fun(M, Ctx1) -> M:init(Ctx1) end,
+                #yctx{plugins = Plugins},
+                Plugins).
+
+-spec init_ctx(#yctx{}, SearchPath :: [Dir :: string()]) ->
+        #yctx{}.
+%% @doc Initialize the YANG compiler context.
+init_ctx(Ctx0, ExtraSearchPath) ->
+    SearchPath = ExtraSearchPath ++ search_path(),
+    Files = lists:foldl(
+              fun(Dir, Acc) ->
+                      case file:list_dir(Dir) of
+                          {ok, L} ->
+                              L ++ Acc;
+                          _ ->
+                              Acc
+                      end
+              end, [], SearchPath),
     Fm = lists:foldl(
            fun(FName, M) ->
                    case filename:extension(FName) of
@@ -152,10 +241,33 @@ init_ctx(SearchPath) ->
                            M
                    end
            end, map_new(), Files),
-    #yctx{search_path = SearchPath,
-          modrevs = map_new(),
-          files = Fm, % FIXME: scan path, add 'parse_to_body()'
-          hooks = #hooks{}}.
+    Ctx1 = Ctx0#yctx{search_path = SearchPath,
+                     modrevs = map_new(),
+                     files = Fm % FIXME: scan path, add 'parse_to_body()'
+                    },
+    %% FIXME: call plugin hooks?
+    Ctx1.
+
+search_path() ->
+    ["."]
+        ++ case os:getenv("YANG_MODPATH") of
+               false ->
+                   [];
+               ModPath ->
+                   string:tokens(ModPath, ":")
+           end
+        ++ case os:getenv("HOME") of
+               false ->
+                   [];
+               Home ->
+                   filename:join([Home, "yang", "modules"])
+           end
+        ++ case os:getenv("YANG_INSTALL_DIR") of
+               false ->
+                   filename:join(["/usr", "share", "yang", "modules"]);
+               InstalLDir ->
+                   filename:join([InstalLDir, "yang", "modules"])
+           end.
 
 %% called when a filename is given on the cmdline
 add_file(Ctx, FileName) ->
@@ -176,7 +288,7 @@ add_file(Ctx, FileName) ->
     end.
 
 add_file0(Ctx, FileName) ->
-    case yang_parser:parse(FileName) of
+    case yang_parser:parse(FileName, Ctx#yctx.canonical) of
         {ok, Stmts} ->
             case parse_file_name(FileName) of
                 {ok, FileModuleName, FileRevision} ->
@@ -199,9 +311,7 @@ a() ->
 tst([FileName]) when is_atom(FileName) ->
     tst(?a2l(FileName));
 tst(FileName) ->
-    tst(FileName, ".").
-tst(FileName, Dir) ->
-    case add_file(init_ctx(Dir), FileName) of
+    case add_file(init_ctx([], load_plugins([])), FileName) of
         {false, Ctx} ->
             print_errors(Ctx#yctx.errors, FileName),
             error;
@@ -254,7 +364,11 @@ search_module(Ctx, FromPos, ModKeyword, ModuleName, Revision) ->
             %% if not, check if the exact file is available
             case map_lookup({ModuleName, Revision}, Ctx#yctx.files) of
                 {value, FileName} ->
-                    case yang_parser:parse(FileName) of
+                    %% FIXME:
+                    %% when we import we don't want to check the canonical
+                    %% order.  however, if we include one of our own
+                    %% submodules, we do.
+                    case yang_parser:parse(FileName, _Canonical = false) of
                         {ok, Stmts} ->
                             add_parsed_module(Ctx, Stmts, FileName,
                                               ModuleName, Revision,

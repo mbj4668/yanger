@@ -165,12 +165,23 @@
           revs :: yang:map(Name :: atom(), [Revision :: atom()]),
           files :: yang:map({Name :: atom(), Revision :: atom()},
                             FileName :: string()),
-          hooks :: #hooks{},
           typemap :: yang:map(), % FIXME map/2
           %% FIXME: make ets tables of errors and unused_augments?
           %% then we don't have to return an updated Ctx all over the code...
-          errors = [] :: [#yerror{}]
-          %% see class ctx in __init__.py
+          errors = [] :: [#yerror{}],
+          %% List of loaded and initialized plugin modules.
+          plugins = [] :: [Module :: atom()],
+          %% List of option spec used by getopt.  Used by the frontend script.
+          option_specs = [] :: [getopt:option_spec()],
+          %% List of parsed options.  If the frontend script is not used,
+          %% the caller can fill in this list directly.
+          options = [] :: [getopt:option()],
+          %% The available output formats.
+          fmts = [] :: [{Fmt :: string(), Module :: atom()}],
+          canonical = false :: boolean(),
+          hooks = #hooks{} :: #hooks{},
+          pmap = yang:map_new() :: yang:map() % used by plugins
+          %% FIXME: see class ctx in __init__.py
          }).
 
 -define(is_data_definition_stmt(X),
