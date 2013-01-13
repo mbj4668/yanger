@@ -131,7 +131,7 @@ match_rule(struct yang_statement *stmt,
                 return false;
             } else if (rules[i].occurance == '-') {
                 build_keyword_from_stmt(buf, BUFSIZ, stmt);
-                yang_add_err(ectx, YANG_ERR_GRAMMAR_KEYWORD_ALREADY_FOUND,
+                yang_add_err(ectx, YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD,
                              stmt,
                              "unexpected keyword '%s'", buf);
                 return false;
