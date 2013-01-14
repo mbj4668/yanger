@@ -21,9 +21,15 @@ a() ->
 %% An 'idenitfier-ref' argument is returned as
 %% {Modulename :: atom(), Name :: atom()}.
 
+-type occurance() :: '?' | '1' | '*' | '+'.
+
 -type yang_statement_spec() ::
-        {Keyword :: atom(), ArgTypeName :: atom() | [],
-         [{Substmt :: yang:keyword(), Occurance :: '?' | '1' | '*' | '+'}]}.
+        {Keyword :: atom(),
+         ArgTypeName :: atom() | [],
+         Rules :: [{Substmt :: yang:keyword(), Occurance :: occurance()}],
+         UseIn :: {OccuranceWhenUsed :: occurance(), [yang:keyword()]}
+                | undefined
+        }.
 %% @doc A grammar specification for the YANG extension statement Keyword.
 %% The ArgTypeName is either one of the built-in types (see
 %% yang_core_grammar.c), or installed by a call to install_arg_types().

@@ -13,7 +13,7 @@
 
 init(Ctx) ->
     yanger_plugin:install_arg_types(arg_types()),
-    %yanger_plugin:install_grammar(?SMI_MODULE_NAME, grammar()).
+    yanger_plugin:install_grammar(?SMI_MODULE_NAME, grammar()),
     Ctx.
 
 arg_types() ->
@@ -27,33 +27,33 @@ arg_types() ->
     ].
 
 grammar() ->
-    %% {<keyword>, <occurance when used>,
-    %%    {<argument type name | []>, <substmts>},
-    %%  <list of keywords where <keyword> can occur>}
-
+    %% {<keyword>,<argument type name | []>,
+    %%  <substmts>,
+    %%  {<occurance when used>, <list of keywords where <keyword> can occur>}}
     [
-     {'display-hint', '?', 'string', [],
-      ['leaf', 'typedef']},
+     {'display-hint', 'string', [],
+      {'?', ['leaf', 'typedef']}},
 
-     {'max-access', '?', 'smi-max-access', [],
-      ['leaf', 'typedef']},
+     {'max-access', 'smi-max-access', [],
+      {'?', ['leaf', 'typedef']}},
 
-     {'defval', '?', 'string', [],
-      ['leaf']},
+     {'defval', 'string', [],
+      {'?', ['leaf']}},
 
-     {'implied', '?', 'identifier', [],
-      ['list']},
+     {'implied', 'identifier', [],
+      {'?', ['list']}},
 
-     {'alias', '*', 'identifier',
+     {'alias', 'identifier',
       [{'status', '?'},
        {'description', '?'},
        {'reference', '?'},
        {{?SMI_MODULE_NAME, 'oid'}, '1'}],
-      ['module', 'submodule']},
+      {'*', ['module', 'submodule']}},
 
-     {'oid', '?', 'smi-oid', [],
-      ['leaf', 'list', 'container', 'augment', 'notification', 'identity']},
+     {'oid', 'smi-oid', [],
+      {'?',
+       ['leaf', 'list', 'container', 'augment', 'notification', 'identity']}},
 
-     {'subid', '?', 'non-negative-integer', [],
-      ['leaf', 'list', 'container', 'augment', 'notification']}
+     {'subid', 'non-negative-integer', [],
+      {'?', ['leaf', 'list', 'container', 'augment', 'notification']}}
     ].

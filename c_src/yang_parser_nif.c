@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L // for strdup
 #include <string.h>
 #include <stdio.h>
+#include <assert.h>
 
 #include "erl_nif.h"
 #include "yang_parser.h"
@@ -160,23 +161,25 @@ install_arg_types(ErlNifEnv *env, ERL_NIF_TERM etypes, unsigned int len)
 
     tmp = etypes;
     for (i = 0; i < len; i++) {
+        /* Get the head of the list */
         if (!enif_get_list_cell(env, tmp, &head, &tail)) {
             return enif_make_badarg(env);
         }
         tmp = tail;
-        if (!enif_get_tuple(env, head, &arity, &type_spec)) {
+        /* Verify that the head is a 3-tuple */
+        if (!enif_get_tuple(env, head, &arity, &type_spec) || arity != 3) {
             return enif_make_badarg(env);
         }
-        if (arity != 3) {
-            return enif_make_badarg(env);
-        }
+        /* Handle elemt 1 - ArgTypeName */
         if (!enif_get_atom(env, type_spec[0], buf, BUFSIZ, ERL_NIF_LATIN1)) {
             return enif_make_badarg(env);
         }
         types[i].name = yang_make_atom(buf);
+        /* Handle elemt 2 - Regexp | undefined */
         if (enif_get_string(env, type_spec[1], buf, BUFSIZ, ERL_NIF_LATIN1)
             <= 0)
         {
+            /* It's not a string, make sure it is 'undefined' */
             if (!enif_get_atom(env, type_spec[1], buf, BUFSIZ,
                                ERL_NIF_LATIN1)) {
                 return enif_make_badarg(env);
@@ -187,6 +190,7 @@ install_arg_types(ErlNifEnv *env, ERL_NIF_TERM etypes, unsigned int len)
             types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
             types[i].syntax.xsd_regexp = strdup(buf);
         }
+        /* Handle elemt 3 - ReturnType */
         if (!enif_get_atom(env, type_spec[2], buf, BUFSIZ, ERL_NIF_LATIN1)) {
             return enif_make_badarg(env);
         }
@@ -227,6 +231,58 @@ install_arg_types_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     return install_arg_types(env, argv[0], len);
 }
 
+static bool
+is_occurance(char *buf)
+{
+    if ((buf[0] == '?'
+         || buf[0] == '1'
+         || buf[0] == '*'
+         || buf[0] == '+') && buf[1] == '\0') {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+static bool
+get_keyword_from_term(ErlNifEnv *env, ERL_NIF_TERM kw_term,
+                      yang_atom_t *module_name,
+                      yang_atom_t *keyword)
+{
+    char buf[BUFSIZ];
+    int arity;
+    const ERL_NIF_TERM *kw;
+
+    if (enif_is_atom(env, kw_term)) {
+        /* Core Keyword (plain atom) */
+        enif_get_atom(env, kw_term, buf, BUFSIZ, ERL_NIF_LATIN1);
+        *module_name = NULL;
+        *keyword = yang_make_atom(buf);
+        return true;
+    } else {
+        /* Extension Keyword (2-tuple) */
+        if (!enif_get_tuple(env, kw_term, &arity, &kw) ||
+            arity != 2)
+        {
+            fprintf(stderr, "bad grammar %d\n", __LINE__);
+            return false;
+        }
+        /* Handle element 1 of the Extension Keyword */
+        if (!enif_get_atom(env, kw[0], buf, BUFSIZ, ERL_NIF_LATIN1)) {
+            fprintf(stderr, "bad grammar %d\n", __LINE__);
+            return false;
+        }
+        *module_name = yang_make_atom(buf);
+        /* Handle element 2 of the Extension Keyword */
+        if (!enif_get_atom(env, kw[1], buf, BUFSIZ, ERL_NIF_LATIN1)) {
+            fprintf(stderr, "bad grammar %d\n", __LINE__);
+            return false;
+        }
+        *keyword = yang_make_atom(buf);
+        return true;
+    }
+}
+
 static ERL_NIF_TERM
 install_grammar(ErlNifEnv *env, ERL_NIF_TERM module_name, ERL_NIF_TERM specs,
                 unsigned int nspecs, unsigned int nrules)
@@ -234,27 +290,32 @@ install_grammar(ErlNifEnv *env, ERL_NIF_TERM module_name, ERL_NIF_TERM specs,
     struct yang_statement_spec spec[nspecs];
     struct yang_statement_rule rule[nrules];
     ERL_NIF_TERM tmp, spec_head, spec_tail, rule_head, rule_tail;
-    const ERL_NIF_TERM *stmt_spec, *rule_spec, *kw;
+    const ERL_NIF_TERM *stmt_spec, *rule_spec, *usein;
     char buf[BUFSIZ];
     unsigned int len;
     int arity;
     unsigned int i, j, rule_idx=0;
+    yang_atom_t m;
 
     tmp = specs;
     for (i = 0; i < nspecs; i++) {
+        /* Get the head of the list */
         if (!enif_get_list_cell(env, tmp, &spec_head, &spec_tail)) {
             fprintf(stderr, "bad grammar %d\n", __LINE__);
             return enif_make_badarg(env);
         }
-        if (!enif_get_tuple(env, spec_head, &arity, &stmt_spec) || arity != 3) {
+        /* Verify that the head is a 4-tuple */
+        if (!enif_get_tuple(env, spec_head, &arity, &stmt_spec) || arity != 4) {
             fprintf(stderr, "bad grammar %d\n", __LINE__);
             return enif_make_badarg(env);
         }
+        /* Handle element 1 - Keyword */
         if (!enif_get_atom(env, stmt_spec[0], buf, BUFSIZ, ERL_NIF_LATIN1)) {
             fprintf(stderr, "bad grammar %d\n", __LINE__);
             return enif_make_badarg(env);
         }
         spec[i].keyword = yang_make_atom(buf);
+        /* Handle element 2 - ArgType */
         if (!enif_get_atom(env, stmt_spec[1], buf, BUFSIZ, ERL_NIF_LATIN1)) {
             if (enif_is_empty_list(env, stmt_spec[1])) {
                 spec[i].arg_type_idx = -1;
@@ -262,12 +323,13 @@ install_grammar(ErlNifEnv *env, ERL_NIF_TERM module_name, ERL_NIF_TERM specs,
                 fprintf(stderr, "bad grammar %d\n", __LINE__);
                 return enif_make_badarg(env);
         } else {
-            if (!(spec[i].arg_type_idx =
-                  yang_get_arg_type_idx(yang_make_atom(buf)))) {
+            if ((spec[i].arg_type_idx =
+                 yang_get_arg_type_idx(yang_make_atom(buf))) == -1) {
                 fprintf(stderr, "bad grammar %d\n", __LINE__);
                 return enif_make_badarg(env);
             }
         }
+        /* Handle element 3 - RuleList */
         if (!enif_get_list_length(env, stmt_spec[2], &len)) {
             fprintf(stderr, "bad grammar %d\n", __LINE__);
             return enif_make_badarg(env);
@@ -276,48 +338,35 @@ install_grammar(ErlNifEnv *env, ERL_NIF_TERM module_name, ERL_NIF_TERM specs,
         spec[i].rules = &rule[rule_idx];
         tmp = stmt_spec[2];
         for (j = 0; j < len; j++, rule_idx++) {
+            /* Get the head of the list */
             if (!enif_get_list_cell(env, tmp, &rule_head, &rule_tail)) {
                 fprintf(stderr, "bad grammar %d\n", __LINE__);
                 return enif_make_badarg(env);
             }
+            /* Verify that the head is a 2-tuple */
             if (!enif_get_tuple(env, rule_head, &arity, &rule_spec) ||
-                arity != 2) {
+                arity != 2)
+            {
                 fprintf(stderr, "bad grammar %d\n", __LINE__);
                 return enif_make_badarg(env);
             }
-            if (enif_is_atom(env, rule_spec[0])) {
-                enif_get_atom(env, rule_spec[0], buf, BUFSIZ, ERL_NIF_LATIN1);
-                rule[rule_idx].module_name = NULL;
-                rule[rule_idx].keyword = yang_make_atom(buf);
-            } else {
-                if (!enif_get_tuple(env, rule_spec[0], &arity, &kw) ||
-                    arity != 2) {
-                    fprintf(stderr, "bad grammar %d\n", __LINE__);
-                    return enif_make_badarg(env);
-                }
-                if (!enif_get_atom(env, kw[0], buf, BUFSIZ, ERL_NIF_LATIN1)) {
-                    fprintf(stderr, "bad grammar %d\n", __LINE__);
-                    return enif_make_badarg(env);
-                }
-                rule[rule_idx].module_name = yang_make_atom(buf);
-                if (!enif_get_atom(env, kw[1], buf, BUFSIZ, ERL_NIF_LATIN1)) {
-                    fprintf(stderr, "bad grammar %d\n", __LINE__);
-                    return enif_make_badarg(env);
-                }
-                rule[rule_idx].keyword = yang_make_atom(buf);
+            /* Handle element 1 - Substmt Keyword */
+            if (!(get_keyword_from_term(env, rule_spec[0],
+                                        &rule[rule_idx].module_name,
+                                        &rule[rule_idx].keyword))) {
+                fprintf(stderr, "bad grammar %d\n", __LINE__);
+                return enif_make_badarg(env);
             }
+            /* Handle element 2 - Occurance */
             if (!enif_get_atom(env, rule_spec[1], buf, BUFSIZ,ERL_NIF_LATIN1)) {
                 fprintf(stderr, "bad grammar %d\n", __LINE__);
                 return enif_make_badarg(env);
             }
-            if ((buf[0] == '?'
-                 || buf[0] == '1'
-                 || buf[0] == '*'
-                 || buf[0] == '+') && buf[1] == '\0') {
-                rule[rule_idx].occurance = buf[0];
-            } else {
+            if (!(is_occurance(&buf[0]))) {
                 fprintf(stderr, "bad grammar %d\n", __LINE__);
                 return enif_make_badarg(env);
+            } else {
+                rule[rule_idx].occurance = buf[0];
             }
             tmp = rule_tail;
         }
@@ -329,9 +378,85 @@ install_grammar(ErlNifEnv *env, ERL_NIF_TERM module_name, ERL_NIF_TERM specs,
         fprintf(stderr, "bad grammar %d\n", __LINE__);
         return enif_make_badarg(env);
     }
-    if (!yang_install_grammar(yang_make_atom(buf), spec, nspecs)) {
+    m = yang_make_atom(buf);
+    if (!yang_install_grammar(m, spec, nspecs)) {
         return am_error;
     }
+    /* Now, loop through the list again and handle the 4th element; UseIn */
+    /* No need for all the error handling we just did */
+    tmp = specs;
+    for (i = 0; i < nspecs; i++) {
+        struct yang_statement_rule rule;
+        yang_atom_t usein_module_name;
+        yang_atom_t usein_keyword;
+        ERL_NIF_TERM usein_head, usein_tail;
+
+        /* Get the head of the list */
+        enif_get_list_cell(env, tmp, &spec_head, &spec_tail);
+        /* Get the head as a 4-tuple */
+        enif_get_tuple(env, spec_head, &arity, &stmt_spec);
+        /* Handle element 1 - Keyword */
+        enif_get_atom(env, stmt_spec[0], buf, BUFSIZ, ERL_NIF_LATIN1);
+        rule.module_name = m;
+        rule.keyword = yang_make_atom(buf);
+        /* This spec must exist, since it was added by
+           yang_install_grammar() above */
+        rule.spec = yang_get_statement_spec(m, rule.keyword);
+        assert(rule.spec);
+        /* Handle element 4 - UseIn (2-tuple or 'undefined' */
+        if (enif_is_atom(env, stmt_spec[3])) {
+            /* It's not a string, make sure it is 'undefined' */
+            enif_get_atom(env, stmt_spec[3], buf, BUFSIZ, ERL_NIF_LATIN1);
+            if (strcmp(buf, "undefined") != 0) {
+                fprintf(stderr, "bad grammar %d\n", __LINE__);
+                return enif_make_badarg(env);
+            }
+        } else {
+            if (!enif_get_tuple(env, stmt_spec[3], &arity, &usein) ||
+                arity != 2)
+            {
+                fprintf(stderr, "bad grammar %d\n", __LINE__);
+                return enif_make_badarg(env);
+            }
+            /* Handle element 1 of UseIn - OccuranceWhenUsed */
+            if (!(enif_get_atom(env, usein[0], buf, BUFSIZ, ERL_NIF_LATIN1))) {
+                fprintf(stderr, "bad grammar %d\n", __LINE__);
+                return enif_make_badarg(env);
+            }
+            if (!(is_occurance(&buf[0]))) {
+                fprintf(stderr, "bad grammar %d\n", __LINE__);
+            }
+            rule.occurance = buf[0];
+            /* Handle element 2 of UseIn - UseInKeywords */
+            if (!enif_get_list_length(env, usein[1], &len)) {
+                fprintf(stderr, "bad grammar %d\n", __LINE__);
+                return enif_make_badarg(env);
+            }
+            tmp = usein[1];
+            /* Loop through the list of UseInKeywords, and add this rule to
+               each keyword's spec. */
+            for (j = 0; j < len; j++) {
+                /* Get the head of the list */
+                if (!enif_get_list_cell(env, tmp, &usein_head, &usein_tail)) {
+                    fprintf(stderr, "bad grammar %d\n", __LINE__);
+                    return enif_make_badarg(env);
+                }
+                if (!(get_keyword_from_term(env, usein_head,
+                                            &usein_module_name,
+                                            &usein_keyword))) {
+                    fprintf(stderr, "bad grammar %d\n", __LINE__);
+                    return enif_make_badarg(env);
+                }
+                if (!yang_add_rule_to_spec(&rule, usein_module_name,
+                                           usein_keyword)) {
+                    return am_error;
+                }
+                tmp = usein_tail;
+            }
+            tmp = spec_tail;
+        }
+    }
+
     return am_ok;
 }
 
@@ -359,7 +484,7 @@ install_grammar_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
         if (!enif_get_tuple(env, head, &arity, &stmt_spec)) {
             return enif_make_badarg(env);
         }
-        if (arity != 3) {
+        if (arity != 4) {
             return enif_make_badarg(env);
         }
         if (!enif_get_list_length(env, stmt_spec[2], &len)) {

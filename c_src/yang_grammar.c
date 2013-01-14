@@ -161,6 +161,25 @@ match_rule(struct yang_statement *stmt,
     return false;
 }
 
+struct yang_statement_spec *
+yang_get_statement_spec(yang_atom_t module_name,
+                        yang_atom_t keyword)
+{
+    int i;
+    struct grammar *g;
+
+    if (!(g = get_grammar(module_name))) {
+        return NULL;
+    }
+    for (i = 0; i < g->nspecs; i++) {
+        if (g->specs[i].keyword == keyword) {
+            return &g->specs[i];
+        }
+    }
+    return NULL;
+}
+
+
 static struct yang_statement_spec *
 get_spec_from_rule(struct grammar *g,
                    struct yang_statement_rule *rule)
@@ -530,24 +549,38 @@ yang_install_grammar_str(const char *module_name, const char *stmts[])
     return true;
 }
 
+bool
+yang_add_rule_to_spec(struct yang_statement_rule *rule,
+                      yang_atom_t modulename,
+                      yang_atom_t keyword)
+{
+    struct yang_statement_spec *s;
+
+    if (!(s = yang_get_statement_spec(modulename, keyword))) {
+        return false;
+    }
+    s->nrules++;
+    s->rules =
+        (struct yang_statement_rule *)
+        realloc(s->rules, s->nrules * sizeof(struct yang_statement_rule));
+    if (!s->rules) {
+        return false;
+    }
+    s->rules[s->nrules-1] = *rule;
+    return true;
+}
+
+
 struct yang_arg_type *
 yang_get_arg_type(yang_atom_t name)
 {
-    int low = 0;
-    int high = ntypes;
-    int mid;
+    int i;
 
-    while (low < high) {
-        mid = low + (high-low) / 2;
-        if (name < types[mid].name) {
-            high = mid;
-        } else if (name > types[mid].name) {
-            low = mid + 1;
-        } else {
-            return &types[mid];
-        }
+    if ((i = yang_get_arg_type_idx(name)) == -1) {
+        return NULL;
+    } else {
+        return &types[i];
     }
-    return NULL;
 }
 
 int

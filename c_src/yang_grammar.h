@@ -63,6 +63,13 @@ extern bool yang_install_grammar(yang_atom_t module_name,
 extern bool yang_install_grammar_str(const char *module_name,
                                      const char *stmts[]);
 
+extern bool yang_add_rule_to_spec(struct yang_statement_rule *rule,
+                                  yang_atom_t modulename,
+                                  yang_atom_t keyword);
+
+extern struct yang_statement_spec *
+yang_get_statement_spec(yang_atom_t module_name,
+                        yang_atom_t keyword);
 extern int yang_get_arg_type_idx(yang_atom_t name);
 extern struct yang_arg_type *yang_get_arg_type(yang_atom_t name);
 extern bool yang_grammar_check_module(struct yang_statement *stmt,
