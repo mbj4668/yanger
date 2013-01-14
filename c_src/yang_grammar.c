@@ -83,19 +83,6 @@ build_keyword_from_rule(char *buf, int sz,
     buf[sz-1] = '\0';
 }
 
-/* assumes that the first element of the struct to compare is an atom */
-static int
-cmpatom(const void *p1, const void *p2)
-{
-    yang_atom_t a1, a2;
-
-    a1 = *((yang_atom_t *)p1);
-    a2 = *((yang_atom_t *)p2);
-    if (a1 < a2) return -1;
-    if (a1 > a2) return 1;
-    return 0;
-}
-
 static bool
 match_rule(struct yang_statement *stmt,
            struct yang_statement_rule *rules,
@@ -227,8 +214,8 @@ chk_statements(struct yang_statement *stmt,
             }
             */
             /* check that the argument is there */
-            if (subspec->arg_type && stmt->arg) {
-                stmt->arg_type = subspec->arg_type;
+            if (subspec->arg_type_idx != -1 && stmt->arg) {
+                stmt->arg_type = &types[subspec->arg_type_idx];
                 if (stmt->arg_type->flags & F_ARG_TYPE_SYNTAX_CB) {
                     if (!stmt->arg_type->syntax.cb.validate(
                             stmt->arg,
@@ -242,12 +229,12 @@ chk_statements(struct yang_statement *stmt,
                     }
                 }
             }
-            else if (subspec->arg_type && !stmt->arg) {
+            else if (subspec->arg_type_idx != -1 && !stmt->arg) {
                 build_keyword_from_rule(buf, BUFSIZ, rule);
                 yang_add_err(ectx, YANG_ERR_GRAMMAR_MISSING_ARGUMENT, stmt,
                              "missing argument to '%s'", buf);
                 return false;
-            } else if (!subspec->arg_type && stmt->arg) {
+            } else if (subspec->arg_type_idx == -1 && stmt->arg) {
                 build_keyword_from_rule(buf, BUFSIZ, rule);
                 yang_add_err(ectx, YANG_ERR_GRAMMAR_UNEXPECTED_ARGUMENT, stmt,
                              "did not expect an argument to '%s', got \"%s\"",
@@ -340,7 +327,8 @@ yang_install_arg_types(struct yang_arg_type new_types[], int len)
         if (new_types[j].flags & F_ARG_TYPE_SYNTAX_REGEXP) {
             xreg = xmlRegexpCompile((xmlChar *)new_types[j].syntax.xsd_regexp);
             if (!xreg) {
-                printf("c: %s\n", new_types[j].syntax.xsd_regexp);
+                fprintf(stderr, "bad regexp: %s\n",
+                        new_types[j].syntax.xsd_regexp);
                 return false;
             }
             types[i].syntax.cb.opaque = (void *)xreg;
@@ -351,8 +339,6 @@ yang_install_arg_types(struct yang_arg_type new_types[], int len)
             types[i].syntax.cb = new_types[j].syntax.cb;
         }
     }
-    /* keep the array sorted so we can use binary search */
-    qsort(types, ntypes, sizeof(struct yang_arg_type), cmpatom);
     return true;
 }
 
@@ -459,7 +445,7 @@ yang_install_grammar(yang_atom_t module_name,
     /* copy the input spec and all rules */
     for (i = 0; i < len; i++) {
         g->specs[i].keyword = new_specs[i].keyword;
-        g->specs[i].arg_type = new_specs[i].arg_type;
+        g->specs[i].arg_type_idx = new_specs[i].arg_type_idx;
         g->specs[i].rules =
             (struct yang_statement_rule *)
             malloc(new_specs[i].nrules * sizeof(struct yang_statement_rule));
@@ -488,14 +474,15 @@ install_grammar_str(const char *module_name,
     while (stmts[i]) {
         spec[s].keyword = yang_make_atom(stmts[i]);
         if (stmts[i+1]) {
-            spec[s].arg_type = yang_get_arg_type(yang_make_atom(stmts[i+1]));
-            if (!spec[s].arg_type) {
+            spec[s].arg_type_idx =
+                yang_get_arg_type_idx(yang_make_atom(stmts[i+1]));
+            if (spec[s].arg_type_idx == -1) {
                 fprintf(stderr, "%s:%d: arg_type %s not found",
                         __FILE__, __LINE__, stmts[i+1]);
                 return false;
             }
         } else {
-            spec[s].arg_type = NULL;
+            spec[s].arg_type_idx = -1;
         }
         i += 2;
         spec[s].rules = &rule[r];
@@ -561,6 +548,19 @@ yang_get_arg_type(yang_atom_t name)
         }
     }
     return NULL;
+}
+
+int
+yang_get_arg_type_idx(yang_atom_t name)
+{
+    int i;
+
+    for (i = 0; i < ntypes; i++) {
+        if (name == types[i].name) {
+            return i;
+        }
+    }
+    return -1;
 }
 
 struct prefix_map {
@@ -736,7 +736,8 @@ yang_print_grammar()
         for (s = 0; s < gp->nspecs; s++) {
             sp = &gp->specs[s];
             printf("  %s (%s)\n", sp->keyword,
-                   sp->arg_type ? sp->arg_type->name : "null");
+                   sp->arg_type_idx != -1 ? types[sp->arg_type_idx].name :
+                   "null");
             for (r = 0; r < sp->nrules; r++) {
                 rp = &sp->rules[r];
                 printf("    %s %c (%d)\n",

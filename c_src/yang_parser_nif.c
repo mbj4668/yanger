@@ -113,7 +113,6 @@ parse_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     int r;
     bool canonical;
 
-
     if (argc != 2 ||
         enif_get_string(env, argv[0], filename, BUFSIZ, ERL_NIF_LATIN1) <= 0 ||
         enif_get_atom(env, argv[1], buf, BUFSIZ, ERL_NIF_LATIN1) <= 0)
@@ -176,7 +175,8 @@ install_arg_types(ErlNifEnv *env, ERL_NIF_TERM etypes, unsigned int len)
         }
         types[i].name = yang_make_atom(buf);
         if (enif_get_string(env, type_spec[1], buf, BUFSIZ, ERL_NIF_LATIN1)
-            <= 0) {
+            <= 0)
+        {
             if (!enif_get_atom(env, type_spec[1], buf, BUFSIZ,
                                ERL_NIF_LATIN1)) {
                 return enif_make_badarg(env);
@@ -257,12 +257,13 @@ install_grammar(ErlNifEnv *env, ERL_NIF_TERM module_name, ERL_NIF_TERM specs,
         spec[i].keyword = yang_make_atom(buf);
         if (!enif_get_atom(env, stmt_spec[1], buf, BUFSIZ, ERL_NIF_LATIN1)) {
             if (enif_is_empty_list(env, stmt_spec[1])) {
-                spec[i].arg_type = NULL;
+                spec[i].arg_type_idx = -1;
             } else
                 fprintf(stderr, "bad grammar %d\n", __LINE__);
                 return enif_make_badarg(env);
         } else {
-            if (!(spec[i].arg_type = yang_get_arg_type(yang_make_atom(buf)))) {
+            if (!(spec[i].arg_type_idx =
+                  yang_get_arg_type_idx(yang_make_atom(buf)))) {
                 fprintf(stderr, "bad grammar %d\n", __LINE__);
                 return enif_make_badarg(env);
             }

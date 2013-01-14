@@ -19,8 +19,8 @@ struct yang_statement_rule {
 
 struct yang_statement_spec {
     yang_atom_t keyword;
-    /* If arg_type is NULL, the keyword does not expect any argument */
-    struct yang_arg_type *arg_type;
+    /* If arg_type_idx is -1, the keyword does not expect any argument */
+    int arg_type_idx;
     /* Rules is an array of the substatements accepted by this statement */
     struct yang_statement_rule *rules;
     int nrules;
@@ -63,6 +63,7 @@ extern bool yang_install_grammar(yang_atom_t module_name,
 extern bool yang_install_grammar_str(const char *module_name,
                                      const char *stmts[]);
 
+extern int yang_get_arg_type_idx(yang_atom_t name);
 extern struct yang_arg_type *yang_get_arg_type(yang_atom_t name);
 extern bool yang_grammar_check_module(struct yang_statement *stmt,
                                       bool canonical,
