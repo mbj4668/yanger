@@ -1,6 +1,6 @@
 #!/usr/bin/env escript
 %% -*- erlang -*-
-%%! -pa ../yanger/ebin -pa ../getopt/ebin
+%%! -pa ../yanger/ebin
 
 -include_lib("yanger/include/yang.hrl").
 
