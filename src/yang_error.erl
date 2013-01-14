@@ -125,7 +125,8 @@ codes() ->
      {'YANG_ERR_INVALID_CONFIG', error,
       "config true cannot be set when the parent is config false"},
      {'YANG_ERR_INVALID_CONFIG_USES', error,
-      "config false uses cannot use grouping with config true node "},
+      "config false uses refers to grouping with config true node"
+      " defined at ~s"},
      {'YANG_ERR_REFINE_NOT_FOUND', error,
       "the refinement node ~s is not found"},
      {'YANG_ERR_ILLEGAL_REFINE', error,
