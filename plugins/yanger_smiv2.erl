@@ -11,13 +11,10 @@
 
 -define(SMI_MODULE_NAME, 'ietf-yang-smiv2').
 
-init(Ctx0) ->
+init(Ctx) ->
     yanger_plugin:install_arg_types(arg_types()),
-    lists:foreach(
-      fun({Keyword, Occurance, ArgType, Substmts, Parents}) ->
-              yanger_plugin:install_grammar(
-
-
+    %yanger_plugin:install_grammar(?SMI_MODULE_NAME, grammar()).
+    Ctx.
 
 arg_types() ->
     [
@@ -25,8 +22,8 @@ arg_types() ->
       "(([0-1](\.[1-3]?[0-9]))|(2\.(0|([1-9]\d*))))(\.(0|([1-9]\d*)))*",
       string},
      {'smi-max-access',
-       "not-accessible|accessible-for-notify|read-only|read-write|read-create",
-       atom}
+      "not-accessible|accessible-for-notify|read-only|read-write|read-create",
+      atom}
     ].
 
 grammar() ->

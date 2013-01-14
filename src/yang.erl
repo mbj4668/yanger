@@ -175,7 +175,8 @@ load_plugins(PluginPath0) ->
                           Acc
                   end
           end, [], PluginPath1),
-    Plugins.
+    %% FIXME: temp hack for now, statically add our own plugins
+    Plugins ++ [yanger_tree, yanger_smiv2].
 
 load_file(Dir, FName) ->
     case filename:extension(FName) of

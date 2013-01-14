@@ -23,7 +23,8 @@ main(Args) ->
             Plugins = yang:load_plugins(PluginPath),
             %% Create a new context and initialize the plugins
             Ctx0 = yang:new_ctx(Plugins),
-            Ctx1 = Ctx0#yctx{option_specs = opts() ++ Ctx0#yctx.option_specs},
+            Ctx1 = Ctx0#yctx{option_specs = opts(Ctx0) ++
+                                 Ctx0#yctx.option_specs},
             %% Parse the command line
             case getopt:parse(Ctx1#yctx.option_specs, Args) of
                 {ok, {Options, Files}} ->
@@ -120,7 +121,7 @@ get_plugin_path([_ | T]) ->
 get_plugin_path([]) ->
     [].
 
-opts() ->
+opts(Ctx) ->
     [{help,             $h, "help", undefined,
       "Show this help message and exit."},
      {version,          $v, "version", undefined,
@@ -134,12 +135,15 @@ opts() ->
      {list_errors,      $e, "list-errors", undefined,
       "Print a listing of all error and warning codes and exit."},
      {warning,          $W, undefined, atom,
-      "If WARNING is 'error', treat all warnings as errors,"
-      "except any listed WARNING. If WARNING is 'none', do"
+      "If WARNING is 'error', treat all warnings as errors, "
+      "except any listed WARNING. If WARNING is 'none', do "
       "not report any warnings."},
      {error,            $E, undefined, atom,
-      "Treat each WARNING as an error.  For a list of"
-      "warnings, use --list-errors."}
+      "Treat each WARNING as an error.  For a list of "
+      "warnings, use --list-errors."},
+     {format,           $f, "format", atom,
+      "Convert to FORMAT.  Supported formats are: " ++
+          string:join([?a2l(F) || {F, _M} <- Ctx#yctx.fmts], ",") ++ "."}
     ].
 
 
