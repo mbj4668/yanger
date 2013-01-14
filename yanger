@@ -12,7 +12,8 @@ vsn() ->
           print_error_code = false,
           path = [],
           warnings = [],
-          errors = []
+          errors = [],
+          format
          }).
 
 main(Args) ->
@@ -72,6 +73,15 @@ opts(Options, Ctx) ->
                       Opts#opts{warnings = [W | Opts#opts.warnings]};
                   {error, W} ->
                       Opts#opts{errors = [W | Opts#opts.errors]};
+                  {format, F} ->
+                      case lists:keyfind(F, 1, Ctx#yctx.fmts) of
+                          {F, PluginModule} ->
+                              Opts#opts{format = PluginModule};
+                          false ->
+                              io:format(standard_error,
+                                        "Unknown format '~s'\n", [F]),
+                              delayed_halt(1)
+                      end;
                   _ ->
                       Opts
               end
@@ -79,22 +89,28 @@ opts(Options, Ctx) ->
 
 run(Ctx0, Opts, Files) ->
     Ctx1 = Ctx0#yctx{canonical = Opts#opts.canonical},
-    {Success, Ctx2} =
+    {Success, Ctx2, Modules} =
         lists:foldl(
-          fun(File, {Success1, Ctx00}) ->
+          fun(File, {Success1, Ctx00, Modules0}) ->
                   case yang:add_file(Ctx00, File) of
-                      {true, Ctx01, _M} ->
-                          {Success1, Ctx01};
+                      {true, Ctx01, M} ->
+                          {Success1, Ctx01, [M | Modules0]};
                       {false, Ctx01} ->
-                          {false, Ctx01}
+                          {false, Ctx01, Modules0}
                   end
-          end, {true, Ctx1}, Files),
+          end, {true, Ctx1, []}, Files),
     ErrorsFound = yang_error:print_errors(Ctx2, Opts#opts.print_error_code),
     case Success andalso (not ErrorsFound) of
-        true ->
-            delayed_halt(0);
         false ->
-            delayed_halt(1)
+            delayed_halt(1);
+        true ->
+            ok
+    end,
+    case Opts#opts.format of
+        undefined ->
+            ok;
+        PluginModule ->
+            PluginModule:emit(Ctx2, Modules, standard_io)
     end.
 
 name() ->

@@ -23,5 +23,6 @@ opts() ->
 
 emit(Ctx, Modules, Fd) ->
     Depth = proplists:get_value(tree_depth, Ctx#yctx.options),
-    io:format(Fd, "tree emit! depth=~p mods=~p\n", [Depth, Modules]),
+    io:format(Fd, "tree emit! depth=~p mods=~p\n",
+              [Depth, [M#module.name || M <- Modules]]),
     ok.
