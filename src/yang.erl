@@ -1804,7 +1804,7 @@ add_llerrors([{Code, FName, LineNo, Offset, Str} | T], Ctx) ->
               -1 -> {FName, LineNo};
               _ -> {FName, LineNo, Offset}
           end,
-    Ctx1 = add_error(error, Ctx, Pos, yang_llerror:code2err(Code), {str, Str}),
+    Ctx1 = add_error(error, Ctx, Pos, yang_llerror:code2err(Code), [Str]),
     add_llerrors(T, Ctx1);
 add_llerrors([], Ctx) ->
     Ctx.
