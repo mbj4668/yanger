@@ -23,7 +23,11 @@
 -define(OPT_ARG, 4).
 -define(OPT_HELP, 5).
 
+-define(OPT_GROUP_HEADER, 1).
+-define(OPT_GROUP_OPTS, 2).
+
 -define(IS_OPT_SPEC(Opt), (tuple_size(Opt) =:= ?OPT_HELP)).
+-define(IS_OPT_GROUP(Opt), (tuple_size(Opt) =:= ?OPT_GROUP_OPTS)).
 -define(IS_WHITESPACE(Char), ((Char) =:= $\s orelse (Char) =:= $\t orelse
                               (Char) =:= $\n orelse (Char) =:= $\r)).
 
@@ -67,12 +71,20 @@ parse(OptSpecList, CmdLine) when is_list(CmdLine) ->
                    is_integer(hd(CmdLine)) -> tokenize(CmdLine);
                    true                    -> CmdLine
                end,
-        parse(OptSpecList, [], [], 0, Args)
+        parse(flatten_specs(OptSpecList), [], [], 0, Args)
     catch
         throw: {error, {_Reason, _Data}} = Error ->
             Error
     end.
 
+
+flatten_specs([OptSpec | T]) when ?IS_OPT_SPEC(OptSpec) ->
+    [OptSpec | flatten_specs(T)];
+flatten_specs([OptGroup | T]) when ?IS_OPT_GROUP(OptGroup) ->
+    flatten_specs(element(?OPT_GROUP_OPTS, OptGroup)) ++
+        flatten_specs(T);
+flatten_specs([]) ->
+    [].
 
 -spec parse([option_spec()], [option()], [string()], integer(), [string()]) ->
                    {ok, {[option()], [string()]}}.
@@ -522,7 +534,8 @@ usage_cmd_line(ProgramName, OptSpecList) ->
 usage_cmd_line_options(LineLength, Indentation, OptSpecList) ->
     usage_cmd_line_options(LineLength, Indentation, OptSpecList, [], 0, []).
 
-usage_cmd_line_options(LineLength, Indentation, [OptSpec | Tail], LineAcc, AccLength, Acc) ->
+usage_cmd_line_options(LineLength, Indentation, [OptSpec | Tail], LineAcc, AccLength, Acc) 
+  when ?IS_OPT_SPEC(OptSpec) ->
     Option = lists:flatten(usage_cmd_line_option(OptSpec)),
     OptionLength = length(Option),
     %% We add the length of this command line option together with the corresponding
@@ -535,6 +548,9 @@ usage_cmd_line_options(LineLength, Indentation, [OptSpec | Tail], LineAcc, AccLe
             usage_cmd_line_options(LineLength, Indentation, Tail, [Option, Indentation],
                                    length(Option) + 1, [lists:reverse([$\n | LineAcc]) | Acc])
     end;
+usage_cmd_line_options(LineLength, Indentation, [OptGroup | Tail], LineAcc, AccLength, Acc) 
+  when ?IS_OPT_GROUP(OptGroup) ->
+    usage_cmd_line_options(LineLength, Indentation, Tail, LineAcc, AccLength, Acc);
 usage_cmd_line_options(LineLength, Indentation, [] = OptSpecList, [_ | _] = LineAcc, AccLength, Acc) ->
     usage_cmd_line_options(LineLength, Indentation, OptSpecList, [],
                            AccLength, [lists:reverse(LineAcc) | Acc]);
@@ -578,27 +594,49 @@ usage_cmd_line_option({Name, Short, Long, ArgSpec, _Help}) when is_tuple(ArgSpec
 usage_options(OptSpecList) ->
     usage_options(OptSpecList, []).
 
+sort_specs(OptSpecList) ->
+    sort_specs(OptSpecList, [], []).
+
+sort_specs([OptSpec | T], GlobalOptSpecs, Groups)
+  when ?IS_OPT_SPEC(OptSpec) ->
+    sort_specs(T, [OptSpec | GlobalOptSpecs], Groups);
+sort_specs([OptGroup | T], GlobalOptSpecs, Groups)
+  when ?IS_OPT_GROUP(OptGroup) ->
+    sort_specs(T, GlobalOptSpecs, [OptGroup | Groups]);
+sort_specs([], GlobalOptSpecs, Groups) ->
+    lists:reverse(GlobalOptSpecs) ++ lists:reverse(Groups).
 
 %% @doc Return a list of usage lines to print for each of the options and arguments.
 -spec usage_options([option_spec()], [{OptionName :: string(), Help :: string()}]) -> [string()].
-usage_options(OptSpecList, CustomHelp) ->
+usage_options(OptSpecList0, CustomHelp) ->
+    OptSpecList = sort_specs(OptSpecList0),
     %% Add the usage lines corresponding to the option specifications.
-    {MaxOptionLength0, UsageLines0} = add_option_spec_help_lines(OptSpecList, 0, []),
+    {MaxOptionLength0, UsageLines0, GroupedUsageLines} =
+        add_option_spec_help_lines(OptSpecList, 0, [], []),
     %% Add the custom usage lines.
     {MaxOptionLength, UsageLines} = add_custom_help_lines(CustomHelp, MaxOptionLength0, UsageLines0),
     LineLength = line_length(),
-    lists:reverse([format_usage_line(MaxOptionLength + 1, LineLength, UsageLine) || UsageLine <- UsageLines]).
+    lists:reverse([format_usage_line(MaxOptionLength + 1, LineLength, UsageLine) || UsageLine <- UsageLines]) ++
+        lists:reverse(
+          [format_usage_line(MaxOptionLength + 1, LineLength, UsageLine) ||
+              UsageLine <- GroupedUsageLines]).
 
-
--spec add_option_spec_help_lines([option_spec()], PrevMaxOptionLength :: non_neg_integer(), [usage_line_with_length()]) ->
+-spec add_option_spec_help_lines([option_spec()], PrevMaxOptionLength :: non_neg_integer(), [usage_line_with_length()], list()) ->
                                         {MaxOptionLength :: non_neg_integer(), [usage_line_with_length()]}.
-add_option_spec_help_lines([OptSpec | Tail], PrevMaxOptionLength, Acc) ->
+add_option_spec_help_lines([OptSpec | Tail], PrevMaxOptionLength, Acc, GAcc)
+  when ?IS_OPT_SPEC(OptSpec) ->
     OptionText = usage_option_text(OptSpec),
     HelpText = usage_help_text(OptSpec),
     {MaxOptionLength, ColsWithLength} = get_max_option_length({OptionText, HelpText}, PrevMaxOptionLength),
-    add_option_spec_help_lines(Tail, MaxOptionLength, [ColsWithLength | Acc]);
-add_option_spec_help_lines([], MaxOptionLength, Acc) ->
-    {MaxOptionLength, Acc}.
+    add_option_spec_help_lines(Tail, MaxOptionLength, [ColsWithLength | Acc], GAcc);
+add_option_spec_help_lines([OptGroup | Tail], PrevMaxOptionLength, Acc, GAcc)
+  when ?IS_OPT_GROUP(OptGroup) ->
+    {Header, Specs} = OptGroup,
+    {MaxOptionLength, GAcc1, _} =
+        add_option_spec_help_lines(Specs, PrevMaxOptionLength, [Header | GAcc], []),
+    add_option_spec_help_lines(Tail, MaxOptionLength, Acc, GAcc1);
+add_option_spec_help_lines([], MaxOptionLength, Acc, GAcc) ->
+    {MaxOptionLength, Acc, GAcc}.
 
 
 -spec add_custom_help_lines([usage_line()], PrevMaxOptionLength :: non_neg_integer(), [usage_line_with_length()]) ->
@@ -671,8 +709,9 @@ format_usage_line(_MaxOptionLength, LineLength, {_OptionLength, OptionText, [_ |
     HelpLines = wrap_text_line(LineLength - 6, HelpText),
     ["  ", OptionText, [["\n      ", Line] || Line <- HelpLines], $\n];
 format_usage_line(_MaxOptionLength, _LineLength, {_OptionLength, OptionText, _HelpText}) ->
-    ["  ", OptionText, $\n].
-
+    ["  ", OptionText, $\n];
+format_usage_line(_MaxOptionLength, _LineLength, HeaderText) when is_list(HeaderText) ->
+    [$\n, HeaderText, $\n].
 
 %% @doc Wrap a text line converting it into several text lines so that the
 %%      length of each one of them is never over HelpLength characters.
