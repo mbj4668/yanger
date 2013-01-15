@@ -170,7 +170,7 @@ delayed_halt(Code) ->
     %% R15B01 introduced erlang:halt/2
     case erlang:is_builtin(erlang, halt, 2) of
         true ->
-            halt(Code);
+            halt(Code, [{flush,true}]);
         false ->
             case os:type() of
                 {win32, nt} ->
