@@ -144,14 +144,16 @@
 load_plugins(PluginPath0) ->
     PluginPath1 =
         %% Always add plugins from the priv dir
-        code:priv_dir(yanger) ++
-        %% Always add plugins from an environment variable
-        case os:getenv("YANGER_PLUGINPATH") of
-            Str when is_list(Str) ->
-                PluginPath0 ++ string:tokens(Str);
-            false ->
-                PluginPath0
-        end,
+        [code:priv_dir(yanger) |
+         %% FIXME: temp hack for now, include own ebin dir
+         [ filename:dirname(code:which(?MODULE)) |
+           %% Always add plugins from an environment variable
+           case os:getenv("YANGER_PLUGINPATH") of
+               Str when is_list(Str) ->
+                   PluginPath0 ++ string:tokens(Str);
+               false ->
+                   PluginPath0
+           end]],
     Plugins =
         lists:foldl(
           fun(Dir, Acc) ->
@@ -175,8 +177,7 @@ load_plugins(PluginPath0) ->
                           Acc
                   end
           end, [], PluginPath1),
-    %% FIXME: temp hack for now, statically add our own plugins
-    Plugins ++ [yanger_tree, yanger_smiv2].
+    Plugins.
 
 load_file(Dir, FName) ->
     case filename:extension(FName) of
@@ -184,7 +185,7 @@ load_file(Dir, FName) ->
             FullFName = filename:join(Dir, FName),
             case file:read_file(FullFName) of
                 {ok, Bin} ->
-                    Module = filename:basename(FName),
+                    Module = ?l2a(filename:rootname(FName)),
                     case code:load_binary(Module, FullFName, Bin) of
                         {module, Module} ->
                             {true, Module};
