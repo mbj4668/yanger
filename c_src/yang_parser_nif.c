@@ -18,6 +18,8 @@ static ERL_NIF_TERM am_undefined;
 #define F_ERL_IDENTIFIER_REF (1 << 18)
 #define F_ERL_ATOM_OR_INT    (1 << 19)
 
+#define STRSIZ 1024
+#define FILENAMESIZ 4096
 
 static ERL_NIF_TERM
 mk_tree(ErlNifEnv *env, struct yang_statement *s, ERL_NIF_TERM fname)
@@ -106,8 +108,8 @@ mk_error_list(ErlNifEnv *env, struct yang_error *err)
 static ERL_NIF_TERM
 parse_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
-    char filename[BUFSIZ];
-    char buf[BUFSIZ];
+    char filename[FILENAMESIZ];
+    char buf[STRSIZ];
     struct yang_statement *stmt;
     struct yang_error_ctx *ectx;
     ERL_NIF_TERM fname, res;
@@ -115,8 +117,9 @@ parse_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     bool canonical;
 
     if (argc != 2 ||
-        enif_get_string(env, argv[0], filename, BUFSIZ, ERL_NIF_LATIN1) <= 0 ||
-        enif_get_atom(env, argv[1], buf, BUFSIZ, ERL_NIF_LATIN1) <= 0)
+        enif_get_string(env, argv[0], filename,
+                        FILENAMESIZ, ERL_NIF_LATIN1) <= 0 ||
+        enif_get_atom(env, argv[1], buf, STRSIZ, ERL_NIF_LATIN1) <= 0)
     {
         return enif_make_badarg(env);
     }
@@ -154,7 +157,7 @@ install_arg_types(ErlNifEnv *env, ERL_NIF_TERM etypes, unsigned int len)
     unsigned int i;
     ERL_NIF_TERM tmp, head, tail;
     const ERL_NIF_TERM *type_spec;
-    char buf[BUFSIZ];
+    char buf[STRSIZ];
     int arity;
     struct yang_arg_type types[len];
     int r;
@@ -172,16 +175,16 @@ install_arg_types(ErlNifEnv *env, ERL_NIF_TERM etypes, unsigned int len)
             return enif_make_badarg(env);
         }
         /* Handle elemt 1 - ArgTypeName */
-        if (!enif_get_atom(env, type_spec[0], buf, BUFSIZ, ERL_NIF_LATIN1)) {
+        if (!enif_get_atom(env, type_spec[0], buf, STRSIZ, ERL_NIF_LATIN1)) {
             return enif_make_badarg(env);
         }
         types[i].name = yang_make_atom(buf);
         /* Handle elemt 2 - Regexp | undefined */
-        if (enif_get_string(env, type_spec[1], buf, BUFSIZ, ERL_NIF_LATIN1)
+        if (enif_get_string(env, type_spec[1], buf, STRSIZ, ERL_NIF_LATIN1)
             <= 0)
         {
             /* It's not a string, make sure it is 'undefined' */
-            if (!enif_get_atom(env, type_spec[1], buf, BUFSIZ,
+            if (!enif_get_atom(env, type_spec[1], buf, STRSIZ,
                                ERL_NIF_LATIN1)) {
                 return enif_make_badarg(env);
             } else if (strcmp(buf, "undefined") != 0) {
@@ -192,7 +195,7 @@ install_arg_types(ErlNifEnv *env, ERL_NIF_TERM etypes, unsigned int len)
             types[i].syntax.xsd_regexp = strdup(buf);
         }
         /* Handle elemt 3 - ReturnType */
-        if (!enif_get_atom(env, type_spec[2], buf, BUFSIZ, ERL_NIF_LATIN1)) {
+        if (!enif_get_atom(env, type_spec[2], buf, STRSIZ, ERL_NIF_LATIN1)) {
             return enif_make_badarg(env);
         }
         if (strcmp(buf, "string") == 0) {
@@ -250,13 +253,13 @@ get_keyword_from_term(ErlNifEnv *env, ERL_NIF_TERM kw_term,
                       yang_atom_t *module_name,
                       yang_atom_t *keyword)
 {
-    char buf[BUFSIZ];
+    char buf[STRSIZ];
     int arity;
     const ERL_NIF_TERM *kw;
 
     if (enif_is_atom(env, kw_term)) {
         /* Core Keyword (plain atom) */
-        enif_get_atom(env, kw_term, buf, BUFSIZ, ERL_NIF_LATIN1);
+        enif_get_atom(env, kw_term, buf, STRSIZ, ERL_NIF_LATIN1);
         *module_name = NULL;
         *keyword = yang_make_atom(buf);
         return true;
@@ -269,13 +272,13 @@ get_keyword_from_term(ErlNifEnv *env, ERL_NIF_TERM kw_term,
             return false;
         }
         /* Handle element 1 of the Extension Keyword */
-        if (!enif_get_atom(env, kw[0], buf, BUFSIZ, ERL_NIF_LATIN1)) {
+        if (!enif_get_atom(env, kw[0], buf, STRSIZ, ERL_NIF_LATIN1)) {
             fprintf(stderr, "bad grammar %d\n", __LINE__);
             return false;
         }
         *module_name = yang_make_atom(buf);
         /* Handle element 2 of the Extension Keyword */
-        if (!enif_get_atom(env, kw[1], buf, BUFSIZ, ERL_NIF_LATIN1)) {
+        if (!enif_get_atom(env, kw[1], buf, STRSIZ, ERL_NIF_LATIN1)) {
             fprintf(stderr, "bad grammar %d\n", __LINE__);
             return false;
         }
@@ -292,7 +295,7 @@ install_grammar(ErlNifEnv *env, ERL_NIF_TERM module_name, ERL_NIF_TERM specs,
     struct yang_statement_rule rule[nrules];
     ERL_NIF_TERM tmp, spec_head, spec_tail, rule_head, rule_tail;
     const ERL_NIF_TERM *stmt_spec, *rule_spec, *usein;
-    char buf[BUFSIZ];
+    char buf[STRSIZ];
     unsigned int len;
     int arity;
     unsigned int i, j, rule_idx=0;
@@ -313,13 +316,13 @@ install_grammar(ErlNifEnv *env, ERL_NIF_TERM module_name, ERL_NIF_TERM specs,
             return enif_make_badarg(env);
         }
         /* Handle element 1 - Keyword */
-        if (!enif_get_atom(env, stmt_spec[0], buf, BUFSIZ, ERL_NIF_LATIN1)) {
+        if (!enif_get_atom(env, stmt_spec[0], buf, STRSIZ, ERL_NIF_LATIN1)) {
             fprintf(stderr, "bad grammar %d\n", __LINE__);
             return enif_make_badarg(env);
         }
         spec[i].keyword = yang_make_atom(buf);
         /* Handle element 2 - ArgType */
-        if (!enif_get_atom(env, stmt_spec[1], buf, BUFSIZ, ERL_NIF_LATIN1)) {
+        if (!enif_get_atom(env, stmt_spec[1], buf, STRSIZ, ERL_NIF_LATIN1)) {
             if (enif_is_empty_list(env, stmt_spec[1])) {
                 spec[i].arg_type_idx = -1;
             } else
@@ -361,7 +364,7 @@ install_grammar(ErlNifEnv *env, ERL_NIF_TERM module_name, ERL_NIF_TERM specs,
                 return enif_make_badarg(env);
             }
             /* Handle element 2 - Occurance */
-            if (!enif_get_atom(env, rule_spec[1], buf, BUFSIZ,ERL_NIF_LATIN1)) {
+            if (!enif_get_atom(env, rule_spec[1], buf, STRSIZ,ERL_NIF_LATIN1)) {
                 fprintf(stderr, "bad grammar %d\n", __LINE__);
                 return enif_make_badarg(env);
             }
@@ -377,7 +380,7 @@ install_grammar(ErlNifEnv *env, ERL_NIF_TERM module_name, ERL_NIF_TERM specs,
         tmp = spec_tail;
     }
 
-    if (!enif_get_atom(env, module_name, buf, BUFSIZ,ERL_NIF_LATIN1)) {
+    if (!enif_get_atom(env, module_name, buf, STRSIZ,ERL_NIF_LATIN1)) {
         fprintf(stderr, "bad grammar %d\n", __LINE__);
         return enif_make_badarg(env);
     }
@@ -400,7 +403,7 @@ install_grammar(ErlNifEnv *env, ERL_NIF_TERM module_name, ERL_NIF_TERM specs,
         /* Get the head as a 4-tuple */
         enif_get_tuple(env, spec_head, &arity, &stmt_spec);
         /* Handle element 1 - Keyword */
-        enif_get_atom(env, stmt_spec[0], buf, BUFSIZ, ERL_NIF_LATIN1);
+        enif_get_atom(env, stmt_spec[0], buf, STRSIZ, ERL_NIF_LATIN1);
         rule.module_name = m;
         rule.keyword = yang_make_atom(buf);
         /* This spec must exist, since it was added by
@@ -410,7 +413,7 @@ install_grammar(ErlNifEnv *env, ERL_NIF_TERM module_name, ERL_NIF_TERM specs,
         /* Handle element 4 - UseIn (2-tuple or 'undefined' */
         if (enif_is_atom(env, stmt_spec[3])) {
             /* It's not a string, make sure it is 'undefined' */
-            enif_get_atom(env, stmt_spec[3], buf, BUFSIZ, ERL_NIF_LATIN1);
+            enif_get_atom(env, stmt_spec[3], buf, STRSIZ, ERL_NIF_LATIN1);
             if (strcmp(buf, "undefined") != 0) {
                 fprintf(stderr, "bad grammar %d\n", __LINE__);
                 return enif_make_badarg(env);
@@ -423,7 +426,7 @@ install_grammar(ErlNifEnv *env, ERL_NIF_TERM module_name, ERL_NIF_TERM specs,
                 return enif_make_badarg(env);
             }
             /* Handle element 1 of UseIn - OccuranceWhenUsed */
-            if (!(enif_get_atom(env, usein[0], buf, BUFSIZ, ERL_NIF_LATIN1))) {
+            if (!(enif_get_atom(env, usein[0], buf, STRSIZ, ERL_NIF_LATIN1))) {
                 fprintf(stderr, "bad grammar %d\n", __LINE__);
                 return enif_make_badarg(env);
             }

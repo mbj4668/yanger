@@ -11,6 +11,8 @@
 #include "yang_grammar.h"
 #include "yang_core_grammar.h"
 
+#define STRSIZ 1024
+
 static yang_atom_t am_module;
 static yang_atom_t am_submodule;
 static yang_atom_t am_yang_version;
@@ -93,7 +95,7 @@ match_rule(struct yang_statement *stmt,
            struct yang_error_ctx *ectx)
 {
     int i;
-    char buf[BUFSIZ];
+    char buf[STRSIZ];
 
     for (i = *start; i < nrules; i++) {
         if (stmt->module_name == rules[i].module_name &&
@@ -111,13 +113,13 @@ match_rule(struct yang_statement *stmt,
                 *found = &rules[i];
                 return true;
             } else if (rules[i].occurance == '0') {
-                build_keyword_from_stmt(buf, BUFSIZ, stmt);
+                build_keyword_from_stmt(buf, STRSIZ, stmt);
                 yang_add_err(ectx, YANG_ERR_GRAMMAR_KEYWORD_ALREADY_FOUND,
                              stmt,
                              "keyword '%s' already given", buf);
                 return false;
             } else if (rules[i].occurance == '-') {
-                build_keyword_from_stmt(buf, BUFSIZ, stmt);
+                build_keyword_from_stmt(buf, STRSIZ, stmt);
                 yang_add_err(ectx, YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD,
                              stmt,
                              "unexpected keyword '%s'", buf);
@@ -130,7 +132,7 @@ match_rule(struct yang_statement *stmt,
                 if (rules[j].occurance == '1' || rules[j].occurance == '+') {
                     /* consume it, so we don't report the same error again */
                     rules[j].occurance = '0';
-                    build_keyword_from_rule(buf, BUFSIZ, &rules[j]);
+                    build_keyword_from_rule(buf, STRSIZ, &rules[j]);
                     yang_add_err(ectx, YANG_ERR_GRAMMAR_EXPECTED_KEYWORD, stmt,
                                  "expected keyword '%s'", buf);
                     return false;
@@ -140,11 +142,11 @@ match_rule(struct yang_statement *stmt,
             *start = i+1;
         } else if (canonical &&
                    (rules[i].occurance == '1' || rules[i].occurance == '+')) {
-            char buf2[BUFSIZ];
+            char buf2[STRSIZ];
             /* consume it, so we don't report the same error again */
             rules[i].occurance = '0';
-            build_keyword_from_rule(buf, BUFSIZ, &rules[i]);
-            build_keyword_from_stmt(buf2, BUFSIZ, stmt);
+            build_keyword_from_rule(buf, STRSIZ, &rules[i]);
+            build_keyword_from_stmt(buf2, STRSIZ, stmt);
             yang_add_err(ectx, YANG_ERR_GRAMMAR_EXPECTED_KEYWORD, stmt,
                          "expected keyword '%s' before '%s'",
                          buf, buf2);
@@ -155,7 +157,7 @@ match_rule(struct yang_statement *stmt,
         }
     }
     /* no statement matched */
-    build_keyword_from_stmt(buf, BUFSIZ, stmt);
+    build_keyword_from_stmt(buf, STRSIZ, stmt);
     yang_add_err(ectx, YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD, stmt,
                  "unexpected keyword '%s'", buf);
     return false;
@@ -208,8 +210,8 @@ chk_statements(struct yang_statement *stmt,
     struct yang_statement_rule *subrules;
     struct yang_statement_spec *subspec;
     int start = 0, i;
-    char buf[BUFSIZ];
-    char buf2[BUFSIZ];
+    char buf[STRSIZ];
+    char buf2[STRSIZ];
     size_t sz;
     struct grammar *g;
 
@@ -226,7 +228,7 @@ chk_statements(struct yang_statement *stmt,
             subspec = rule->spec;
             /*
             if (!(subspec = get_spec_from_rule(g, rule))) {
-                build_keyword_from_rule(buf, BUFSIZ, rule);
+                build_keyword_from_rule(buf, STRSIZ, rule);
                 yang_add_err(ectx, YANG_ERR_INTERNAL, stmt,
                              "spec for '%s' not found", buf);
                 return false;
@@ -249,12 +251,12 @@ chk_statements(struct yang_statement *stmt,
                 }
             }
             else if (subspec->arg_type_idx != -1 && !stmt->arg) {
-                build_keyword_from_rule(buf, BUFSIZ, rule);
+                build_keyword_from_rule(buf, STRSIZ, rule);
                 yang_add_err(ectx, YANG_ERR_GRAMMAR_MISSING_ARGUMENT, stmt,
                              "missing argument to '%s'", buf);
                 return false;
             } else if (subspec->arg_type_idx == -1 && stmt->arg) {
-                build_keyword_from_rule(buf, BUFSIZ, rule);
+                build_keyword_from_rule(buf, STRSIZ, rule);
                 yang_add_err(ectx, YANG_ERR_GRAMMAR_UNEXPECTED_ARGUMENT, stmt,
                              "did not expect an argument to '%s', got \"%s\"",
                              buf, stmt->arg);
@@ -281,8 +283,8 @@ chk_statements(struct yang_statement *stmt,
     /* make sure there are no more mandatory statements on this level */
     for (i = 0; i < nrules; i++) {
         if (rules[i].occurance == '1' || rules[i].occurance == '+') {
-            build_keyword_from_rule(buf, BUFSIZ, &rules[i]);
-            build_keyword_from_stmt(buf2, BUFSIZ, parent);
+            build_keyword_from_rule(buf, STRSIZ, &rules[i]);
+            build_keyword_from_stmt(buf2, STRSIZ, parent);
             yang_add_err(ectx, YANG_ERR_GRAMMAR_EXPECTED_KEYWORD, parent,
                          "expected keyword '%s' as substatement to '%s'",
                          buf, buf2);
@@ -717,7 +719,7 @@ yang_grammar_check_module(struct yang_statement *stmt,
                           struct yang_error_ctx *ectx)
 {
     struct yang_statement_rule top_rule[1];
-    char buf[BUFSIZ];
+    char buf[STRSIZ];
     int nprefixes;
     struct yang_statement *tmp;
 
@@ -728,7 +730,7 @@ yang_grammar_check_module(struct yang_statement *stmt,
     } else if (stmt->keyword == am_submodule) {
         top_rule[0].keyword = am_submodule;
     } else {
-        build_keyword_from_stmt(buf, BUFSIZ, stmt);
+        build_keyword_from_stmt(buf, STRSIZ, stmt);
         yang_add_err(ectx, YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD, stmt,
                      "unexpected keyword '%s'", buf);
         return false;
