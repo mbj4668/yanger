@@ -646,7 +646,9 @@ yang_init_core_stmt_grammar(void)
 
 
     /* Install the core types */
+    memset(types, 0, sizeof(types));
     i = 0;
+    
     types[i].name = yang_make_atom("string");
     i++;
 
