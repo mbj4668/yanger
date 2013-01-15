@@ -773,8 +773,8 @@ yang_print_grammar()
                    "null");
             for (r = 0; r < sp->nrules; r++) {
                 rp = &sp->rules[r];
-                printf("    %s %c (%d)\n",
-                       rp->keyword, rp->occurance, (int)rp->spec);
+                printf("    %s %c (%p)\n",
+                       rp->keyword, rp->occurance, rp->spec);
             }
         }
     }

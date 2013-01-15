@@ -1,4 +1,3 @@
-#define _POSIX_C_SOURCE 200809L // for strdup
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -496,6 +495,8 @@ chk_(char *arg, void *opaque)
 
 #define NTYPES 23
 
+#define STRBUFSIZ 256
+
 int
 yang_init_core_stmt_grammar(void)
 {
@@ -503,27 +504,27 @@ yang_init_core_stmt_grammar(void)
     int i = 0;
     const char *identifier;
     const char *prefix;
-    char keyword[BUFSIZ];
+    char keyword[STRBUFSIZ];
     const char *length_str;
-    char length_expr[BUFSIZ];
+    char length_expr[STRBUFSIZ];
     const char *range_str;
-    char range_expr[BUFSIZ];
-    char rel_path_keyexpr[BUFSIZ];
+    char range_expr[STRBUFSIZ];
+    char rel_path_keyexpr[STRBUFSIZ];
     char *node_id;
     char *identifier_ref;
-    char path_key_expr[BUFSIZ];
-    char path_equality_expr[BUFSIZ];
-    char path_predicate[BUFSIZ];
-    char absolute_path_arg[BUFSIZ];
-    char descendant_path_arg[BUFSIZ];
-    char relative_path_arg[BUFSIZ];
-    char deref_path_arg[BUFSIZ];
-    char path_arg[BUFSIZ];
-    char absolute_schema_nodeid[BUFSIZ];
-    char descendant_schema_nodeid[BUFSIZ];
-    char schema_nodeid[BUFSIZ];
-    char unique_arg[BUFSIZ];
-    char key_arg[BUFSIZ];
+    char path_key_expr[STRBUFSIZ];
+    char path_equality_expr[STRBUFSIZ];
+    char path_predicate[STRBUFSIZ];
+    char absolute_path_arg[2*STRBUFSIZ];
+    char descendant_path_arg[3*STRBUFSIZ];
+    char relative_path_arg[3*STRBUFSIZ];
+    char deref_path_arg[5*STRBUFSIZ];
+    char path_arg[9*STRBUFSIZ];
+    char absolute_schema_nodeid[STRBUFSIZ];
+    char descendant_schema_nodeid[STRBUFSIZ];
+    char schema_nodeid[STRBUFSIZ];
+    char unique_arg[STRBUFSIZ];
+    char key_arg[STRBUFSIZ];
     // URI - RFC 3986, Appendix A
     const char *scheme = "[A-Za-z][-+.A-Za-z0-9]*";
     const char *unreserved = "[-._~A-Za-z0-9]";
@@ -532,106 +533,117 @@ yang_init_core_stmt_grammar(void)
     const char *dec_octet = "([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])";
     const char *h16 = "[0-9A-F]{1,4}";
     const char *port = "[0-9]*";
-    char pchar[BUFSIZ];
-    char segment[BUFSIZ];
-    char segment_nz[BUFSIZ];
-    char userinfo[BUFSIZ];
-    char ipv4address[BUFSIZ];
-    char ls32[BUFSIZ];
-    char ipv6address[BUFSIZ];
-    char ipvfuture[BUFSIZ];
-    char ipliteral[BUFSIZ];
-    char reg_name[BUFSIZ];
-    char host[BUFSIZ];
-    char authority[BUFSIZ];
-    char path_abempty[BUFSIZ];
-    char path_absolute[BUFSIZ];
-    char path_rootless[BUFSIZ];
-    char path_empty[BUFSIZ];
-    char hier_part[BUFSIZ];
-    char query[BUFSIZ];
+    char pchar[STRBUFSIZ];
+    char segment[STRBUFSIZ];
+    char segment_nz[STRBUFSIZ];
+    char userinfo[STRBUFSIZ];
+    char ipv4address[STRBUFSIZ];
+    char ls32[STRBUFSIZ];
+    char ipv6address[6*STRBUFSIZ];
+    char ipvfuture[STRBUFSIZ];
+    char ipliteral[6*STRBUFSIZ];
+    char reg_name[STRBUFSIZ];
+    char host[7*STRBUFSIZ];
+    char authority[7*STRBUFSIZ];
+    char path_abempty[STRBUFSIZ];
+    char path_absolute[STRBUFSIZ];
+    char path_rootless[STRBUFSIZ];
+    char path_empty[STRBUFSIZ];
+    char hier_part[8*STRBUFSIZ];
+    char query[STRBUFSIZ];
     char *fragment;
-    char uri[BUFSIZ];
+    char uri[9*STRBUFSIZ];
+
+#define S(BUF, FMT, ARGS ...) {                                         \
+    unsigned int __n = snprintf(BUF, sizeof(BUF), FMT, ARGS);           \
+    if (__n > sizeof(BUF)) {                                            \
+        fprintf(stderr, "%s:%d sizeof(%s) = %d need %d\n",              \
+                __FILE__, __LINE__, #BUF, (int)sizeof(BUF), __n);       \
+    }                                                                   \
+    assert(__n <= sizeof(BUF));                                         \
+}
 
     identifier = "[_A-Za-z][._\\-A-Za-z0-9]*";
     prefix = identifier;
-    sprintf(keyword, "((%s):)?(%s)", prefix, identifier);
+    S(keyword, "((%s):)?(%s)", prefix, identifier);
 
     length_str =
         "((min|max|[0-9]+)\\s*"
         "(\\.\\.\\s*"
         "(min|max|[0-9]+)\\s*)?)";
-    sprintf(length_expr, "%s(\\|\\s*%s)*", length_str, length_str);
+    S(length_expr, "%s(\\|\\s*%s)*", length_str, length_str);
 
     range_str =
         "((\\-INF|min|max|((\\+|\\-)?[0-9]+(\\.[0-9]+)?))\\s*"
         "(\\.\\.\\s*"
         "(INF|min|max|(\\+|\\-)?[0-9]+(\\.[0-9]+)?)\\s*)?)";
-    sprintf(range_expr, "%s(\\|\\s*%s)*", range_str, range_str);
+    S(range_expr, "%s(\\|\\s*%s)*", range_str, range_str);
+
 
     node_id = keyword;
     identifier_ref = node_id;
-    sprintf(rel_path_keyexpr, "(\\.\\./)+(%s/)*%s", node_id, node_id);
-    sprintf(path_key_expr, "(current\\s*\\(\\s*\\)/%s)", rel_path_keyexpr);
-    sprintf(path_equality_expr, "%s\\s*=\\s*%s", node_id, path_key_expr);
-    sprintf(path_predicate, "\\s*\\[\\s*%s\\s*\\]\\s*", path_equality_expr);
-    sprintf(absolute_path_arg, "(/%s(%s)*)+",  node_id, path_predicate);
-    sprintf(descendant_path_arg, "%s(%s)*(%s)?",
-            node_id, path_predicate, absolute_path_arg);
-    sprintf(relative_path_arg, "(\\.\\./)*%s", descendant_path_arg);
-    sprintf(deref_path_arg, "deref\\s*\\(\\s*(%s)\\s*\\)/\\.\\./%s",
-            relative_path_arg, relative_path_arg);
-    sprintf(path_arg, "(%s|%s|%s)",
-            absolute_path_arg, relative_path_arg, deref_path_arg);
-    sprintf(absolute_schema_nodeid, "(/%s)+", node_id);
-    sprintf(descendant_schema_nodeid, "%s(%s)?",
-            node_id, absolute_schema_nodeid);
-    sprintf(schema_nodeid, "(%s|%s)",
-            absolute_schema_nodeid, descendant_schema_nodeid);
-    sprintf(unique_arg, "%s(\\s+%s)*",
-            descendant_schema_nodeid,  descendant_schema_nodeid);
-    sprintf(key_arg, "%s(\\s+%s)*", node_id, node_id);
-
-    sprintf(pchar, "(%s|%s|%s|[:@])", unreserved, pct_encoded, sub_delims);
-    sprintf(segment, "%s*", pchar);
-    sprintf(segment_nz, "%s+", pchar);
-    sprintf(userinfo, "(%s|%s|%s|:)*", unreserved, pct_encoded, sub_delims);
-    sprintf(ipv4address, "(%s.){3}%s", dec_octet, dec_octet);
-    sprintf(ls32, "(%s:%s|%s)", h16, h16, ipv4address);
-    sprintf(ipv6address,
-            "((%s:){6}%s"
-            "|::(%s:){5}%s"
-            "|(%s)?::(%s:){4}%s"
-            "|((%s:)?%s)?::(%s:){3}%s"
-            "|((%s:){,2}%s)?::(%s:){2}%s"
-            "|((%s:){,3}%s)?::%s:%s"
-            "|((%s:){,4}%s)?::%s"
-            "|((%s:){,5}%s)?::%s"
-            "|((%s:){,6}%s)?::)",
-            h16, ls32,
-            h16, ls32,
-            h16, h16, ls32,
-            h16, h16, h16, ls32,
-            h16, h16, h16, ls32,
-            h16, h16, h16, ls32,
-            h16, h16, ls32,
-            h16, h16, ls32,
-            h16, h16);
-    sprintf(ipvfuture, "v[0-9A-F]+\\.(%s|%s|:)+", unreserved, sub_delims);
-    sprintf(ipliteral, "\\[(%s|%s)\\]", ipv6address, ipvfuture);
-    sprintf(reg_name, "(%s|%s|%s)*", unreserved, pct_encoded, sub_delims);
-    sprintf(host, "(%s|%s|%s)", ipliteral, ipv4address, reg_name);
-    sprintf(authority, "(%s@)?%s(:%s)?", userinfo, host, port);
-    sprintf(path_abempty, "(/%s)*", segment);
-    sprintf(path_absolute, "/(%s(/%s)*)?", segment_nz, segment);
-    sprintf(path_rootless, "%s(/%s)*", segment_nz, segment);
-    sprintf(path_empty, "%s{0}", pchar);
-    sprintf(hier_part, "(//%s%s|%s|%s|%s)",
-            authority, path_abempty, path_absolute, path_rootless, path_empty);
-    sprintf(query, "(%s|[/?])*", pchar);
+    S(rel_path_keyexpr, "(\\.\\./)+(%s/)*%s", node_id, node_id);
+    S(path_key_expr, "(current\\s*\\(\\s*\\)/%s)", rel_path_keyexpr);
+    S(path_equality_expr, "%s\\s*=\\s*%s", node_id, path_key_expr);
+    S(path_predicate, "\\s*\\[\\s*%s\\s*\\]\\s*", path_equality_expr);
+    S(absolute_path_arg, "(/%s(%s)*)+",  node_id, path_predicate);
+    S(descendant_path_arg, "%s(%s)*(%s)?",
+      node_id, path_predicate, absolute_path_arg);
+    S(relative_path_arg, "(\\.\\./)*%s", descendant_path_arg);
+    S(deref_path_arg, "deref\\s*\\(\\s*(%s)\\s*\\)/\\.\\./%s",
+      relative_path_arg, relative_path_arg);
+    S(path_arg, "(%s|%s|%s)",
+      absolute_path_arg, relative_path_arg, deref_path_arg);
+    S(absolute_schema_nodeid, "(/%s)+", node_id);
+    S(descendant_schema_nodeid, "%s(%s)?",
+      node_id, absolute_schema_nodeid);
+    S(schema_nodeid, "(%s|%s)",
+      absolute_schema_nodeid, descendant_schema_nodeid);
+    S(unique_arg, "%s(\\s+%s)*",
+      descendant_schema_nodeid,  descendant_schema_nodeid);
+    S(key_arg, "%s(\\s+%s)*", node_id, node_id);
+    
+    S(pchar, "(%s|%s|%s|[:@])", unreserved, pct_encoded, sub_delims);
+    S(segment, "%s*", pchar);
+    S(segment_nz, "%s+", pchar);
+    S(userinfo, "(%s|%s|%s|:)*", unreserved, pct_encoded, sub_delims);
+    S(ipv4address, "(%s.){3}%s", dec_octet, dec_octet);
+    S(ls32, "(%s:%s|%s)", h16, h16, ipv4address);
+    S(ipv6address,
+      "((%s:){6}%s"
+      "|::(%s:){5}%s"
+      "|(%s)?::(%s:){4}%s"
+      "|((%s:)?%s)?::(%s:){3}%s"
+      "|((%s:){,2}%s)?::(%s:){2}%s"
+      "|((%s:){,3}%s)?::%s:%s"
+      "|((%s:){,4}%s)?::%s"
+      "|((%s:){,5}%s)?::%s"
+      "|((%s:){,6}%s)?::)",
+      h16, ls32,
+      h16, ls32,
+      h16, h16, ls32,
+      h16, h16, h16, ls32,
+      h16, h16, h16, ls32,
+      h16, h16, h16, ls32,
+      h16, h16, ls32,
+      h16, h16, ls32,
+      h16, h16);
+    S(ipvfuture, "v[0-9A-F]+\\.(%s|%s|:)+", unreserved, sub_delims);
+    S(ipliteral, "\\[(%s|%s)\\]", ipv6address, ipvfuture);
+    S(reg_name, "(%s|%s|%s)*", unreserved, pct_encoded, sub_delims);
+    S(host, "(%s|%s|%s)", ipliteral, ipv4address, reg_name);
+    S(authority, "(%s@)?%s(:%s)?", userinfo, host, port);
+    S(path_abempty, "(/%s)*", segment);
+    S(path_absolute, "/(%s(/%s)*)?", segment_nz, segment);
+    S(path_rootless, "%s(/%s)*", segment_nz, segment);
+    S(path_empty, "%s{0}", pchar);
+    S(hier_part, "(//%s%s|%s|%s|%s)",
+      authority, path_abempty, path_absolute, path_rootless, path_empty);
+    S(query, "(%s|[/?])*", pchar);
     fragment = query;
-    sprintf(uri, "%s:%s(\\?%s)?(#%s)?",
-            scheme, hier_part, query, fragment);
+    S(uri, "%s:%s(\\?%s)?(#%s)?",
+      scheme, hier_part, query, fragment);
+
 
     /* Install the core types */
     i = 0;
@@ -699,7 +711,7 @@ yang_init_core_stmt_grammar(void)
     types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
     i++;
 
-    sprintf(key_arg, "%s(\\s+%s)*", node_id, node_id);
+    S(key_arg, "%s(\\s+%s)*", node_id, node_id);
     types[i].name = yang_make_atom("key-arg");
     types[i].syntax.xsd_regexp = key_arg;
     types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
@@ -751,6 +763,8 @@ yang_init_core_stmt_grammar(void)
     i++;
 
     assert(i == NTYPES);
+
+#undef S
 
     if (!yang_install_arg_types(types, i)) {
         return 0;
