@@ -1734,6 +1734,8 @@ iterate_stmt0([{Keyword, _, _, Substmts} = H | T], Keyword, Acc0, F) ->
         {stop, Acc1} ->
             throw(Acc1)
     end;
+iterate_stmt0([_ | T], Keyword, Acc, F) ->
+    iterate_stmt0(T, Keyword, Acc, F);
 iterate_stmt0([], _, Acc, _F) ->
     Acc.
 
