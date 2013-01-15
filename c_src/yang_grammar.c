@@ -367,6 +367,7 @@ install_arg_types_str(const char *stypes[], int ntypes)
     int i, j;
     struct yang_arg_type ya_type[ntypes];
 
+    memset(ya_type, 0, sizeof(ya_type));
     for (i = 0, j = 0; j < ntypes; i += 2, j++) {
         ya_type[j].name = yang_make_atom(stypes[i]);
         ya_type[j].flags = F_ARG_TYPE_SYNTAX_REGEXP;
@@ -487,6 +488,8 @@ install_grammar_str(const char *module_name,
     struct yang_statement_spec spec[nspecs];
     struct yang_statement_rule rule[nrules];
 
+    memset(spec, 0, sizeof(spec));
+    memset(rule, 0, sizeof(rule));
     i = 0;
     s = 0;
     r = 0;
@@ -673,6 +676,7 @@ resolve_module_names_from_prefixes(int nprefixes,
     struct yang_statement *s, *s2;
     int n = 0;
 
+    memset(prefix_map, 0, sizeof(prefix_map));
     /* build prefix map */
     for (s = stmt->substmt; s; s = s->next) {
         if (s->prefix == NULL) {

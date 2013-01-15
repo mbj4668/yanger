@@ -602,7 +602,7 @@ yang_init_core_stmt_grammar(void)
     S(unique_arg, "%s(\\s+%s)*",
       descendant_schema_nodeid,  descendant_schema_nodeid);
     S(key_arg, "%s(\\s+%s)*", node_id, node_id);
-    
+
     S(pchar, "(%s|%s|%s|[:@])", unreserved, pct_encoded, sub_delims);
     S(segment, "%s*", pchar);
     S(segment_nz, "%s+", pchar);
@@ -648,7 +648,7 @@ yang_init_core_stmt_grammar(void)
     /* Install the core types */
     memset(types, 0, sizeof(types));
     i = 0;
-    
+
     types[i].name = yang_make_atom("string");
     i++;
 

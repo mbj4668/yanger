@@ -159,6 +159,7 @@ install_arg_types(ErlNifEnv *env, ERL_NIF_TERM etypes, unsigned int len)
     struct yang_arg_type types[len];
     int r;
 
+    memset(types, 0, sizeof(types));
     tmp = etypes;
     for (i = 0; i < len; i++) {
         /* Get the head of the list */
@@ -297,6 +298,8 @@ install_grammar(ErlNifEnv *env, ERL_NIF_TERM module_name, ERL_NIF_TERM specs,
     unsigned int i, j, rule_idx=0;
     yang_atom_t m;
 
+    memset(spec, 0, sizeof(spec));
+    memset(rule, 0, sizeof(rule));
     tmp = specs;
     for (i = 0; i < nspecs; i++) {
         /* Get the head of the list */
@@ -391,6 +394,7 @@ install_grammar(ErlNifEnv *env, ERL_NIF_TERM module_name, ERL_NIF_TERM specs,
         yang_atom_t usein_keyword;
         ERL_NIF_TERM usein_head, usein_tail;
 
+        memset(&rule, 0, sizeof(rule));
         /* Get the head of the list */
         enif_get_list_cell(env, tmp, &spec_head, &spec_tail);
         /* Get the head as a 4-tuple */
