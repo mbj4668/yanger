@@ -820,8 +820,10 @@ chk_base({_, BaseArg, Pos, _}, Map0, M, Ctx0) ->
                     {Map1, Ctx2} = add_identity(BaseId, Map0, M, Ctx1),
                     {Map1, Ctx2, {M#module.modulename, BaseName}};
                 none ->
-                    Ctx2 = add_error(Ctx1, Pos, 'YANG_ERR_DEFINITION_NOT_FOUND',
-                                     ['identity', BaseName]),
+                    Ctx2 =
+                        add_error(Ctx1, Pos, 'YANG_ERR_DEFINITION_NOT_FOUND',
+                                  ['identity',
+                                   yang_error:fmt_yang_identifier(BaseName)]),
                     {Map0, Ctx2, undefined}
             end;
         {{ImportedModuleName, _}, BaseName, Ctx1} ->
@@ -877,8 +879,10 @@ chk_if_feature({_, RefArg, Pos, _}, Map0, M, Ctx0) ->
                     {Map1, Ctx2} = add_feature(RefFeature, Map0, M, Ctx1),
                     {Map1, Ctx2, {M#module.modulename, RefName}};
                 none ->
-                    Ctx2 = add_error(Ctx1, Pos, 'YANG_ERR_DEFINITION_NOT_FOUND',
-                                     ['feature', RefName]),
+                    Ctx2 =
+                        add_error(Ctx1, Pos, 'YANG_ERR_DEFINITION_NOT_FOUND',
+                                  ['feature',
+                                   yang_error:fmt_yang_identifier(RefName)]),
                     {Map0, Ctx2, undefined}
             end;
         {{ImportedModuleName, _}, RefName, Ctx1} ->
@@ -1166,7 +1170,8 @@ mk_children0([{Kwd, Arg, Pos, Substmts} = Stmt | T], Map0,
                                 add_error(
                                   Ctx, Pos,
                                   'YANG_ERR_DEFINITION_NOT_FOUND',
-                                  ['grouping', Arg]),
+                                  ['grouping',
+                                   yang_error:fmt_yang_identifier(Arg)]),
                             mk_children0(T, Map0, Typedefs, Groupings, M, Ctx1,
                                          ParentConfig, Acc)
                     end
@@ -1186,7 +1191,12 @@ mk_children0([{Kwd, Arg, Pos, Substmts} = Stmt | T], Map0,
                     false ->
                         {ParentConfig, Ctx}
                 end,
-            Sn0 = #sn{name = Arg,
+            Name = if Kwd == 'input' orelse Kwd == 'output' ->
+                           Kwd;
+                      true ->
+                           Arg
+                   end,
+            Sn0 = #sn{name = Name,
                       kind = Kwd,
                       prefix_map = M#module.prefix_map,
                       config = ChConfig,
@@ -1212,8 +1222,9 @@ mk_children0([{Kwd, Arg, Pos, Substmts} = Stmt | T], Map0,
                                  groupings = Groupings1,
                                  children = SubChildren},
                     Sn2 = mk_case_from_shorthand(Sn1),
+                    Sn3 = mk_rpc_default_children(Sn2),
                     mk_children0(T, Map0, Typedefs, Groupings, M, Ctx3,
-                                 ParentConfig, [Sn2 | Acc])
+                                 ParentConfig, [Sn3 | Acc])
             end;
        true ->
             mk_children0(T, Map0, Typedefs, Groupings, M, Ctx,
@@ -1222,6 +1233,7 @@ mk_children0([{Kwd, Arg, Pos, Substmts} = Stmt | T], Map0,
 mk_children0([], GroupingMap, _Typedefs, _Groupings, _M, Ctx,
              _ParentConfig, Acc) ->
     {Acc, GroupingMap, Ctx}.
+
 
 expand_uses(GroupingChildren, UsesSubstmts, Typedefs, Groupings,
             UsesPos, M, Ctx, ParentConfig, Children) ->
@@ -1595,11 +1607,35 @@ mk_case_from_shorthand(#sn{kind = 'choice', children = Children0} = ChSn) ->
              (#sn{name = Name, stmt = {_Keyword, Arg, Pos, _} = Stmt} = Sn) ->
                   %% shorthand, add case
                   #sn{name = Name, kind = 'case', children = [Sn],
+                      prefix_map = ChSn#sn.prefix_map,
                       stmt = {'case', Arg, Pos, [Stmt]}}
           end, Children0),
     ChSn#sn{children = Children1};
 mk_case_from_shorthand(Sn) ->
     Sn.
+
+%% RFC 6020, sect. 7.13
+mk_rpc_default_children(#sn{kind = 'rpc', children = Children0} = Sn) ->
+    Children1 =
+        lists:foldl(
+          fun(Name, Acc) ->
+                  case lists:keymember(Name, #sn.name, Children0) of
+                      true ->
+                          Acc;
+                      false ->
+                          %% construct a fake schema node for this
+                          [#sn{name = Name, kind = Name,
+                               prefix_map = Sn#sn.prefix_map,
+                               typedefs = Sn#sn.typedefs,
+                               groupings = Sn#sn.groupings,
+                               stmt = {Name, undefined, sn_pos(Sn), []}} |
+                           Acc]
+                  end
+          end, Children0, ['input', 'output']),
+    Sn#sn{children = Children1};
+mk_rpc_default_children(Sn) ->
+    Sn.
+
 
 mk_augments([{'augment', Arg, Pos, Substmts} = Stmt| T], Typedefs, Groupings,
             M, Ctx0, Acc) ->
