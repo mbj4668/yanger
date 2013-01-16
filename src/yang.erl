@@ -1133,48 +1133,70 @@ mk_children(Stmts, GroupingMap, ParentTypedefs, ParentGroupings, M, Ctx0) ->
                      undefined, []),
     {Children, GroupingMap1, Typedefs, Groupings, Ctx2}.
 
-mk_children0([{Kwd, Arg, Pos, Substmts} = Stmt | T], Map0,
-             Typedefs, Groupings, M, Ctx, ParentConfig, Acc) ->
+mk_children0([{Kwd, Arg, Pos, Substmts} = Stmt | T], GroupingMap0,
+             Typedefs, Groupings, M, Ctx0, ParentConfig, Acc) ->
     if Kwd == 'uses' ->
-            case
-                Map0 == undefined orelse map_lookup(Arg, Map0)
-            of
-                {value, G0} ->
-                    {Map1, Ctx1} =
-                        add_grouping(G0, Map0, Typedefs, Groupings, M, Ctx),
-                    case map_lookup(Arg, Map1) of
-                        {value, G1} ->
-                            {Acc1, Ctx2} =
-                                expand_uses(G1#grouping.children, Substmts,
-                                            Typedefs, Groupings, Pos,
-                                            M, Ctx1, ParentConfig, Acc),
-                            mk_children0(T, Map1, Typedefs, Groupings, M, Ctx2,
-                                         ParentConfig, Acc1);
-                        none ->
-                            %% This means add_grouping returned an error,
-                            %% do not add another one.
-                            mk_children0(T, Map1, Typedefs, Groupings, M, Ctx1,
-                                         ParentConfig, Acc)
+            case resolve_idref(Arg, Pos, M#module.prefix_map, Ctx0) of
+                {self, GroupingName, Ctx1} ->
+                    %% reference to local definition
+                    case
+                        GroupingMap0 == undefined orelse
+                        map_lookup(GroupingName, GroupingMap0)
+                    of
+                        {value, G0} ->
+                            {GroupingMap1, Ctx2} =
+                                add_grouping(G0, GroupingMap0,
+                                             Typedefs, Groupings, M, Ctx0),
+                            case map_lookup(Arg, GroupingMap1) of
+                                {value, G1} ->
+                                    {Acc1, Ctx2} =
+                                        expand_uses(G1#grouping.children,
+                                                    Substmts,
+                                                    Typedefs, Groupings, Pos,
+                                                    M, Ctx1, ParentConfig, Acc),
+                                    mk_children0(T, GroupingMap1,
+                                                 Typedefs, Groupings,
+                                                 M, Ctx2, ParentConfig, Acc1);
+                                none ->
+                                    %% This means add_grouping
+                                    %% returned an error, do not add
+                                    %% another one.
+                                    mk_children0(T, GroupingMap1,
+                                                 Typedefs, Groupings,
+                                                 M, Ctx1, ParentConfig, Acc)
+                            end;
+                        _ -> % true or none
+                            case grouping_lookup(Arg, Groupings) of
+                                {value, G} ->
+                                    {Acc1, Ctx1} =
+                                        expand_uses(G#grouping.children,
+                                                    Substmts,
+                                                    Typedefs, Groupings, Pos,
+                                                    M, Ctx0, ParentConfig, Acc),
+                                    mk_children0(T, GroupingMap0,
+                                                 Typedefs, Groupings,
+                                                 M, Ctx1, ParentConfig, Acc1);
+                                none ->
+                                    Ctx1 =
+                                        add_error(
+                                          Ctx0, Pos,
+                                          'YANG_ERR_DEFINITION_NOT_FOUND',
+                                          ['grouping',
+                                           yang_error:fmt_yang_identifier(
+                                             Arg)]),
+                                    mk_children0(T, GroupingMap0,
+                                                 Typedefs, Groupings,
+                                                 M, Ctx1, ParentConfig, Acc)
+                            end
                     end;
-                _ -> % true or none
-                    case grouping_lookup(Arg, Groupings) of
-                        {value, G} ->
-                            {Acc1, Ctx1} =
-                                expand_uses(G#grouping.children, Substmts,
-                                            Typedefs, Groupings, Pos,
-                                            M, Ctx, ParentConfig, Acc),
-                            mk_children0(T, Map0, Typedefs, Groupings, M, Ctx1,
-                                         ParentConfig, Acc1);
-                        none ->
-                            Ctx1 =
-                                add_error(
-                                  Ctx, Pos,
-                                  'YANG_ERR_DEFINITION_NOT_FOUND',
-                                  ['grouping',
-                                   yang_error:fmt_yang_identifier(Arg)]),
-                            mk_children0(T, Map0, Typedefs, Groupings, M, Ctx1,
-                                         ParentConfig, Acc)
-                    end
+                {{ImportedModuleName, _}, GroupingName, Ctx1} ->
+                    %% FIXME: lookyp grouping in other module and expand
+                    mk_children0(T, GroupingMap0, Typedefs, Groupings,
+                                 M, Ctx1, ParentConfig, Acc);
+                {undefined, _GroupingName, Ctx1} ->
+                    %% could not resolve prefix; error is already reported
+                    mk_children0(T, GroupingMap0, Typedefs, Groupings,
+                                 M, Ctx1, ParentConfig, Acc)
             end;
        ?is_data_definition_stmt(Kwd) ->
             {ChConfig, Ctx1} =
@@ -1183,13 +1205,13 @@ mk_children0([{Kwd, Arg, Pos, Substmts} = Stmt | T], Map0,
                         if ParentConfig == false,
                            Config == true ->
                                 {Config,
-                                 add_error(Ctx, CPos,
+                                 add_error(Ctx0, CPos,
                                            'YANG_ERR_INVALID_CONFIG', [])};
                            true ->
-                                {Config, Ctx}
+                                {Config, Ctx0}
                         end;
                     false ->
-                        {ParentConfig, Ctx}
+                        {ParentConfig, Ctx0}
                 end,
             Name = if Kwd == 'input' orelse Kwd == 'output' ->
                            Kwd;
@@ -1206,7 +1228,7 @@ mk_children0([{Kwd, Arg, Pos, Substmts} = Stmt | T], Map0,
                     {undefined, Ctx2, Type} =
                         mk_type(TypeStmt, undefined, Typedefs, M, Ctx1),
                     Sn1 = Sn0#sn{type = Type},
-                    mk_children0(T, Map0, Typedefs, Groupings, M, Ctx2,
+                    mk_children0(T, GroupingMap0, Typedefs, Groupings, M, Ctx2,
                                  ParentConfig, [Sn1 | Acc]);
                true ->
                     {Typedefs1, Groupings1, Ctx2} =
@@ -1220,18 +1242,19 @@ mk_children0([{Kwd, Arg, Pos, Substmts} = Stmt | T], Map0,
                                                           M, Ctx1)
                         end,
                     {SubChildren, _, Ctx3} =
-                        mk_children0(Substmts, Map0, Typedefs1, Groupings1,
+                        mk_children0(Substmts, GroupingMap0,
+                                     Typedefs1, Groupings1,
                                      M, Ctx2, ChConfig, []),
                     Sn1 = Sn0#sn{typedefs = Typedefs1,
                                  groupings = Groupings1,
                                  children = SubChildren},
                     Sn2 = mk_case_from_shorthand(Sn1),
                     Sn3 = mk_rpc_default_children(Sn2),
-                    mk_children0(T, Map0, Typedefs, Groupings, M, Ctx3,
+                    mk_children0(T, GroupingMap0, Typedefs, Groupings, M, Ctx3,
                                  ParentConfig, [Sn3 | Acc])
             end;
        true ->
-            mk_children0(T, Map0, Typedefs, Groupings, M, Ctx,
+            mk_children0(T, GroupingMap0, Typedefs, Groupings, M, Ctx0,
                          ParentConfig, Acc)
     end;
 mk_children0([], GroupingMap, _Typedefs, _Groupings, _M, Ctx,
