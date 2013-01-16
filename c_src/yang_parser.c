@@ -466,7 +466,6 @@ yang_parse(char *filename,
     bool r;
 
     if (!tok_init(&toks, filename, ectx)) {
-        fprintf(stderr, "failed to tok init\n");
         return false;
     }
     r = parse_statement(&toks, stmt);

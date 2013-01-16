@@ -227,7 +227,7 @@ init_ctx(Ctx0, ExtraSearchPath) ->
               fun(Dir, Acc) ->
                       case file:list_dir(Dir) of
                           {ok, L} ->
-                              L ++ Acc;
+                              [filename:join(Dir, FName) || FName <- L] ++ Acc;
                           _ ->
                               Acc
                       end
@@ -238,7 +238,13 @@ init_ctx(Ctx0, ExtraSearchPath) ->
                        ".yang" ->
                            case parse_file_name(FName) of
                                {ok, Modname, Revision} ->
-                                   map_insert({Modname, Revision}, FName, M);
+                                   try
+                                       map_insert({Modname, Revision},
+                                                  FName, M)
+                                   catch
+                                       _:_ ->
+                                           M
+                                   end;
                                _ ->
                                    M
                            end;
@@ -470,7 +476,7 @@ parse_header([{Kwd, Arg, _Pos, Substmts} = H | T] = Stmts, M, Ctx) ->
             end
     end;
 parse_header([], M, Ctx) ->
-    {true, Ctx, M}.
+    parse_meta([], M, Ctx).
 
 %% Pre: header stmts are handled
 %% Handle meta stmts
@@ -493,7 +499,7 @@ parse_meta([{Kwd, _Arg, _Pos, _Substmts} = H | T] = Stmts, M, Ctx) ->
             parse_linkage(Stmts, M, Ctx)
     end;
 parse_meta([], M, Ctx) ->
-    {true, Ctx, M}.
+    parse_linkage([], M, Ctx).
 
 %% Pre: meta stmts are handled
 %% Handle linkage stmts
@@ -536,7 +542,7 @@ parse_linkage([{Kwd, Arg, Pos, Substmts} = H | T] = Stmts, M, Ctx) ->
             parse_revision(Stmts, M, Ctx1)
     end;
 parse_linkage([], M, Ctx) ->
-    {true, Ctx, M}.
+    parse_revision([], M, Ctx).
 
 v_include(M, Pos, SubM, Ctx1) ->
     if SubM#module.kind /= 'submodule' ->
@@ -596,7 +602,7 @@ parse_revision([{Kwd, _Arg, _, _} = H | T] = Stmts, M, Ctx, PrevRevision) ->
             parse_body(Stmts, M, Ctx)
     end;
 parse_revision([], M, Ctx, _PrevRevision) ->
-    {true, Ctx, M}.
+    parse_body([], M, Ctx).
 
 %% Pre: revision stmts are handled
 %% Handle body stmts
@@ -604,11 +610,13 @@ parse_body(Stmts, M0, Ctx0) ->
     %% Scan all stmts and build the maps for typedefs etc, that
     %% later will be used in the other stmts.
     {M1, Ctx1} = mk_module_maps(Stmts, M0, Ctx0),
+    %% Add all schema nodes from all submodules
+    SubChildren = get_children_from_submodules(M1),
     %% Create schema node records for all children.
     {Children, _, Ctx2} =
         mk_children0(Stmts, undefined,
                      M1#module.typedefs, M1#module.groupings, M1, Ctx1,
-                     _Config = true, []),
+                     _Config = true, SubChildren),
     %% Validate that all children have unique names
     Ctx3 = v_unique_names(Children, Ctx2),
     %% Build the augments list.
@@ -717,6 +725,10 @@ add_to_definitions_map(Name, Item, StmtPos, Map, Ctx) ->
 add_dup_error(Ctx, Keyword, Name, NewPos, PrevPos) ->
     add_error(Ctx, NewPos, 'YANG_ERR_DUPLICATE_DEFINITION',
               [Keyword, Name, yang_error:fmt_pos(PrevPos)]).
+
+add_dup_sn_error(Ctx, Name, NewPos, PrevPos) ->
+    add_error(Ctx, NewPos, 'YANG_ERR_DUPLICATE_SCHEMA_NODE',
+              [Name, yang_error:fmt_pos(PrevPos)]).
 
 add_from_submodules(GetMapF, GetStmtF, M, RawMap, Ctx0) ->
     %% First, create a new map with all items from all submodules
@@ -1173,6 +1185,47 @@ add_grouping(G0, Map0, ParentTypedefs, ParentGroupings, M, Ctx0) ->
             {Map3, Ctx1}
     end.
 
+get_children_from_submodules(M) ->
+    %% We sort all submodules in topological order, and add children
+    %% from one module at the time.  If we find a child that we have already
+    %% added, we ignore it.  This child might have been augmented by
+    %% the submodule we already processed, thus it is correct to ignore it.
+    Deps =
+        lists:foldl(
+          fun({SubM, _}, Acc) ->
+                  [{SubM#module.name, Inc#module.name} ||
+                      {Inc, _} <- SubM#module.submodules] ++ Acc
+          end, [], M#module.submodules),
+    NonDeps =
+        lists:foldl(
+          fun({SubM, _}, Acc) when SubM#module.submodules == [] ->
+                  [SubM#module.name  | Acc];
+             ({_, _}, Acc) ->
+                  Acc
+          end, [], M#module.submodules),
+    {ok, TopoOrder} = topological_sort(Deps),
+    LoadOrder = TopoOrder ++ (NonDeps -- TopoOrder),
+    SubModules = [SubM || {SubM, _} <- M#module.submodules],
+    lists:foldl(
+      fun(SubName, Acc) ->
+              case lists:keysearch(SubName, #module.name, SubModules) of
+                  {value, SubM} ->
+                      lists:foldl(
+                        fun(Ch, Acc1) ->
+                                case
+                                    lists:keymember(Ch#sn.name, #sn.name, Acc)
+                                of
+                                    true ->
+                                        Acc1;
+                                    false ->
+                                        [Ch | Acc1]
+                                end
+                        end, Acc, SubM#module.children);
+                  false ->
+                      Acc
+              end
+      end, [], LoadOrder).
+
 %% GroupingMap is 'undefined' iff called outside of a grouping definition
 mk_children(Stmts, GroupingMap, ParentTypedefs, ParentGroupings, M, Ctx0) ->
     {Typedefs, Groupings, Ctx1} =
@@ -1505,7 +1558,7 @@ insert_child(NewSn, [Sn | Sns], Acc, _ParentConfig, UndefAugNodes, Ctx)
   when NewSn#sn.name == Sn#sn.name ->
     {lists:reverse(Acc, [Sn | Sns]),
      UndefAugNodes,
-     add_dup_error(Ctx, Sn#sn.kind, Sn#sn.name, sn_pos(NewSn), sn_pos(Sn))};
+     add_dup_sn_error(Ctx, Sn#sn.name, sn_pos(NewSn), sn_pos(Sn))};
 insert_child(NewSn, [Sn | Sns], Acc, ParentConfig, UndefAugNodes, Ctx) ->
     insert_child(NewSn, Sns, [Sn | Acc], ParentConfig, UndefAugNodes, Ctx);
 insert_child(NewSn, [], Acc, ParentConfig, UndefAugNodes, Ctx) ->
@@ -1826,7 +1879,7 @@ v_unique_names2(Sns, Ctx0, D0) ->
                       _:_ ->
                           {value, OtherPos} = map_lookup(Name, D00),
                           [MinPos, MaxPos] = lists:sort([Pos, OtherPos]),
-                          {add_dup_error(Ctx00, Kind, Name, MaxPos, MinPos),
+                          {add_dup_sn_error(Ctx00, Name, MaxPos, MinPos),
                            D00}
                   end,
               Ctx02 = v_unique_names(Children, Ctx01),
@@ -2164,6 +2217,52 @@ parse_nodeid(Str) ->
         [Prefix, Name] ->
             {?l2a(Prefix), ?l2a(Name)}
     end.
+
+
+-spec topological_sort([{Xi :: any(), Xj :: any()}]) ->
+        {ok, [any()]} | {cycle, [any()]}.
+%% A partial order on the set S is a set of pairs {Xi,Xj} such that
+%% some relation between Xi and Xj is obeyed.
+%%
+%% A topological sort of a partial order is a sequence of elements
+%% [X1, X2, X3 ...] such that if whenever {Xi, Xj} is in the partial
+%% order i < j
+topological_sort(Pairs) ->
+    topo_iterate(Pairs, [], topo_all(Pairs)).
+
+topo_iterate([], L, All) ->
+    {ok, topo_remove_duplicates(L ++ topo_subtract(All, L))};
+topo_iterate(Pairs, L, All) ->
+    case topo_subtract(topo_lhs(Pairs), topo_rhs(Pairs)) of
+        []  ->
+            {cycle, Pairs};
+        Lhs ->
+            topo_iterate(topo_remove_pairs(Lhs, Pairs), L ++ Lhs, All)
+    end.
+
+topo_all(L) -> topo_lhs(L) ++ topo_rhs(L).
+topo_lhs(L) -> lists:map(fun({X,_}) -> X end, L).
+topo_rhs(L) -> lists:map(fun({_,Y}) -> Y end, L).
+
+%% subtract(L1, L2) -> all the elements in L1 which are not in L2
+
+topo_subtract(L1, L2) ->  lists:filter(
+                            fun(X) -> not lists:member(X, L2) end, L1).
+
+topo_remove_duplicates([H|T]) ->
+  case lists:member(H, T) of
+      true  -> topo_remove_duplicates(T);
+      false -> [H|topo_remove_duplicates(T)]
+  end;
+topo_remove_duplicates([]) ->
+    [].
+
+%% remove_pairs(L1, L2) -> L2' L1 = [X] L2 = [{X,Y}]
+%%   removes all pairs from L2 where the first element
+%%   of each pair is a member of L1
+
+topo_remove_pairs(L1, L2) -> lists:filter(
+                               fun({X,_Y}) -> not lists:member(X, L1) end, L2).
 
 
 pp_module(M) ->

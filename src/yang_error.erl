@@ -116,6 +116,8 @@ codes() ->
      {'YANG_ERR_BAD_BELONGS_TO', error,
       "'~s' includes '~s', but it does not specifiy a correct belongs-to"},
      {'YANG_ERR_DUPLICATE_DEFINITION', error, "~s '~s' already defined at ~s"},
+     {'YANG_ERR_DUPLICATE_SCHEMA_NODE', error,
+      "schema node '~s' already defined at ~s"},
      {'YANG_ERR_MISSING_INCLUDE', error,
       "submodule '~s' not included by module '~s'"},
      {'YANG_ERR_DEFINITION_NOT_FOUND', error, "~s ~s not found"},

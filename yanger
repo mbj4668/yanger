@@ -39,6 +39,7 @@ main(Args) ->
                                                  NoPrintWarnings,
                                                  Opts#opts.warnings,
                                                  Opts#opts.errors}},
+                    %?iof("here we go ~p\n", [os:getpid()]),timer:sleep(5000),
                     run(Ctx4, Opts, Files);
                 {error, {Reason, Data}} ->
                     io:format("error: ~p ~s\n", [Reason, Data]),
