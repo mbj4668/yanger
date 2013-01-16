@@ -1202,8 +1202,12 @@ mk_children0([{Kwd, Arg, Pos, Substmts} = Stmt | T], Map0,
                       config = ChConfig,
                       stmt = Stmt},
             if Kwd == 'leaf' orelse Kwd == 'leaf-list' ->
-                    mk_children0(T, Map0, Typedefs, Groupings, M, Ctx1,
-                                 ParentConfig, [Sn0 | Acc]);
+                    TypeStmt = search_one_stmt('type', Substmts),
+                    {undefined, Ctx2, Type} =
+                        mk_type(TypeStmt, undefined, Typedefs, M, Ctx1),
+                    Sn1 = Sn0#sn{type = Type},
+                    mk_children0(T, Map0, Typedefs, Groupings, M, Ctx2,
+                                 ParentConfig, [Sn1 | Acc]);
                true ->
                     {Typedefs1, Groupings1, Ctx2} =
                         if Kwd == 'choice'

@@ -19,7 +19,7 @@ a() ->
                      | 'identifier-ref'.
 %% @doc The erlang type that the parser will use for parsed arguments.
 %% An 'idenitfier-ref' argument is returned as
-%% {Modulename :: atom(), Name :: atom()}.
+%% {Prefix :: atom(), Name :: atom()}.
 
 -type occurance() :: '?' | '1' | '*' | '+'.
 
