@@ -748,6 +748,7 @@ yang_grammar_check_module(struct yang_statement *stmt,
             } else if (tmp->keyword != am_yang_version &&
                        tmp->keyword != am_namespace &&
                        tmp->keyword != am_prefix &&
+                       tmp->keyword != am_belongs_to &&
                        tmp->keyword != am_include) {
                 /* there can be no imports after these; we're done. */
                 break;
