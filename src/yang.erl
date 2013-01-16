@@ -145,15 +145,13 @@ load_plugins(PluginPath0) ->
     PluginPath1 =
         %% Always add plugins from the priv dir
         [code:priv_dir(yanger) |
-         %% FIXME: temp hack for now, include own ebin dir
-         [ filename:dirname(code:which(?MODULE)) |
-           %% Always add plugins from an environment variable
-           case os:getenv("YANGER_PLUGINPATH") of
-               Str when is_list(Str) ->
-                   PluginPath0 ++ string:tokens(Str);
-               false ->
-                   PluginPath0
-           end]],
+         %% Always add plugins from an environment variable
+         case os:getenv("YANGER_PLUGINPATH") of
+             Str when is_list(Str) ->
+                 PluginPath0 ++ string:tokens(Str);
+             false ->
+                 PluginPath0
+         end],
     Plugins =
         lists:foldl(
           fun(Dir, Acc) ->

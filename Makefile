@@ -1,20 +1,23 @@
 
+
 .PHONY: all compile clean eunit test doc
 
 all: compile
 
 compile:
 	(cd src && $(MAKE) compile) || exit 1;
-	rebar compile
+	./rebar compile
+
 
 eunit: compile
-	rebar eunit
+	./rebar eunit
 
 test: eunit
 
 clean:
-	rebar clean
+	./rebar clean
 	(cd src && $(MAKE) clean)
 
 doc:
-	rebar doc
+	./rebar doc
+

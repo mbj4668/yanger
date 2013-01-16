@@ -5,3 +5,4 @@ priv
 *.so
 *.beam
 *.plt
+src/yang_llerror.erl
