@@ -812,24 +812,11 @@ add_identity(Id0, Map0, M, Ctx0) ->
 %% Will add to the map only if non-validated identities are found.
 %% If called after mk_identities_map(), the map will not be modified.
 chk_base({_, BaseArg, Pos, _}, Map0, M, Ctx0) ->
-    case resolve_idref(BaseArg, Pos, M#module.prefix_map, Ctx0) of
-        {self, BaseName, Ctx1} ->
-            %% reference to local definition
-            case map_lookup(BaseName, Map0) of
-                {value, BaseId} ->
-                    {Map1, Ctx2} = add_identity(BaseId, Map0, M, Ctx1),
-                    {Map1, Ctx2, {M#module.modulename, BaseName}};
-                none ->
-                    Ctx2 =
-                        add_error(Ctx1, Pos, 'YANG_ERR_DEFINITION_NOT_FOUND',
-                                  ['identity',
-                                   yang_error:fmt_yang_identifier(BaseName)]),
-                    {Map0, Ctx2, undefined}
-            end;
-        {{ImportedModuleName, _}, BaseName, Ctx1} ->
-            {Map0, Ctx1, {ImportedModuleName, BaseName}};
-        {undefined, _BaseName, Ctx1} ->
-            %% could not resolve prefix; error is already reported
+    case get_identity(BaseArg, Pos, Map0, M#module.prefix_map, Ctx0) of
+        {BaseIdentity, Ctx1} when is_record(BaseIdentity, identity) ->
+            {Map1, Ctx2} = add_identity(BaseIdentity, Map0, M, Ctx1),
+            {Map1, Ctx2, {M#module.modulename, BaseIdentity#identity.name}};
+        {undefined, Ctx1} ->
             {Map0, Ctx1, undefined}
     end.
 
@@ -871,25 +858,70 @@ add_feature(F0, Map0, M, Ctx0) ->
     end.
 
 chk_if_feature({_, RefArg, Pos, _}, Map0, M, Ctx0) ->
-    case resolve_idref(RefArg, Pos, M#module.prefix_map, Ctx0) of
+    case get_feature(RefArg, Pos, Map0, M#module.prefix_map, Ctx0) of
+        {Feature, Ctx1} when is_record(Feature, feature) ->
+            {Map1, Ctx2} = add_feature(Feature, Map0, M, Ctx1),
+            {Map1, Ctx2, {M#module.modulename, Feature#feature.name}};
+        {undefined, Ctx1} ->
+            {Map0, Ctx1, undefined}
+    end.
+
+-spec get_feature(raw_identifier_ref(), pos(), Features :: map(),
+                  PrefixMap :: map(), #yctx{}) ->
+        {#feature{} | undefined, #yctx{}}.
+%% @doc Search for a #feature with a given name.
+%% Adds an error on failure.
+get_feature(RawRef, Pos, Features, PrefixMap, Ctx) ->
+    get_definition(RawRef, Pos, Features, PrefixMap, Ctx,
+                   fun(M) -> M#module.features end, 'feature').
+
+-spec get_identity(raw_identifier_ref(), pos(), Identities :: map(),
+                  PrefixMap :: map(), #yctx{}) ->
+        {#identity{} | undefined, #yctx{}}.
+%% @doc Search for a #identity with a given name.
+%% Adds an error on failure.
+get_identity(RawRef, Pos, Identites, PrefixMap, Ctx) ->
+    get_definition(RawRef, Pos, Identites, PrefixMap, Ctx,
+                   fun(M) -> M#module.identities end, 'identity').
+
+-spec get_extension(raw_identifier_ref(), pos(), Extensions :: map(),
+                    PrefixMap :: map(), #yctx{}) ->
+        {#extension{} | undefined, #yctx{}}.
+%% @doc Search for a #extension with a given name.
+%% Adds an error on failure.
+get_extension(RawRef, Pos, Extensions, PrefixMap, Ctx) ->
+    get_definition(RawRef, Pos, Extensions, PrefixMap, Ctx,
+                   fun(M) -> M#module.extensions end, 'extension').
+
+get_definition(RawRef, Pos, DefinitionMap, PrefixMap, Ctx0, GetMapF, Kind) ->
+    case resolve_raw_idref(RawRef, Pos, PrefixMap, Ctx0) of
         {self, RefName, Ctx1} ->
             %% reference to local definition
-            case map_lookup(RefName, Map0) of
-                {value, RefFeature} ->
-                    {Map1, Ctx2} = add_feature(RefFeature, Map0, M, Ctx1),
-                    {Map1, Ctx2, {M#module.modulename, RefName}};
-                none ->
-                    Ctx2 =
-                        add_error(Ctx1, Pos, 'YANG_ERR_DEFINITION_NOT_FOUND',
-                                  ['feature',
-                                   yang_error:fmt_yang_identifier(RefName)]),
-                    {Map0, Ctx2, undefined}
-            end;
-        {{ImportedModuleName, _}, RefName, Ctx1} ->
-            {Map0, Ctx1, {ImportedModuleName, RefName}};
+            get_definition2(RefName, Pos, DefinitionMap, Ctx1, Kind);
+        {{ImportedModuleName, Revision}, RefName, Ctx1} ->
+            %% We know that the module is known, so we match
+            %% directly.  If the module is not known, we'll end up
+            %% in next clause below.
+            {true, Ctx2, RefM} =
+                search_module(Ctx1, Pos, 'module',
+                              ImportedModuleName, Revision),
+            get_definition2({ImportedModuleName, RefName},
+                            Pos, GetMapF(RefM), Ctx2, Kind);
         {undefined, _RefName, Ctx1} ->
-            %% could not resolve prefix; error is already reported
-            {Map0, Ctx1, undefined}
+            {undefined, Ctx1}
+    end.
+
+get_definition2(DefinitionYangIdentifier, Pos, DefinitionMap, Ctx0, Kind) ->
+    DefintionName = local_name(DefinitionYangIdentifier),
+    case map_lookup(DefintionName, DefinitionMap) of
+        {value, Definition} ->
+            {Definition, Ctx0};
+        none ->
+            Ctx1 =
+                add_error(Ctx0, Pos, 'YANG_ERR_DEFINITION_NOT_FOUND',
+                          [Kind, yang_error:fmt_yang_identifier(
+                                   DefinitionYangIdentifier)]),
+            {undefined, Ctx1}
     end.
 
 -spec mk_typedefs_and_groupings([stmt()], #typedefs{}, #groupings{},
@@ -980,12 +1012,13 @@ add_typedef(T0, Map0, ParentTypedefs, M, Ctx0) ->
 mk_type({_, TypeArg, Pos, Substmts}, TypedefMap, ParentTypedefs, M, Ctx0) ->
     Map0 = TypedefMap,
     %% First, figure out our base type name
-    {Map3, Ctx3, BaseTypeRef} =
+    {Map3, Ctx4, BaseTypeRef} =
         case is_builtin_type(TypeArg) of
             true ->
                 {Map0, Ctx0, TypeArg};
             false ->
-                case resolve_idref(TypeArg, Pos, M#module.prefix_map, Ctx0) of
+                PrefixMap = M#module.prefix_map,
+                case resolve_raw_idref(TypeArg, Pos, PrefixMap, Ctx0) of
                     {self, TypeName, Ctx1} ->
                         %% reference to local definition
                         case
@@ -998,28 +1031,31 @@ mk_type({_, TypeArg, Pos, Substmts}, TypedefMap, ParentTypedefs, M, Ctx0) ->
                                 HandledRefTypedef = map_get(TypeName, Map1),
                                 {Map1, Ctx2, HandledRefTypedef};
                             _ -> % true or none
-                                case typedef_lookup(TypeName, ParentTypedefs) of
-                                    {value, RefTypedef} ->
-                                        {Map0, Ctx1, RefTypedef};
-                                    none ->
-                                        Ctx2 =
-                                            add_error(
-                                              Ctx1, Pos,
-                                              'YANG_ERR_DEFINITION_NOT_FOUND',
-                                              ['typedef', TypeName]),
-                                        {Map0, Ctx2, undefined}
-                                end
+                                {Ctx2, RefTypedef} =
+                                    mk_type_from_typedef(TypeName,
+                                                         ParentTypedefs,
+                                                         Pos, Ctx1),
+                                {Map0, Ctx2, RefTypedef}
                         end;
-                    {{ImportedModuleName, _}, TypeName, Ctx1} ->
-                        %% FIXME: lookup the remote typedef
-                        {Map0, Ctx1, {ImportedModuleName, TypeName}};
+                    {{ImportedModuleName, Revision}, TypeName, Ctx1} ->
+                        %% We know that the module is known, so we match
+                        %% directly.  If the module is not known, we'll end up
+                        %% in next clause below.
+                        {true, Ctx2, RefM} =
+                            search_module(Ctx1, Pos, 'module',
+                                          ImportedModuleName, Revision),
+                        {Ctx3, RefTypedef} =
+                            mk_type_from_typedef({ImportedModuleName, TypeName},
+                                                 RefM#module.typedefs,
+                                                 Pos, Ctx2),
+                        {Map0, Ctx3, RefTypedef};
                     {undefined, _BaseName, Ctx1} ->
                         %% could not resolve prefix; error is already reported
                         {Map0, Ctx1, undefined}
                 end
         end,
     %% union requires special treatment, since it contains nested types.
-    {Map4, Ctx4} =
+    {Map4, Ctx5} =
         case BaseTypeRef of
             'union' ->
                 lists:foldl(
@@ -1028,17 +1064,31 @@ mk_type({_, TypeArg, Pos, Substmts}, TypedefMap, ParentTypedefs, M, Ctx0) ->
                               mk_type(S, MapN, ParentTypedefs, M, CtxN),
                           {MapN1, CtxN1}
                   end,
-                  {Map3, Ctx3},
+                  {Map3, Ctx4},
                   search_stmts('type', Substmts));
             _ ->
-                {Map3, Ctx3}
+                {Map3, Ctx4}
         end,
     %% Then, scan for restrictions, and make sure they are allowed,
     %% and build a new type.
 
     %% FIXME: if BaseTypeRef /= undefined -> yang_types:mk_type_spec()
 
-    {Map4, Ctx4, #type{base = BaseTypeRef}}.
+    {Map4, Ctx5, #type{base = BaseTypeRef}}.
+
+mk_type_from_typedef(TypeYangIdentifier, Typedefs, Pos, Ctx) ->
+    case typedef_lookup(local_name(TypeYangIdentifier), Typedefs) of
+        {value, RefTypedef} ->
+            {Ctx, RefTypedef};
+        none ->
+            Ctx1 =
+                add_error(
+                  Ctx, Pos,
+                  'YANG_ERR_DEFINITION_NOT_FOUND',
+                  ['typedef',
+                   yang_error:fmt_yang_identifier(TypeYangIdentifier)]),
+            {Ctx1, undefined}
+    end.
 
 is_builtin_type(Type) ->
     case Type of
@@ -1136,7 +1186,7 @@ mk_children(Stmts, GroupingMap, ParentTypedefs, ParentGroupings, M, Ctx0) ->
 mk_children0([{Kwd, Arg, Pos, Substmts} = Stmt | T], GroupingMap0,
              Typedefs, Groupings, M, Ctx0, ParentConfig, Acc) ->
     if Kwd == 'uses' ->
-            case resolve_idref(Arg, Pos, M#module.prefix_map, Ctx0) of
+            case resolve_raw_idref(Arg, Pos, M#module.prefix_map, Ctx0) of
                 {self, GroupingName, Ctx1} ->
                     %% reference to local definition
                     case
@@ -1149,50 +1199,75 @@ mk_children0([{Kwd, Arg, Pos, Substmts} = Stmt | T], GroupingMap0,
                                              Typedefs, Groupings, M, Ctx0),
                             case map_lookup(Arg, GroupingMap1) of
                                 {value, G1} ->
-                                    {Acc1, Ctx2} =
+                                    {Acc1, Ctx3} =
                                         expand_uses(G1#grouping.children,
                                                     Substmts,
                                                     Typedefs, Groupings, Pos,
-                                                    M, Ctx1, ParentConfig, Acc),
+                                                    M, Ctx2, ParentConfig, Acc),
                                     mk_children0(T, GroupingMap1,
                                                  Typedefs, Groupings,
-                                                 M, Ctx2, ParentConfig, Acc1);
+                                                 M, Ctx3, ParentConfig, Acc1);
                                 none ->
                                     %% This means add_grouping
                                     %% returned an error, do not add
                                     %% another one.
                                     mk_children0(T, GroupingMap1,
                                                  Typedefs, Groupings,
-                                                 M, Ctx1, ParentConfig, Acc)
+                                                 M, Ctx2, ParentConfig, Acc)
                             end;
                         _ -> % true or none
-                            case grouping_lookup(Arg, Groupings) of
+                            case grouping_lookup(GroupingName, Groupings) of
                                 {value, G} ->
-                                    {Acc1, Ctx1} =
+                                    {Acc1, Ctx2} =
                                         expand_uses(G#grouping.children,
                                                     Substmts,
                                                     Typedefs, Groupings, Pos,
-                                                    M, Ctx0, ParentConfig, Acc),
+                                                    M, Ctx1, ParentConfig, Acc),
                                     mk_children0(T, GroupingMap0,
                                                  Typedefs, Groupings,
-                                                 M, Ctx1, ParentConfig, Acc1);
+                                                 M, Ctx2, ParentConfig, Acc1);
                                 none ->
-                                    Ctx1 =
+                                    Ctx2 =
                                         add_error(
-                                          Ctx0, Pos,
+                                          Ctx1, Pos,
                                           'YANG_ERR_DEFINITION_NOT_FOUND',
                                           ['grouping',
                                            yang_error:fmt_yang_identifier(
-                                             Arg)]),
+                                             GroupingName)]),
                                     mk_children0(T, GroupingMap0,
                                                  Typedefs, Groupings,
-                                                 M, Ctx1, ParentConfig, Acc)
+                                                 M, Ctx2, ParentConfig, Acc)
                             end
                     end;
-                {{ImportedModuleName, _}, GroupingName, Ctx1} ->
-                    %% FIXME: lookyp grouping in other module and expand
-                    mk_children0(T, GroupingMap0, Typedefs, Groupings,
-                                 M, Ctx1, ParentConfig, Acc);
+                {{ImportedModuleName, Revision}, GroupingName, Ctx1} ->
+                    %% We know that the module is known, so we match
+                    %% directly.  If the module is not known, we'll end up
+                    %% in next clause below.
+                    {true, Ctx2, RefM} =
+                        search_module(Ctx1, Pos, 'module',
+                                      ImportedModuleName, Revision),
+                    case grouping_lookup(GroupingName, RefM#module.groupings) of
+                        {value, G} ->
+                            {Acc1, Ctx3} =
+                                expand_uses(G#grouping.children,
+                                            Substmts,
+                                            Typedefs, Groupings, Pos,
+                                            M, Ctx2, ParentConfig, Acc),
+                            mk_children0(T, GroupingMap0,
+                                         Typedefs, Groupings,
+                                         M, Ctx3, ParentConfig, Acc1);
+                        none ->
+                            Ctx3 =
+                                add_error(
+                                  Ctx2, Pos,
+                                  'YANG_ERR_DEFINITION_NOT_FOUND',
+                                  ['grouping',
+                                   yang_error:fmt_yang_identifier(
+                                     {ImportedModuleName, GroupingName})]),
+                            mk_children0(T, GroupingMap0,
+                                         Typedefs, Groupings,
+                                         M, Ctx3, ParentConfig, Acc)
+                    end;
                 {undefined, _GroupingName, Ctx1} ->
                     %% could not resolve prefix; error is already reported
                     mk_children0(T, GroupingMap0, Typedefs, Groupings,
@@ -1802,13 +1877,13 @@ iterate_stmt0([_ | T], Keyword, Acc, F) ->
 iterate_stmt0([], _, Acc, _F) ->
     Acc.
 
--spec resolve_idref(raw_identifier_ref(), pos(), prefix_map(), #yctx{}) ->
+-spec resolve_raw_idref(raw_identifier_ref(), pos(), prefix_map(), #yctx{}) ->
     {self
      | undefined
      | {ModuleName :: atom(), Revision :: string() | undefined},
      Name :: atom(),
      #yctx{}}.
-resolve_idref({Prefix, Name}, Pos, PrefixMap, Ctx) ->
+resolve_raw_idref({Prefix, Name}, Pos, PrefixMap, Ctx) ->
     case map_lookup(Prefix, PrefixMap) of
         {value, ModRevOrSelf} ->
             {ModRevOrSelf, Name, Ctx};
@@ -1816,8 +1891,14 @@ resolve_idref({Prefix, Name}, Pos, PrefixMap, Ctx) ->
             {undefined, Name, add_error(Ctx, Pos, 'YANG_ERR_PREFIX_NOT_FOUND',
                                         [Prefix])}
     end;
-resolve_idref(Name, _Pos, _PrefixMap, Ctx) ->
+resolve_raw_idref(Name, _Pos, _PrefixMap, Ctx) ->
     {self, Name, Ctx}.
+
+-spec local_name(raw_identifier_ref() | identifier_ref()) -> atom().
+local_name({_, Name}) ->
+    Name;
+local_name(Name) ->
+    Name.
 
 get_module(self, M, _Ctx) ->
     {value, M};
