@@ -477,7 +477,7 @@ chk_fraction_digits_arg(char *arg, void *opaque)
         return false;
     }
     i = strtol(arg, &end, 10);
-    if (*end == '\0') {
+    if (*end != '\0') {
         /* not an integer */
         return false;
     }
