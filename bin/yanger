@@ -1,0 +1,15 @@
+#!/usr/bin/env escript
+%% -*- erlang -*-
+%%! -noinput
+
+main(Args) ->
+    code:add_patha(ebin()),
+    yanger:main(name(), Args).
+
+ebin() ->
+    %% The escript is located in .../yanger/bin
+    AppDir = filename:dirname(filename:dirname(escript:script_name())),
+    filename:join(AppDir, "ebin").
+
+name() ->
+    filename:basename(escript:script_name()).

@@ -1,15 +1,15 @@
-#define _POSIX_C_SOURCE 200809L // for strndup and getline
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
-#include <ctype.h>
 #include <errno.h>
 #include <assert.h>
 
 #include "yang_parser.h"
 #include "yang_atom.h"
 #include "yang_error.h"
+
+static yang_atom_t am_yang_version;
 
 /* tokenizer state */
 struct toks {
@@ -20,6 +20,8 @@ struct toks {
     char *buf;
     size_t bufn;
     char *p; /* pointer into buf */
+    bool expect_eof;
+    char yang_version;
 };
 
 #define isidentifier1(X) (((X) >= 'a' && (X) <= 'z') || \
@@ -32,13 +34,34 @@ struct toks {
                           ((X) == '.') ||               \
                           ((X) == '-'))
 
+#define is_space(X) ((X) == ' ')
+#define is_wspace(X) (is_space(X) || (X) == '\t') // RFC 6020 spec
+#define is_wspace_lf(X) (is_wspace(X) || (X) == '\n')
+#define is_wspace_cr(X) (is_wspace(X) || (X) == '\r')
+#define is_crlf(X) (*(X) == '\r' && *(X+1) == '\n')
+
 static bool
 tok_readline(struct toks *toks)
 {
-    if (getline(&toks->buf, &toks->bufn, toks->f) < 0) {
-        yang_add_err_gen(toks->ectx, YANG_ERR_PARSE_EOF,
-                         toks->filename, toks->line, -1,
-                         "premature end of file");
+    char *p = toks->buf;
+    size_t n = toks->bufn;
+    size_t len = 0;
+
+    while (fgets(p, n, toks->f) != NULL) {
+        len += strlen(p);
+        if (toks->buf[len-1] == '\n')
+            break;
+        toks->bufn += BUFSIZ;
+        toks->buf = realloc(toks->buf, toks->bufn);
+        p = &toks->buf[len];
+        n = BUFSIZ;
+    }
+    if (len == 0) {
+        if (!toks->expect_eof) {
+            yang_add_err_gen(toks->ectx, YANG_ERR_PARSE_EOF,
+                             toks->filename, toks->line, -1,
+                             "premature end of file");
+        }
         return false;
     }
     toks->p = toks->buf;
@@ -60,6 +83,8 @@ tok_init(struct toks *toks, char *filename, struct yang_error_ctx *ectx)
     toks->buf = (char *)malloc(BUFSIZ * sizeof(char *));
     toks->bufn = BUFSIZ;
     toks->p = toks->buf;
+    toks->expect_eof = false;
+    toks->yang_version = YANG_VERSION_1;
     if (!tok_readline(toks)) {
         fclose(toks->f);
         free(toks->buf);
@@ -87,7 +112,7 @@ tok_skip(struct toks *toks)
                 return false;
             }
             p = toks->p;
-        } else if (isspace(*p)) {
+        } else if (is_wspace_lf(*p) || is_crlf(p)) {
             p++;
         }
         else if (*p == '/') {
@@ -124,15 +149,12 @@ tok_skip(struct toks *toks)
 }
 
 static bool
-tok_looking_at_separator(struct toks *toks)
+looking_at_separator(char *p)
 {
-    char *p;
-
-    p = toks->p;
     if (*p == '\0') {
         return false;
     }
-    if (isspace(*p) || *p == ';' || *p == '{') {
+    if (is_wspace_lf(*p) || *p == ';' || *p == '{' || is_crlf(p) ) {
         return true;
     }
     if (*p == '/' && (*(p+1) == '/' || *(p+1) == '*')) {
@@ -163,12 +185,13 @@ tok_get_keyword(struct toks *toks,
         *prefix = yang_make_atom_len(s, p-s);
         p++;
         s = p;
-        if (!(isidentifier1(*p++))) {
+        if (!(isidentifier1(*p))) {
             yang_add_err_gen(toks->ectx, YANG_ERR_PARSE_BAD_KEYWORD,
                              toks->filename, toks->line, 1 + p - toks->buf,
-                             "invalid keyword character \"%c\"", *(p-1));
+                             "invalid keyword character \"%c\"", *p);
             return false;
         }
+        p++;
         while (isidentifier2(*p)) {
             p++;
         }
@@ -177,7 +200,7 @@ tok_get_keyword(struct toks *toks,
     }
     *keyword = yang_make_atom_len(s, p-s);
     toks->p = p;
-    if (!tok_looking_at_separator(toks)) {
+    if (!looking_at_separator(toks->p)) {
         yang_add_err_gen(toks->ectx, YANG_ERR_PARSE_EXPECTED_SEPARATOR,
                          toks->filename, toks->line, 1 + p - toks->buf,
                          "expected token separator");
@@ -206,10 +229,13 @@ tok_get_string(struct toks *toks, char **str)
     if (*p != '"' && *p != '\'') {
         // unquoted string
         s = toks->p;
-        while (!tok_looking_at_separator(toks) && *toks->p != '}') {
+        while (!looking_at_separator(toks->p) && *toks->p != '}') {
             toks->p++;
         }
-        *str = strndup(s, toks->p-s);
+        len = toks->p - s;
+        *str = malloc(len + 1);
+        strncpy(*str, s, len);
+        (*str)[len] = '\0';
         return true;
     }
     // quoted string
@@ -219,22 +245,29 @@ tok_get_string(struct toks *toks, char **str)
     while (have_parts) {
         quotechar = *p++;
         indentpos = p - toks->buf;
+        for (tmp = toks->buf; tmp < p; tmp++) {
+            if (*tmp == '\t') {
+                indentpos += 7; // 1 is already accounted for in indentpos
+            }
+        }
         if (*p == quotechar) {
             /* empty string, need to store the end '\0' */
             new = (char *)realloc(*str, (len+1) * sizeof(char));
             if (!new) {
-                goto error;
+                goto alloc_error;
             }
             *str = new;
             new[len] = '\0';
         }
         while (*p != quotechar) {
+            /* toks->buf contains a line, and p points to the first
+               character after indentation */
             s = p;
             curlen = len;
             /* update len so that it stores the number of chars needed */
             if (quotechar == '\'') {
                 //p = strchrnul(p, '\'');
-                tmp = strrchr(p, '\'');
+                tmp = strchr(p, '\'');
                 if (tmp) {
                     p = tmp;
                 } else {
@@ -258,11 +291,33 @@ tok_get_string(struct toks *toks, char **str)
                 /* make room for the '\0' char */
                 sz = len + 1;
             } else {
+                if (quotechar == '\"'
+                    && p-s > 1 && *(p-1) == '\n'
+                    && is_wspace_cr(*(p-2)))
+                {
+                    int cr = 0;
+                    /* remove trailing whitespace */
+                    p -= 2; // skip ['\r'] '\n' '\0'
+                    if (*p == '\r') {
+                        cr = 1;
+                        p--;
+                    }
+                    while (is_wspace(*p) && p >= s) {
+                        p--;
+                        len--;
+                    }
+                    /* put back ['\r'] '\n' '\0' */
+                    if (cr) {
+                        *++p = '\r';
+                    }
+                    *++p = '\n';
+                    *++p = '\0';
+                }
                 sz = len;
             }
             new = (char *)realloc(*str, sz * sizeof(char));
             if (!new) {
-                goto error;
+                goto alloc_error;
             }
             *str = new;
             /* copy the new data to the result string */
@@ -288,6 +343,21 @@ tok_get_string(struct toks *toks, char **str)
                             s++;
                             *q = '\\';
                         } else {
+                            if (toks->yang_version == YANG_VERSION_1) {
+                                yang_add_err_gen(
+                                    toks->ectx,
+                                    YANG_WARN_PARSE_ILLEGAL_ESCAPE,
+                                    toks->filename, toks->line,
+                                    1 + s - toks->buf,
+                                    "illegal character after \\");
+                            } else {
+                                yang_add_err_gen(
+                                    toks->ectx,
+                                    YANG_ERR_PARSE_ILLEGAL_ESCAPE,
+                                    toks->filename, toks->line,
+                                    1 + s - toks->buf,
+                                    "illegal character after \\");
+                            }
                             *q = *s;
                         }
                     } else {
@@ -306,11 +376,36 @@ tok_get_string(struct toks *toks, char **str)
                 }
                 p = toks->p;
                 if (quotechar == '"') {
+                    int stop = 0;
                     /* skip whitespace used for indentation only */
                     i = 0;
-                    while (isspace(*p) && i < indentpos) {
-                        p++;
-                        i++;
+                    while (i < indentpos && !stop) {
+                        switch (*p) {
+                        case ' ':
+                            p++;
+                            i++;
+                            break;
+                        case '\t':
+                            /* this might not be correct.  we will
+                              remove the tab, but we don't insert
+                              additional spaces if needed.  unclear if
+                              that is necessery though. */
+                            p++;
+                            i += 8;
+                            break;
+                        default:
+                            stop = 1;
+                        }
+                    }
+                    if (*p == quotechar) {
+                        /* end of string, make room for the '\0' char */
+                        sz++;
+                        new = (char *)realloc(*str, sz * sizeof(char));
+                        if (!new) {
+                            goto alloc_error;
+                        }
+                        new[sz-1] = '\0';
+                        *str = new;
                     }
                 }
             } else {
@@ -338,11 +433,7 @@ tok_get_string(struct toks *toks, char **str)
                                  YANG_ERR_PARSE_EXPECTED_QUOTED_STRING,
                                  toks->filename, toks->line, 1 + p - toks->buf,
                                  "expected quoted string after '+' operator");
-                if (*str) {
-                    free(*str);
-                    *str = NULL;
-                }
-                return false;
+                goto error;
             }
         } else {
             have_parts = false;
@@ -350,12 +441,13 @@ tok_get_string(struct toks *toks, char **str)
     }
     return true;
 
+alloc_error:
+    yang_add_alloc_err(toks->ectx, len + (p-s));
 error:
     if (*str) {
         free(*str);
         *str = NULL;
     }
-    yang_add_alloc_err(toks->ectx, len + (p-s));
     return false;
 }
 
@@ -402,6 +494,10 @@ parse_statement(struct toks *toks, struct yang_statement **stmt)
     (*stmt)->next = NULL;
     (*stmt)->substmt = NULL;
 
+    if (keyword == am_yang_version && arg && strcmp(arg, "1.1") == 0) {
+        toks->yang_version = YANG_VERSION_1_1;
+    }
+
     if (*toks->p == ';') {
         toks->p++;
     } else if (*toks->p == '{') {
@@ -424,7 +520,8 @@ parse_statement(struct toks *toks, struct yang_statement **stmt)
     } else {
         yang_add_err_gen(toks->ectx, YANG_ERR_PARSE_INCOMPLETE_STATEMENT,
                          toks->filename, toks->line, 1 + toks->p - toks->buf,
-                         "unterminated statement");
+                         "unterminated statement for keyword \"%s\"",
+                         keyword);
         return false;
     }
     return true;
@@ -432,6 +529,13 @@ error:
     yang_free_tree(*stmt);
     *stmt = NULL;
     return false;
+}
+
+bool
+yang_init_parser()
+{
+    am_yang_version = yang_make_atom("yang-version");
+    return true;
 }
 
 void
@@ -469,6 +573,12 @@ yang_parse(char *filename,
         return false;
     }
     r = parse_statement(&toks, stmt);
+    toks.expect_eof = true;
+    if (r && tok_skip(&toks)) {
+        yang_add_err_gen(ectx, YANG_ERR_PARSE_TRAILING_GARBAGE,
+                         filename, toks.line, 1 + toks.p - toks.buf,
+                         "trailing garbage after module");
+    }
     tok_free(&toks);
     return r;
 }

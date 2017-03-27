@@ -13,6 +13,7 @@ struct yang_statement_rule {
        extension */
     yang_atom_t module_name;
     yang_atom_t keyword;
+    char min_yang_version;
     struct yang_statement_spec *spec;
     char occurance; /* '?', '1', '*', '+' */
 };
@@ -67,11 +68,13 @@ extern bool yang_add_rule_to_spec(struct yang_statement_rule *rule,
                                   yang_atom_t modulename,
                                   yang_atom_t keyword);
 
+extern int
+yang_get_grammar_module_names(int n, yang_atom_t *module_names);
 extern struct yang_statement_spec *
 yang_get_statement_spec(yang_atom_t module_name,
                         yang_atom_t keyword);
 extern int yang_get_arg_type_idx(yang_atom_t name);
-extern struct yang_arg_type *yang_get_arg_type(yang_atom_t name);
+extern struct yang_arg_type *yang_get_arg_type(int arg_type_idx);
 extern bool yang_grammar_check_module(struct yang_statement *stmt,
                                       bool canonical,
                                       struct yang_error_ctx *ectx);

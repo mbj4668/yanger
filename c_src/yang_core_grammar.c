@@ -3,456 +3,522 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <assert.h>
+#include <errno.h>
+#include <inttypes.h>
+#include <libxml/xmlregexp.h>
 
 #include "yang_core_grammar.h"
 #include "yang_grammar.h"
+#include "yang_if_feature.h"
 
 static const char *stmts[] = {
     "module",           "identifier",
-        "yang-version",     "?",
-        "namespace",        "1",
-        "prefix",           "1",
-        "$cut",             "*",
-        "import",           "*",
-        "include",          "*",
-        "$cut",             "*",
-        "organization",     "?",
-        "contact",          "?",
-        "description",      "?",
-        "reference",        "?",
-        "$cut",             "*",
-        "revision",         "*",
-        "$cut",             "*",
-        "extension",        "*",
-        "feature",          "*",
-        "identity",         "*",
-        "typedef",          "*",
-        "grouping",         "*",
-        "rpc",              "*",
-        "notification",     "*",
-        "deviation",        "*",
-        "augment",          "*",
-        "container",        "*",
-        "leaf",             "*",
-        "leaf-list",        "*",
-        "list",             "*",
-        "choice",           "*",
-        "anyxml",           "*",
-        "uses",             "*",
-        NULL,               NULL,
+        "1",     "yang-version",     "?",
+        "1",     "namespace",        "1",
+        "1",     "prefix",           "1",
+        "1",     "$cut",             "*",
+        "1",     "import",           "*",
+        "1",     "include",          "*",
+        "1",     "$cut",             "*",
+        "1",     "organization",     "?",
+        "1",     "contact",          "?",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        "1",     "$cut",             "*",
+        "1",     "revision",         "*",
+        "1",     "$cut",             "*",
+        "1",     "extension",        "*",
+        "1",     "feature",          "*",
+        "1",     "identity",         "*",
+        "1",     "typedef",          "*",
+        "1",     "grouping",         "*",
+        "1",     "rpc",              "*",
+        "1",     "notification",     "*",
+        "1",     "deviation",        "*",
+        "1",     "augment",          "*",
+        "1",     "container",        "*",
+        "1",     "leaf",             "*",
+        "1",     "leaf-list",        "*",
+        "1",     "list",             "*",
+        "1",     "choice",           "*",
+        "1",     "anyxml",           "*",
+        "1.1",   "anydata",          "*",
+        "1",     "uses",             "*",
+        NULL,    NULL,               NULL,
     "submodule",        "identifier",
-        "yang-version",     "?",
-        "belongs-to",       "1",
-        "$cut",             "*",
-        "import",           "*",
-        "include",          "*",
-        "$cut",             "*",
-        "organization",     "?",
-        "contact",          "?",
-        "description",      "?",
-        "reference",        "?",
-        "$cut",             "*",
-        "revision",         "*",
-        "$cut",             "*",
-        "extension",        "*",
-        "feature",          "*",
-        "identity",         "*",
-        "typedef",          "*",
-        "grouping",         "*",
-        "rpc",              "*",
-        "notification",     "*",
-        "deviation",        "*",
-        "augment",          "*",
-        "container",        "*",
-        "leaf",             "*",
-        "leaf-list",        "*",
-        "list",             "*",
-        "choice",           "*",
-        "anyxml",           "*",
-        "uses",             "*",
-        NULL,               NULL,
+        "1",     "yang-version",     "?",
+        "1",     "belongs-to",       "1",
+        "1",     "$cut",             "*",
+        "1",     "import",           "*",
+        "1",     "include",          "*",
+        "1",     "$cut",             "*",
+        "1",     "organization",     "?",
+        "1",     "contact",          "?",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        "1",     "$cut",             "*",
+        "1",     "revision",         "*",
+        "1",     "$cut",             "*",
+        "1",     "extension",        "*",
+        "1",     "feature",          "*",
+        "1",     "identity",         "*",
+        "1",     "typedef",          "*",
+        "1",     "grouping",         "*",
+        "1",     "rpc",              "*",
+        "1",     "notification",     "*",
+        "1",     "deviation",        "*",
+        "1",     "augment",          "*",
+        "1",     "container",        "*",
+        "1",     "leaf",             "*",
+        "1",     "leaf-list",        "*",
+        "1",     "list",             "*",
+        "1",     "choice",           "*",
+        "1",     "anyxml",           "*",
+        "1.1",   "anydata",          "*",
+        "1",     "uses",             "*",
+        NULL,    NULL,               NULL,
     "yang-version",     "version",
-        NULL,               NULL,
+        NULL,    NULL,               NULL,
     "namespace",        "uri",
-        NULL,               NULL,
+        NULL,    NULL,               NULL,
     "prefix",           "identifier",
-        NULL,               NULL,
+        NULL,    NULL,               NULL,
     "import",           "identifier",
-        "prefix",           "1",
-        "revision-date",    "?",
-        NULL,               NULL,
+        "1",     "prefix",           "1",
+        "1",     "revision-date",    "?",
+        "1.1",   "description",      "?",
+        "1.1",   "reference",        "?",
+        NULL,    NULL,               NULL,
     "include",          "identifier",
-        "revision-date",    "?",
-        NULL,               NULL,
+        "1",     "revision-date",    "?",
+        "1.1",   "description",      "?",
+        "1.1",   "reference",        "?",
+        NULL,    NULL,               NULL,
     "revision-date",    "date",
-        NULL,               NULL,
+        NULL,    NULL,               NULL,
     "organization",     "string",
-        NULL,               NULL,
+        NULL,    NULL,               NULL,
     "contact",          "string",
-        NULL,               NULL,
+        NULL,    NULL,               NULL,
     "deviation",        "absolute-schema-nodeid",
-        "description",      "?",
-        "reference",        "?",
-        "deviate",          "*",
-        NULL,               NULL,
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        "1",     "deviate",          "*",
+        NULL,    NULL,               NULL,
     "mandatory",        "boolean",
-        NULL,               NULL,
+        NULL,    NULL,               NULL,
     "reference",        "string",
-        NULL,               NULL,
+        NULL,    NULL,               NULL,
     "presence",         "string",
-        NULL,               NULL,
+        NULL,    NULL,               NULL,
     "when",             "string",
-        "description",      "?",
-        "reference",        "?",
-        NULL,               NULL,
-    "if-feature",       "identifier-ref",
-        NULL,               NULL,
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        NULL,    NULL,               NULL,
+    "if-feature",       "if-feature-expr",
+        NULL,    NULL,               NULL,
     "anyxml",           "identifier",
-        "when",             "?",
-        "if-feature",       "*",
-        "config",           "?",
-        "mandatory",        "?",
-        "status",           "?",
-        "description",      "?",
-        "reference",        "?",
-        NULL,               NULL,
+        "1",     "when",             "?",
+        "1",     "if-feature",       "*",
+        "1",     "must",             "*",
+        "1",     "config",           "?",
+        "1",     "mandatory",        "?",
+        "1",     "status",           "?",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        NULL,    NULL,               NULL,
+    "anydata",          "identifier",
+        "1.1",   "when",             "?",
+        "1.1",   "if-feature",       "*",
+        "1.1",   "must",             "*",
+        "1.1",   "config",           "?",
+        "1.1",   "mandatory",        "?",
+        "1.1",   "status",           "?",
+        "1.1",   "description",      "?",
+        "1.1",   "reference",        "?",
+        NULL,    NULL,               NULL,
     "argument",         "identifier",
-        "yin-element",      "?",
-        NULL,               NULL,
+        "1",     "yin-element",      "?",
+        NULL,    NULL,               NULL,
     "container",        "identifier",
-        "when",             "?",
-        "if-feature",       "*",
-        "must",             "*",
-        "presence",         "?",
-        "config",           "?",
-        "status",           "?",
-        "description",      "?",
-        "reference",        "?",
-        "typedef",          "*",
-        "grouping",         "*",
-        "container",        "*",
-        "leaf",             "*",
-        "leaf-list",        "*",
-        "list",             "*",
-        "choice",           "*",
-        "anyxml",           "*",
-        "uses",             "*",
-        NULL,               NULL,
+        "1",     "when",             "?",
+        "1",     "if-feature",       "*",
+        "1",     "must",             "*",
+        "1",     "presence",         "?",
+        "1",     "config",           "?",
+        "1",     "status",           "?",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        "1",     "typedef",          "*",
+        "1",     "grouping",         "*",
+        "1",     "container",        "*",
+        "1",     "leaf",             "*",
+        "1",     "leaf-list",        "*",
+        "1",     "list",             "*",
+        "1",     "choice",           "*",
+        "1",     "anyxml",           "*",
+        "1.1",   "anydata",          "*",
+        "1",     "uses",             "*",
+        "1.1",   "action",           "*",
+        "1.1",   "notification",     "*",
+        NULL,    NULL,               NULL,
     "refine",           "descendant-schema-nodeid",
-        "must",             "*",
-        "presence",         "?",
-        "default",          "?",
-        "config",           "?",
-        "mandatory",        "?",
-        "min-elements",     "?",
-        "max-elements",     "?",
-        "description",      "?",
-        "reference",        "?",
-        NULL,               NULL,
+        "1.1",   "if-feature",       "*",
+        "1",     "must",             "*",
+        "1",     "presence",         "?",
+        "1",     "default",          "?",
+        "1",     "config",           "?",
+        "1",     "mandatory",        "?",
+        "1",     "min-elements",     "?",
+        "1",     "max-elements",     "?",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        NULL,    NULL,               NULL,
     "augment",          "schema-nodeid",
-        "when",             "?",
-        "if-feature",       "*",
-        "status",           "?",
-        "description",      "?",
-        "reference",        "?",
-        "case",             "*",
-        "container",        "*",
-        "leaf",             "*",
-        "leaf-list",        "*",
-        "list",             "*",
-        "choice",           "*",
-        "anyxml",           "*",
-        "uses",             "*",
-        NULL,               NULL,
+        "1",     "when",             "?",
+        "1",     "if-feature",       "*",
+        "1",     "status",           "?",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        "1",     "case",             "*",
+        "1",     "container",        "*",
+        "1",     "leaf",             "*",
+        "1",     "leaf-list",        "*",
+        "1",     "list",             "*",
+        "1",     "choice",           "*",
+        "1",     "anyxml",           "*",
+        "1.1",   "anydata",          "*",
+        "1",     "uses",             "*",
+        "1.1",   "action",           "*",
+        "1.1",   "notification",     "*",
+        NULL,    NULL,               NULL,
     "ordered-by",       "ordered-by-arg",
-        NULL,               NULL,
+        NULL,    NULL,               NULL,
     "input",            NULL,
-        "status",           "?",
-        "description",      "?",
-        "reference",        "?",
-        "typedef",          "*",
-        "grouping",         "*",
-        "container",        "*",
-        "leaf",             "*",
-        "leaf-list",        "*",
-        "list",             "*",
-        "choice",           "*",
-        "anyxml",           "*",
-        "uses",             "*",
-        NULL,               NULL,
+        "1.1",   "must",             "*",
+        "1",     "status",           "?",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        "1",     "typedef",          "*",
+        "1",     "grouping",         "*",
+        "1",     "container",        "*",
+        "1",     "leaf",             "*",
+        "1",     "leaf-list",        "*",
+        "1",     "list",             "*",
+        "1",     "choice",           "*",
+        "1",     "anyxml",           "*",
+        "1.1",   "anydata",          "*",
+        "1",     "uses",             "*",
+        NULL,    NULL,               NULL,
     "typedef",          "identifier",
-        "type",             "1",
-        "units",            "?",
-        "default",          "?",
-        "status",           "?",
-        "description",      "?",
-        "reference",        "?",
-        NULL,               NULL,
+        "1",     "type",             "1",
+        "1",     "units",            "?",
+        "1",     "default",          "?",
+        "1",     "status",           "?",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        NULL,    NULL,               NULL,
     "length",           "length-arg",
-        "error-message",    "?",
-        "error-app-tag",    "?",
-        "description",      "?",
-        "reference",        "?",
-        NULL,               NULL,
+        "1",     "error-message",    "?",
+        "1",     "error-app-tag",    "?",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        NULL,    NULL,               NULL,
     "output",           NULL,
-        "status",           "?",
-        "description",      "?",
-        "reference",        "?",
-        "typedef",          "*",
-        "grouping",         "*",
-        "container",        "*",
-        "leaf",             "*",
-        "leaf-list",        "*",
-        "list",             "*",
-        "choice",           "*",
-        "anyxml",           "*",
-        "uses",             "*",
-        NULL,               NULL,
-    "pattern",          "string",
-        "error-message",    "?",
-        "error-app-tag",    "?",
-        "description",      "?",
-        "reference",        "?",
-        NULL,               NULL,
-    "min-elements",     "non-negative-integer",
-        NULL,               NULL,
-    "leaf-list",        "identifier",
-        "when",             "?",
-        "if-feature",       "*",
-        "type",             "1",
-        "units",            "?",
-        "must",             "*",
-        "config",           "?",
-        "min-elements",     "?",
-        "max-elements",     "?",
-        "ordered-by",       "?",
-        "status",           "?",
-        "description",      "?",
-        "reference",        "?",
-        NULL,               NULL,
-    "feature",          "identifier",
-        "if-feature",       "*",
-        "status",           "?",
-        "description",      "?",
-        "reference",        "?",
-        NULL,               NULL,
-    "leaf",             "identifier",
-        "when",             "?",
-        "if-feature",       "*",
-        "type",             "1",
-        "units",            "?",
-        "must",             "*",
-        "default",          "?",
-        "config",           "?",
-        "mandatory",        "?",
-        "status",           "?",
-        "description",      "?",
-        "reference",        "?",
-        NULL,               NULL,
-    "units",            "string",
-        NULL,               NULL,
-    "type",             "identifier-ref",
-        "fraction-digits",  "?",
-        "range",            "?",
-        "length",           "?",
-        "pattern",          "*",
-        "enum",             "*",
-        "bit",              "*",
-        "path",             "?",
-        "require-instance", "?",
-        "require-instance", "?",
-        "base",             "?",
-        "type",             "*",
-        NULL,               NULL,
-    "deviate",          "deviate-arg",
-        "type",             "?",
-        "units",            "?",
-        "must",             "*",
-        "unique",           "*",
-        "default",          "?",
-        "config",           "?",
-        "mandatory",        "?",
-        "min-elements",     "?",
-        "max-elements",     "?",
-        NULL,               NULL,
-    "revision",         "date",
-        "description",      "?",
-        "reference",        "?",
-        NULL,               NULL,
-    "status",           "status-arg",
-        NULL,               NULL,
-    "case",             "identifier",
-        "when",             "?",
-        "if-feature",       "*",
-        "must",             "*",
-        "status",           "?",
-        "description",      "?",
-        "reference",        "?",
-        "choice",           "*",
-        "container",        "*",
-        "leaf",             "*",
-        "leaf-list",        "*",
-        "list",             "*",
-        "anyxml",           "*",
-        "uses",             "*",
-        NULL,               NULL,
-    "require-instance", "boolean",
-        NULL,               NULL,
-    "description",      "string",
-        NULL,               NULL,
-    "enum",             "enum-arg",
-        "value",            "?",
-        "status",           "?",
-        "description",      "?",
-        "reference",        "?",
-        NULL,               NULL,
-    "choice",           "identifier",
-        "when",             "?",
-        "if-feature",       "*",
-        "default",          "?",
-        "must",             "*",
-        "config",           "?",
-        "mandatory",        "?",
-        "status",           "?",
-        "description",      "?",
-        "reference",        "?",
-        "case",             "*",
-        "container",        "*",
-        "leaf",             "*",
-        "leaf-list",        "*",
-        "list",             "*",
-        "anyxml",           "*",
-        NULL,               NULL,
-    "error-app-tag",    "string",
-        NULL,               NULL,
-    "base",             "identifier-ref",
-        NULL,               NULL,
-    "uses",             "identifier-ref",
-        "when",             "?",
-        "if-feature",       "*",
-        "status",           "?",
-        "description",      "?",
-        "reference",        "?",
-        "refine",           "*",
-        "augment",          "*",
-        NULL,               NULL,
-    "key",              "key-arg",
-        NULL,               NULL,
-    "position",         "non-negative-integer",
-        NULL,               NULL,
-    "path",             "path-arg",
-        NULL,               NULL,
-    "bit",              "identifier",
-        "position",         "?",
-        "status",           "?",
-        "description",      "?",
-        "reference",        "?",
-        NULL,               NULL,
-    "unique",           "unique-arg",
-        NULL,               NULL,
-    "identity",         "identifier",
-        "base",             "?",
-        "status",           "?",
-        "description",      "?",
-        "reference",        "?",
-        NULL,               NULL,
-    "must",             "string",
-        "error-message",    "?",
-        "error-app-tag",    "?",
-        "description",      "?",
-        "reference",        "?",
-        NULL,               NULL,
-    "yin-element",      "boolean",
-        NULL,               NULL,
-    "belongs-to",       "identifier",
-        "prefix",           "1",
-        NULL,               NULL,
-    "max-elements",     "max-value",
-        NULL,               NULL,
-    "error-message",    "string",
-        NULL,               NULL,
-    "extension",        "identifier",
-        "argument",         "?",
-        "status",           "?",
-        "description",      "?",
-        "reference",        "?",
-        NULL,               NULL,
-    "default",          "string",
-        NULL,               NULL,
-    "config",           "boolean",
-        NULL,               NULL,
-    "fraction-digits",  "fraction-digits-arg",
-        NULL,               NULL,
-    "list",             "identifier",
-        "when",             "?",
-        "if-feature",       "*",
-        "must",             "*",
-        "key",              "?",
-        "unique",           "*",
-        "config",           "?",
-        "min-elements",     "?",
-        "max-elements",     "?",
-        "ordered-by",       "?",
-        "status",           "?",
-        "description",      "?",
-        "reference",        "?",
-        "typedef",          "*",
-        "grouping",         "*",
-        "container",        "*",
-        "leaf",             "*",
-        "leaf-list",        "*",
-        "list",             "*",
-        "choice",           "*",
-        "anyxml",           "*",
-        "uses",             "*",
-        NULL,               NULL,
-    "rpc",              "identifier",
-        "if-feature",       "*",
-        "status",           "?",
-        "description",      "?",
-        "reference",        "?",
-        "typedef",          "*",
-        "grouping",         "*",
-        "input",            "?",
-        "output",           "?",
-        NULL,               NULL,
-    "value",            "integer",
-        NULL,               NULL,
-    "range",            "range-arg",
-        "error-message",    "?",
-        "error-app-tag",    "?",
-        "description",      "?",
-        "reference",        "?",
-        NULL,               NULL,
-    "notification",     "identifier",
-        "if-feature",       "*",
-        "status",           "?",
-        "description",      "?",
-        "reference",        "?",
-        "typedef",          "*",
-        "grouping",         "*",
-        "container",        "*",
-        "leaf",             "*",
-        "leaf-list",        "*",
-        "list",             "*",
-        "choice",           "*",
-        "anyxml",           "*",
-        "uses",             "*",
-        NULL,               NULL,
-    "grouping",         "identifier",
-        "status",           "?",
-        "description",      "?",
-        "reference",        "?",
-        "typedef",          "*",
-        "grouping",         "*",
-        "container",        "*",
-        "leaf",             "*",
-        "leaf-list",        "*",
-        "list",             "*",
-        "choice",           "*",
-        "anyxml",           "*",
-        "uses",             "*",
-        NULL,               NULL,
+        "1.1",   "must",             "*",
+        "1",     "status",           "?",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        "1",     "typedef",          "*",
+        "1",     "grouping",         "*",
+        "1",     "container",        "*",
+        "1",     "leaf",             "*",
+        "1",     "leaf-list",        "*",
+        "1",     "list",             "*",
+        "1",     "choice",           "*",
+        "1",     "anyxml",           "*",
+        "1.1",   "anydata",          "*",
+        "1",     "uses",             "*",
+        NULL,    NULL,               NULL,
+     "pattern",          "string",
+        "1.1",   "modifier",         "?",
+        "1",     "error-message",    "?",
+        "1",     "error-app-tag",    "?",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        NULL,    NULL,               NULL,
+     "modifier",         "modifier-arg",
+        NULL,    NULL,               NULL,
+     "min-elements",     "non-negative-integer",
+        NULL,    NULL,               NULL,
+     "leaf-list",        "identifier",
+        "1",     "when",             "?",
+        "1",     "if-feature",       "*",
+        "1",     "type",             "1",
+        "1",     "units",            "?",
+        "1",     "must",             "*",
+        "1.1",   "default",          "*",
+        "1",     "config",           "?",
+        "1",     "min-elements",     "?",
+        "1",     "max-elements",     "?",
+        "1",     "ordered-by",       "?",
+        "1",     "status",           "?",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        NULL,    NULL,               NULL,
+     "feature",          "identifier",
+        "1",     "if-feature",       "*",
+        "1",     "status",           "?",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        NULL,    NULL,               NULL,
+     "leaf",             "identifier",
+        "1",     "when",             "?",
+        "1",     "if-feature",       "*",
+        "1",     "type",             "1",
+        "1",     "units",            "?",
+        "1",     "must",             "*",
+        "1",     "default",          "?",
+        "1",     "config",           "?",
+        "1",     "mandatory",        "?",
+        "1",     "status",           "?",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        NULL,    NULL,               NULL,
+     "units",            "string",
+        NULL,    NULL,               NULL,
+     "type",             "identifier-ref",
+        "1",     "fraction-digits",  "?",
+        "1",     "range",            "?",
+        "1",     "length",           "?",
+        "1",     "pattern",          "*",
+        "1",     "enum",             "*",
+        "1",     "bit",              "*",
+        "1",     "path",             "?",
+        "1",     "require-instance", "?",
+        /*
+          NOTE: this code allows 1.1 syntax in 1.0 modules (multiple base
+          statements) - this needs to be checked by the caller.
+        */
+        "1",     "base",             "*",
+        "1",     "type",             "*",
+        NULL,    NULL,               NULL,
+     "deviate",          "deviate-arg",
+        "1",     "type",             "?",
+        "1",     "units",            "?",
+        "1",     "must",             "*",
+        "1",     "unique",           "*",
+        "1",     "default",          "?",
+        "1",     "config",           "?",
+        "1",     "mandatory",        "?",
+        "1",     "min-elements",     "?",
+        "1",     "max-elements",     "?",
+        NULL,    NULL,               NULL,
+     "revision",         "date",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        NULL,    NULL,               NULL,
+     "status",           "status-arg",
+        NULL,    NULL,               NULL,
+     "case",             "identifier",
+        "1",     "when",             "?",
+        "1",     "if-feature",       "*",
+        "1",     "status",           "?",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        "1",     "choice",           "*",
+        "1",     "container",        "*",
+        "1",     "leaf",             "*",
+        "1",     "leaf-list",        "*",
+        "1",     "list",             "*",
+        "1",     "anyxml",           "*",
+        "1.1",   "anydata",          "*",
+        "1",     "uses",             "*",
+        NULL,    NULL,               NULL,
+     "require-instance", "boolean",
+        NULL,    NULL,               NULL,
+     "description",      "string",
+        NULL,    NULL,               NULL,
+     "enum",             "enum-arg",
+        "1.1",   "if-feature",       "*",
+        "1",     "value",            "?",
+        "1",     "status",           "?",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        NULL,    NULL,               NULL,
+     "choice",           "identifier",
+        "1",     "when",             "?",
+        "1",     "if-feature",       "*",
+        "1",     "default",          "?",
+        "1",     "must",             "*",
+        "1",     "config",           "?",
+        "1",     "mandatory",        "?",
+        "1",     "status",           "?",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        "1",     "case",             "*",
+        "1.1",   "choice",           "*",
+        "1",     "container",        "*",
+        "1",     "leaf",             "*",
+        "1",     "leaf-list",        "*",
+        "1",     "list",             "*",
+        "1",     "anyxml",           "*",
+        "1.1",   "anydata",          "*",
+        NULL,    NULL,               NULL,
+     "error-app-tag",    "string",
+        NULL,    NULL,               NULL,
+     "base",             "identifier-ref",
+        NULL,    NULL,               NULL,
+     "uses",             "identifier-ref",
+        "1",     "when",             "?",
+        "1",     "if-feature",       "*",
+        "1",     "status",           "?",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        "1",     "refine",           "*",
+        "1",     "augment",          "*",
+        NULL,    NULL,               NULL,
+     "key",              "key-arg",
+        NULL,    NULL,               NULL,
+     "position",         "non-negative-integer",
+        NULL,    NULL,               NULL,
+     "path",             "path-arg",
+        NULL,    NULL,               NULL,
+     "bit",              "identifier",
+        "1.1",   "if-feature",       "*",
+        "1",     "position",         "?",
+        "1",     "status",           "?",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        NULL,    NULL,               NULL,
+     "unique",           "unique-arg",
+        NULL,    NULL,               NULL,
+     "identity",         "identifier",
+        "1.1",   "if-feature",       "*",
+        /*
+          NOTE: this code allows 1.1 syntax in 1.0 modules (multiple base
+          statements) - this needs to be checked by the caller.
+        */
+        "1",     "base",             "*",
+        "1",     "status",           "?",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        NULL,    NULL,               NULL,
+     "must",             "string",
+        "1",     "error-message",    "?",
+        "1",     "error-app-tag",    "?",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        NULL,    NULL,               NULL,
+     "yin-element",      "boolean",
+        NULL,    NULL,               NULL,
+     "belongs-to",       "identifier",
+        "1",     "prefix",           "1",
+        NULL,    NULL,               NULL,
+     "max-elements",     "max-value",
+        NULL,    NULL,               NULL,
+     "error-message",    "string",
+        NULL,    NULL,               NULL,
+     "extension",        "identifier",
+        "1",     "argument",         "?",
+        "1",     "status",           "?",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        NULL,    NULL,               NULL,
+     "default",          "string",
+        NULL,    NULL,               NULL,
+     "config",           "boolean",
+        NULL,    NULL,               NULL,
+     "fraction-digits",  "fraction-digits-arg",
+        NULL,    NULL,               NULL,
+     "list",             "identifier",
+        "1",     "when",             "?",
+        "1",     "if-feature",       "*",
+        "1",     "must",             "*",
+        "1",     "key",              "?",
+        "1",     "unique",           "*",
+        "1",     "config",           "?",
+        "1",     "min-elements",     "?",
+        "1",     "max-elements",     "?",
+        "1",     "ordered-by",       "?",
+        "1",     "status",           "?",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        "1",     "typedef",          "*",
+        "1",     "grouping",         "*",
+        "1",     "container",        "*",
+        "1",     "leaf",             "*",
+        "1",     "leaf-list",        "*",
+        "1",     "list",             "*",
+        "1",     "choice",           "*",
+        "1",     "anyxml",           "*",
+        "1.1",   "anydata",          "*",
+        "1",     "uses",             "*",
+        "1.1",   "action",           "*",
+        "1.1",   "notification",     "*",
+        NULL,    NULL,               NULL,
+     "rpc",              "identifier",
+        "1",     "if-feature",       "*",
+        "1",     "status",           "?",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        "1",     "typedef",          "*",
+        "1",     "grouping",         "*",
+        "1",     "input",            "?",
+        "1",     "output",           "?",
+        NULL,    NULL,               NULL,
+     "action",              "identifier",
+        "1.1",   "if-feature",       "*",
+        "1.1",   "status",           "?",
+        "1.1",   "description",      "?",
+        "1.1",   "reference",        "?",
+        "1.1",   "typedef",          "*",
+        "1.1",   "grouping",         "*",
+        "1.1",   "input",            "?",
+        "1.1",   "output",           "?",
+        NULL,    NULL,               NULL,
+     "value",            "integer",
+        NULL,    NULL,               NULL,
+     "range",            "range-arg",
+        "1",     "error-message",    "?",
+        "1",     "error-app-tag",    "?",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        NULL,    NULL,               NULL,
+     "notification",     "identifier",
+        "1",     "if-feature",       "*",
+        "1.1",   "must",             "*",
+        "1",     "status",           "?",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        "1",     "typedef",          "*",
+        "1",     "grouping",         "*",
+        "1",     "container",        "*",
+        "1",     "leaf",             "*",
+        "1",     "leaf-list",        "*",
+        "1",     "list",             "*",
+        "1",     "choice",           "*",
+        "1",     "anyxml",           "*",
+        "1.1",   "anydata",          "*",
+        "1",     "uses",             "*",
+        NULL,    NULL,               NULL,
+     "grouping",         "identifier",
+        "1",     "status",           "?",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        "1",     "typedef",          "*",
+        "1",     "grouping",         "*",
+        "1",     "container",        "*",
+        "1",     "leaf",             "*",
+        "1",     "leaf-list",        "*",
+        "1",     "list",             "*",
+        "1",     "choice",           "*",
+        "1",     "anyxml",           "*",
+        "1.1",   "anydata",          "*",
+        "1",     "uses",             "*",
+        "1.1",   "action",           "*",
+        "1.1",   "notification",     "*",
+        NULL,    NULL,               NULL,
 
     NULL,              NULL
 };
@@ -462,23 +528,120 @@ chk_enum_arg(char *arg, void *opaque)
 {
     int len;
     len = strlen(arg);
-    if (len == 0 || isspace(arg[0]) || isspace(arg[len-1])) {
+    if (len == 0 || isspace((int)arg[0]) || isspace((int)arg[len-1])) {
         return false;
     }
     return true;
 }
 
 static bool
-chk_fraction_digits_arg(char *arg, void *opaque)
+get_int64(char *arg, int64_t *i)
 {
     char *end;
-    long int i;
-    if (isspace(arg[0])) {
+    long long ll;
+
+    if (isspace((int)arg[0])) {
         return false;
     }
-    i = strtol(arg, &end, 10);
-    if (*end == '\0') {
+    errno = 0;
+    ll = strtoll(arg, &end, 10);
+    if (*end != '\0') {
         /* not an integer */
+        return false;
+    }
+    if (errno == ERANGE || ll < INT64_MIN || ll > INT64_MAX) {
+        /* over/underflow */
+        return false;
+    }
+    *i = ll;
+    return true;
+}
+
+static bool
+get_uint64(char *arg, uint64_t *i)
+{
+    char *end;
+    unsigned long long ull;
+
+    if (isspace((int)arg[0]) || arg[0] == '-') {
+        return false;
+    }
+    errno = 0;
+    ull = strtoull(arg, &end, 10);
+    if (*end != '\0') {
+        /* not an integer */
+        return false;
+    }
+    if (errno == ERANGE || ull > UINT64_MAX) {
+        /* over/underflow */
+        return false;
+    }
+    *i = ull;
+    return true;
+}
+
+static bool
+chk_identifier(char *arg, void *opaque)
+{
+    char *p;
+    xmlRegexpPtr xreg = (xmlRegexpPtr)opaque;
+    if (xmlRegexpExec(xreg, (xmlChar *)arg) != 1) {
+        return false;
+    }
+    p = arg;
+    /* ensure arg doesn't start with [xX][mM][lL] */
+    if (*p == '\0' || (*p != 'x' && *p != 'X')) {
+        return true;
+    }
+    p++;
+    if (*p == '\0' || (*p != 'm' && *p != 'M')) {
+        return true;
+    }
+    p++;
+    if (*p == '\0' || (*p != 'l' && *p != 'L')) {
+        return true;
+    }
+    return false;
+}
+
+
+/*
+  We limit to int64_t and uint64_t here,
+  because that's what we return to Erlang in
+  yang_parser_nif.c - a simple regexp results
+  in silent truncation of larger values.
+*/
+static bool
+chk_integer(char *arg, void *opaque)
+{
+    int64_t i;
+    return get_int64(arg, &i);
+}
+
+static bool
+chk_non_negative_integer(char *arg, void *opaque)
+{
+    uint64_t i;
+    return get_uint64(arg, &i);
+}
+
+static bool
+chk_max_value(char *arg, void *opaque)
+{
+    uint64_t i;
+
+    if (strcmp(arg, "unbounded") == 0) {
+        return true;
+    }
+    return get_uint64(arg, &i);
+}
+
+static bool
+chk_fraction_digits_arg(char *arg, void *opaque)
+{
+    uint64_t i;
+
+    if (get_uint64(arg, &i) == false) {
         return false;
     }
     if (i < 1 || i > 18) {
@@ -487,13 +650,17 @@ chk_fraction_digits_arg(char *arg, void *opaque)
     return true;
 }
 
-bool
-chk_(char *arg, void *opaque)
+static bool
+chk_if_feature_expr(char *arg, void *opaque)
 {
-    return true;
+    /*
+      NOTE: this code allows 1.1 syntax in 1.0 modules - this needs to
+      be checked by the caller.
+    */
+    return yang_parse_if_feature_expr(arg);
 }
 
-#define NTYPES 23
+#define NTYPES 26
 
 #define STRBUFSIZ 256
 
@@ -520,6 +687,7 @@ yang_init_core_stmt_grammar(void)
     char relative_path_arg[3*STRBUFSIZ];
     char deref_path_arg[5*STRBUFSIZ];
     char path_arg[9*STRBUFSIZ];
+    char strict_path_arg[9*STRBUFSIZ];
     char absolute_schema_nodeid[STRBUFSIZ];
     char descendant_schema_nodeid[STRBUFSIZ];
     char schema_nodeid[STRBUFSIZ];
@@ -594,6 +762,8 @@ yang_init_core_stmt_grammar(void)
       relative_path_arg, relative_path_arg);
     S(path_arg, "(%s|%s|%s)",
       absolute_path_arg, relative_path_arg, deref_path_arg);
+    S(strict_path_arg, "(%s|%s)",
+      absolute_path_arg, relative_path_arg);
     S(absolute_schema_nodeid, "(/%s)+", node_id);
     S(descendant_schema_nodeid, "%s(%s)?",
       node_id, absolute_schema_nodeid);
@@ -653,12 +823,13 @@ yang_init_core_stmt_grammar(void)
     i++;
 
     types[i].name = yang_make_atom("identifier");
-    types[i].syntax.xsd_regexp = (char *)identifier;
-    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    types[i].syntax.cb.opaque = (void *)xmlRegexpCompile((xmlChar *)identifier);
+    types[i].syntax.cb.validate = &chk_identifier;
+    types[i].flags = F_ARG_TYPE_SYNTAX_CB;
     i++;
 
     types[i].name = yang_make_atom("version");
-    types[i].syntax.xsd_regexp = (char *)"1";
+    types[i].syntax.xsd_regexp = (char *)"1|1\\.1";
     types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
     i++;
 
@@ -679,13 +850,13 @@ yang_init_core_stmt_grammar(void)
     i++;
 
     types[i].name = yang_make_atom("max-value");
-    types[i].syntax.xsd_regexp = (char *)"unbounded|[1-9][0-9]*";
-    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    types[i].syntax.cb.validate = &chk_max_value;
+    types[i].flags = F_ARG_TYPE_SYNTAX_CB;
     i++;
 
     types[i].name = yang_make_atom("non-negative-integer");
-    types[i].syntax.xsd_regexp = (char *)"(0|[1-9])[0-9]*";
-    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    types[i].syntax.cb.validate = &chk_non_negative_integer;
+    types[i].flags = F_ARG_TYPE_SYNTAX_CB;
     i++;
 
     types[i].name = yang_make_atom("deviate-arg");
@@ -694,12 +865,17 @@ yang_init_core_stmt_grammar(void)
     i++;
 
     types[i].name = yang_make_atom("integer");
-    types[i].syntax.xsd_regexp = (char *)"\\d*";
-    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    types[i].syntax.cb.validate = &chk_integer;
+    types[i].flags = F_ARG_TYPE_SYNTAX_CB;
     i++;
 
     types[i].name = yang_make_atom("status-arg");
     types[i].syntax.xsd_regexp = (char *)"current|obsolete|deprecated";
+    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    i++;
+
+    types[i].name = yang_make_atom("modifier-arg");
+    types[i].syntax.xsd_regexp = (char *)"invert-match";
     types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
     i++;
 
@@ -759,9 +935,19 @@ yang_init_core_stmt_grammar(void)
     types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
     i++;
 
+    types[i].name = yang_make_atom("strict-path-arg");
+    types[i].syntax.xsd_regexp = (char *)strict_path_arg;
+    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    i++;
+
     types[i].name = yang_make_atom("schema-nodeid");
     types[i].syntax.xsd_regexp = (char *)schema_nodeid;
     types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    i++;
+
+    types[i].name = yang_make_atom("if-feature-expr");
+    types[i].syntax.cb.validate = &chk_if_feature_expr;
+    types[i].flags = F_ARG_TYPE_SYNTAX_CB;
     i++;
 
     assert(i == NTYPES);

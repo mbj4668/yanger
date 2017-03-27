@@ -1,23 +1,17 @@
+SUBDIRS = c_src src plugins
 
+all:
+	@set -e ; \
+	  for d in $(SUBDIRS) ; do \
+	    if [ -f $$d/Makefile ]; then \
+	      ( cd $$d && $(MAKE) ) || exit 1 ; \
+	    fi ; \
+	  done
 
-.PHONY: all compile clean eunit test doc
-
-all: compile
-
-compile:
-	(cd src && $(MAKE) compile) || exit 1;
-	./rebar compile
-
-
-eunit: compile
-	./rebar eunit
-
-test: eunit
-
-clean:
-	./rebar clean
-	(cd src && $(MAKE) clean)
-
-doc:
-	./rebar doc
-
+clean: $(LOCALCLEAN)
+	@set -e ; \
+	  for d in $(SUBDIRS) ; do \
+	    if [ -f $$d/Makefile ]; then \
+	      ( cd $$d && $(MAKE) $@ ) || exit 1 ; \
+	    fi ; \
+	  done

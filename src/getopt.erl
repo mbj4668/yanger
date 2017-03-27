@@ -7,6 +7,8 @@
 %%% This source file is subject to the New BSD License. You should have received
 %%% a copy of the New BSD license with this software. If not, it can be
 %%% retrieved from: http://www.opensource.org/licenses/bsd-license.php
+%%%
+%%% 2013-01-14 (mbj): added option groups
 %%%-------------------------------------------------------------------
 -module(getopt).
 -author('juanjo@comellas.org').
@@ -42,19 +44,27 @@
 -type compound_option()                         :: {atom(), arg_value()}.
 -type option()                                  :: simple_option() | compound_option().
 %% Command line option specification.
--type option_spec() :: {
+-type option_opt() :: {
                    Name                         :: atom(),
                    Short                        :: char() | undefined,
                    Long                         :: string() | undefined,
                    ArgSpec                      :: arg_spec(),
                    Help                         :: string() | undefined
                   }.
+
+-type option_group() :: {
+                    Header                      :: string(),
+                    Opts                        :: [option_opt()]
+                  }.
+
+-type option_spec() :: option_opt() | option_group().
+
 %% Output streams
 -type output_stream()                           :: 'standard_io' | 'standard_error'.
 
 %% For internal use
--type usage_line()                              :: {OptionText :: string(), HelpText :: string()}.
--type usage_line_with_length()                  :: {OptionLength :: non_neg_integer(), OptionText :: string(), HelpText :: string()}.
+-type usage_line()                              :: {OptionText :: string(), HelpText :: string()} | string().
+-type usage_line_with_length()                  :: {OptionLength :: non_neg_integer(), OptionText :: string(), HelpText :: string()} | string().
 
 
 -export_type([arg_type/0, arg_value/0, arg_spec/0, simple_option/0, compound_option/0, option/0, option_spec/0]).
@@ -86,7 +96,7 @@ flatten_specs([OptGroup | T]) when ?IS_OPT_GROUP(OptGroup) ->
 flatten_specs([]) ->
     [].
 
--spec parse([option_spec()], [option()], [string()], integer(), [string()]) ->
+-spec parse([option_opt()], [option()], [string()], integer(), [string()]) ->
                    {ok, {[option()], [string()]}}.
 %% Process the option terminator.
 parse(OptSpecList, OptAcc, ArgAcc, _ArgPos, ["--" | Tail]) ->
@@ -118,7 +128,7 @@ parse(OptSpecList, OptAcc, ArgAcc, _ArgPos, []) ->
 %%        --foo      Single option 'foo', no argument
 %%        --foo=bar  Single option 'foo', argument "bar"
 %%        --foo bar  Single option 'foo', argument "bar"
--spec parse_long_option([option_spec()], [option()], [string()], integer(), [string()], string(), string()) ->
+-spec parse_long_option([option_opt()], [option()], [string()], integer(), [string()], string(), string()) ->
                                {ok, {[option()], [string()]}}.
 parse_long_option(OptSpecList, OptAcc, ArgAcc, ArgPos, Args, OptStr, OptArg) ->
     case split_assigned_arg(OptArg) of
@@ -146,7 +156,7 @@ parse_long_option(OptSpecList, OptAcc, ArgAcc, ArgPos, Args, OptStr, OptArg) ->
 %% @doc Parse an option where the argument is 'assigned' in the same string using
 %%      the '=' character, add it to the option accumulator and continue parsing the
 %%      rest of the arguments recursively. This syntax is only valid for long options.
--spec parse_long_option_assigned_arg([option_spec()], [option()], [string()], integer(),
+-spec parse_long_option_assigned_arg([option_opt()], [option()], [string()], integer(),
                                      [string()], string(), string(), string()) ->
                                             {ok, {[option()], [string()]}}.
 parse_long_option_assigned_arg(OptSpecList, OptAcc, ArgAcc, ArgPos, Args, OptStr, Long, Arg) ->
@@ -205,7 +215,7 @@ parse_long_option_next_arg(OptSpecList, OptAcc, ArgAcc, ArgPos, Args, {Name, _Sh
 %%        -abc     Multiple options: 'a'; 'b'; 'c'
 %%        -bcafoo  Multiple options: 'b'; 'c'; 'a' with argument "foo"
 %%        -aaa     Multiple repetitions of option 'a' (only valid for options with integer arguments)
--spec parse_short_option([option_spec()], [option()], [string()], integer(), [string()], string(), string()) ->
+-spec parse_short_option([option_opt()], [option()], [string()], integer(), [string()], string(), string()) ->
                                 {ok, {[option()], [string()]}}.
 parse_short_option(OptSpecList, OptAcc, ArgAcc, ArgPos, Args, OptStr, OptArg) ->
     parse_short_option(OptSpecList, OptAcc, ArgAcc, ArgPos, Args, OptStr, first, OptArg).
@@ -265,7 +275,7 @@ parse_short_option_next_arg(OptSpecList, OptAcc, ArgAcc, ArgPos, Args, {Name, _S
 
 %% @doc Find the option for the discrete argument in position specified in the
 %%      Pos argument.
--spec find_non_option_arg([option_spec()], integer()) -> {value, option_spec()} | false.
+-spec find_non_option_arg([option_opt()], integer()) -> {value, option_opt()} | false.
 find_non_option_arg([{_Name, undefined, undefined, _ArgSpec, _Help} = OptSpec | _Tail], 0) ->
     {value, OptSpec};
 find_non_option_arg([{_Name, undefined, undefined, _ArgSpec, _Help} | Tail], Pos) ->
@@ -278,7 +288,7 @@ find_non_option_arg([], _Pos) ->
 
 %% @doc Append options that were not present in the command line arguments with
 %%      their default arguments.
--spec append_default_options([option_spec()], [option()]) -> [option()].
+-spec append_default_options([option_opt()], [option()]) -> [option()].
 append_default_options([{Name, _Short, _Long, {_Type, DefaultArg}, _Help} | Tail], OptAcc) ->
     append_default_options(Tail,
                            case lists:keymember(Name, 1, OptAcc) of
@@ -296,7 +306,7 @@ append_default_options([], OptAcc) ->
 
 %% @doc Add an option with argument converting it to the data type indicated by the
 %%      argument specification.
--spec add_option_with_arg(option_spec(), string(), [option()]) -> [option()].
+-spec add_option_with_arg(option_opt(), string(), [option()]) -> [option()].
 add_option_with_arg({Name, _Short, _Long, ArgSpec, _Help} = OptSpec, Arg, OptAcc) ->
     case is_valid_arg(ArgSpec, Arg) of
         true ->
@@ -314,7 +324,7 @@ add_option_with_arg({Name, _Short, _Long, ArgSpec, _Help} = OptSpec, Arg, OptAcc
 %% @doc Add an option with argument that was part of an assignment expression
 %%      (e.g. "--verbose=3") converting it to the data type indicated by the
 %%      argument specification.
--spec add_option_with_assigned_arg(option_spec(), string(), [option()]) -> [option()].
+-spec add_option_with_assigned_arg(option_opt(), string(), [option()]) -> [option()].
 add_option_with_assigned_arg({Name, _Short, _Long, ArgSpec, _Help}, Arg, OptAcc) ->
     try
         [{Name, to_type(ArgSpec, Arg)} | OptAcc]
@@ -326,7 +336,7 @@ add_option_with_assigned_arg({Name, _Short, _Long, ArgSpec, _Help}, Arg, OptAcc)
 
 %% @doc Add an option that required an argument but did not have one. Some data
 %%      types (boolean, integer) allow implicit or assumed arguments.
--spec add_option_with_implicit_arg(option_spec(), [option()]) -> [option()].
+-spec add_option_with_implicit_arg(option_opt(), [option()]) -> [option()].
 add_option_with_implicit_arg({Name, _Short, _Long, ArgSpec, _Help}, OptAcc) ->
     case arg_spec_type(ArgSpec) of
         boolean ->
@@ -344,7 +354,7 @@ add_option_with_implicit_arg({Name, _Short, _Long, ArgSpec, _Help}, OptAcc) ->
 
 
 %% @doc Add an option with an implicit or assumed argument.
--spec add_option_with_implicit_incrementable_arg(option_spec() | arg_spec(), [option()]) -> [option()].
+-spec add_option_with_implicit_incrementable_arg(option_opt() | arg_spec(), [option()]) -> [option()].
 add_option_with_implicit_incrementable_arg({Name, _Short, _Long, ArgSpec, _Help}, OptAcc) ->
     case arg_spec_type(ArgSpec) of
         boolean ->
@@ -522,7 +532,8 @@ usage(OptSpecList, ProgramName, CmdLineTail, OptionsTail, OutputStream) ->
 
 
 -spec usage_cmd_line(ProgramName :: string(), [option_spec()]) -> iolist().
-usage_cmd_line(ProgramName, OptSpecList) ->
+usage_cmd_line(ProgramName, OptSpecList0) ->
+    OptSpecList = remove_undocumented(OptSpecList0),
     Prefix = "Usage: " ++ ProgramName,
     PrefixLength = length(Prefix),
     Indentation = lists:duplicate(PrefixLength, $\s),
@@ -534,7 +545,7 @@ usage_cmd_line(ProgramName, OptSpecList) ->
 usage_cmd_line_options(LineLength, Indentation, OptSpecList) ->
     usage_cmd_line_options(LineLength, Indentation, OptSpecList, [], 0, []).
 
-usage_cmd_line_options(LineLength, Indentation, [OptSpec | Tail], LineAcc, AccLength, Acc) 
+usage_cmd_line_options(LineLength, Indentation, [OptSpec | Tail], LineAcc, AccLength, Acc)
   when ?IS_OPT_SPEC(OptSpec) ->
     Option = lists:flatten(usage_cmd_line_option(OptSpec)),
     OptionLength = length(Option),
@@ -548,7 +559,7 @@ usage_cmd_line_options(LineLength, Indentation, [OptSpec | Tail], LineAcc, AccLe
             usage_cmd_line_options(LineLength, Indentation, Tail, [Option, Indentation],
                                    length(Option) + 1, [lists:reverse([$\n | LineAcc]) | Acc])
     end;
-usage_cmd_line_options(LineLength, Indentation, [OptGroup | Tail], LineAcc, AccLength, Acc) 
+usage_cmd_line_options(LineLength, Indentation, [OptGroup | Tail], LineAcc, AccLength, Acc)
   when ?IS_OPT_GROUP(OptGroup) ->
     usage_cmd_line_options(LineLength, Indentation, Tail, LineAcc, AccLength, Acc);
 usage_cmd_line_options(LineLength, Indentation, [] = OptSpecList, [_ | _] = LineAcc, AccLength, Acc) ->
@@ -558,7 +569,7 @@ usage_cmd_line_options(_LineLength, _Indentation, [], [], _AccLength, Acc) ->
     lists:reverse(Acc).
 
 
--spec usage_cmd_line_option(option_spec()) -> string().
+-spec usage_cmd_line_option(option_opt()) -> string().
 usage_cmd_line_option({_Name, Short, _Long, undefined, _Help}) when Short =/= undefined ->
     %% For options with short form and no argument.
     [$\s, $[, $-, Short, $]];
@@ -606,10 +617,20 @@ sort_specs([OptGroup | T], GlobalOptSpecs, Groups)
 sort_specs([], GlobalOptSpecs, Groups) ->
     lists:reverse(GlobalOptSpecs) ++ lists:reverse(Groups).
 
+remove_undocumented([{_Name, _Short, _Long, _ArgSpec, undocumented} | T]) ->
+    remove_undocumented(T);
+remove_undocumented([{Header, Opts} | T]) ->
+    [{Header, remove_undocumented(Opts)} | remove_undocumented(T)];
+remove_undocumented([H | T]) ->
+    [H | remove_undocumented(T)];
+remove_undocumented([]) ->
+    [].
+
 %% @doc Return a list of usage lines to print for each of the options and arguments.
 -spec usage_options([option_spec()], [{OptionName :: string(), Help :: string()}]) -> [string()].
 usage_options(OptSpecList0, CustomHelp) ->
-    OptSpecList = sort_specs(OptSpecList0),
+    OptSpecList1 = remove_undocumented(OptSpecList0),
+    OptSpecList = sort_specs(OptSpecList1),
     %% Add the usage lines corresponding to the option specifications.
     {MaxOptionLength0, UsageLines0, GroupedUsageLines} =
         add_option_spec_help_lines(OptSpecList, 0, [], []),
@@ -622,7 +643,7 @@ usage_options(OptSpecList0, CustomHelp) ->
               UsageLine <- GroupedUsageLines]).
 
 -spec add_option_spec_help_lines([option_spec()], PrevMaxOptionLength :: non_neg_integer(), [usage_line_with_length()], list()) ->
-                                        {MaxOptionLength :: non_neg_integer(), [usage_line_with_length()]}.
+                                        {MaxOptionLength :: non_neg_integer(), [usage_line_with_length()], list()}.
 add_option_spec_help_lines([OptSpec | Tail], PrevMaxOptionLength, Acc, GAcc)
   when ?IS_OPT_SPEC(OptSpec) ->
     OptionText = usage_option_text(OptSpec),
@@ -648,7 +669,7 @@ add_custom_help_lines([], MaxOptionLength, Acc) ->
     {MaxOptionLength, Acc}.
 
 
--spec usage_option_text(option_spec()) -> string().
+-spec usage_option_text(option_opt()) -> string().
 usage_option_text({Name, undefined, undefined, _ArgSpec, _Help}) ->
     %% Neither short nor long form (non-option argument).
     "<" ++ atom_to_list(Name) ++ ">";
@@ -663,7 +684,7 @@ usage_option_text({_Name, Short, Long, _ArgSpec, _Help}) ->
     [$-, Short, $,, $\s, $-, $- | Long].
 
 
--spec usage_help_text(option_spec()) -> string().
+-spec usage_help_text(option_opt()) -> string().
 usage_help_text({_Name, _Short, _Long, {_ArgType, ArgValue}, [_ | _] = Help}) ->
     Help ++ " [default: " ++ default_arg_value_to_string(ArgValue) ++ "]";
 usage_help_text({_Name, _Short, _Long, _ArgSpec, Help}) ->
@@ -712,6 +733,7 @@ format_usage_line(_MaxOptionLength, _LineLength, {_OptionLength, OptionText, _He
     ["  ", OptionText, $\n];
 format_usage_line(_MaxOptionLength, _LineLength, HeaderText) when is_list(HeaderText) ->
     [$\n, HeaderText, $\n].
+
 
 %% @doc Wrap a text line converting it into several text lines so that the
 %%      length of each one of them is never over HelpLength characters.

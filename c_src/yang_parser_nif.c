@@ -1,7 +1,7 @@
-#define _POSIX_C_SOURCE 200809L // for strdup
 #include <string.h>
 #include <stdio.h>
 #include <assert.h>
+#include <inttypes.h>
 
 #include "erl_nif.h"
 #include "yang_parser.h"
@@ -15,11 +15,24 @@ static ERL_NIF_TERM am_undefined;
 
 #define F_ERL_ATOM           (1 << 16)
 #define F_ERL_INT            (1 << 17)
-#define F_ERL_IDENTIFIER_REF (1 << 18)
-#define F_ERL_ATOM_OR_INT    (1 << 19)
+#define F_ERL_UINT           (1 << 18)
+#define F_ERL_IDENTIFIER_REF (1 << 19)
+#define F_ERL_ATOM_OR_INT    (1 << 20)
+#define F_ERL_ATOM_OR_UINT   (1 << 21)
 
 #define STRSIZ 1024
 #define FILENAMESIZ 4096
+
+static ERL_NIF_TERM
+make_binary(ErlNifEnv *env, const char *str)
+{
+    ERL_NIF_TERM eb;
+    size_t len = strlen(str);
+    unsigned char *data = enif_make_new_binary(env, len, &eb);
+
+    memcpy(data, str, len);
+    return eb;
+}
 
 static ERL_NIF_TERM
 mk_tree(ErlNifEnv *env, struct yang_statement *s, ERL_NIF_TERM fname)
@@ -48,17 +61,30 @@ mk_tree(ErlNifEnv *env, struct yang_statement *s, ERL_NIF_TERM fname)
         if (s->arg_type->flags & F_ERL_ATOM) {
             arg = enif_make_atom(env, s->arg);
         } else if (s->arg_type->flags & F_ERL_INT) {
-            arg = enif_make_long(env, strtol(s->arg, NULL, 10));
+            arg = enif_make_int64(env, strtoll(s->arg, NULL, 10));
+        } else if (s->arg_type->flags & F_ERL_UINT) {
+            arg = enif_make_uint64(env, strtoull(s->arg, NULL, 10));
         } else if (s->arg_type->flags & F_ERL_ATOM_OR_INT) {
             char *end;
-            long int i;
-            i = strtol(s->arg, &end, 10);
+            int64_t i;
+            i = strtoll(s->arg, &end, 10);
             if (end == s->arg) {
                 /* not an integer */
                 arg = enif_make_atom(env, s->arg);
             } else {
                 /* an integer */
-                arg = enif_make_long(env, i);
+                arg = enif_make_int64(env, i);
+            }
+        } else if (s->arg_type->flags & F_ERL_ATOM_OR_UINT) {
+            char *end;
+            uint64_t i;
+            i = strtoull(s->arg, &end, 10);
+            if (end == s->arg) {
+                /* not an integer */
+                arg = enif_make_atom(env, s->arg);
+            } else {
+                /* an integer */
+                arg = enif_make_uint64(env, i);
             }
         } else if (s->arg_type->flags & F_ERL_IDENTIFIER_REF) {
             if ((p = strchr(s->arg, ':'))) {
@@ -70,12 +96,12 @@ mk_tree(ErlNifEnv *env, struct yang_statement *s, ERL_NIF_TERM fname)
                 arg = enif_make_atom(env, s->arg);
             }
         } else {
-            arg = enif_make_string(env, s->arg, ERL_NIF_LATIN1);
+            arg = make_binary(env, s->arg);
         }
     } else if (s->arg) {
-        arg = enif_make_string(env, s->arg, ERL_NIF_LATIN1);
+        arg = make_binary(env, s->arg);
     } else {
-        arg = am_undefined;
+        arg = enif_make_list(env, 0);
     }
     line = enif_make_tuple2(env, fname, enif_make_int(env, s->line));
 
@@ -90,19 +116,28 @@ static ERL_NIF_TERM
 mk_error_list(ErlNifEnv *env, struct yang_error *err)
 {
     ERL_NIF_TERM error;
+    ERL_NIF_TERM list;
+    const char *filename;
 
-    if (!err) {
-        return enif_make_list(env, 0);
+    list = enif_make_list(env, 0);
+    while (err) {
+        if (err->filename) {
+            filename = err->filename;
+        } else {
+            filename = "";
+        }
+        error =
+            enif_make_tuple5(
+                env,
+                enif_make_int(env, err->code),
+                enif_make_string(env, filename, ERL_NIF_LATIN1),
+                enif_make_int(env, err->line),
+                enif_make_int(env, err->col),
+                enif_make_string(env, err->msg, ERL_NIF_LATIN1));
+        list = enif_make_list_cell(env, error, list);
+        err = err->next;
     }
-    error = enif_make_tuple5(
-        env,
-        enif_make_int(env, err->code),
-        enif_make_string(env, err->filename, ERL_NIF_LATIN1),
-        enif_make_int(env, err->line),
-        enif_make_int(env, err->col),
-        enif_make_string(env, err->msg, ERL_NIF_LATIN1));
-
-    return enif_make_list_cell(env, error, mk_error_list(env, err->next));
+    return list;
 }
 
 static ERL_NIF_TERM
@@ -112,9 +147,10 @@ parse_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     char buf[STRSIZ];
     struct yang_statement *stmt;
     struct yang_error_ctx *ectx;
-    ERL_NIF_TERM fname, res;
+    struct yang_error *err;
+    ERL_NIF_TERM fname, res, errors;
     int r;
-    bool canonical;
+    bool canonical, has_error;
 
     if (argc != 2 ||
         enif_get_string(env, argv[0], filename,
@@ -136,19 +172,131 @@ parse_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     if (r) {
         yang_grammar_check_module(stmt, canonical, ectx);
     }
-    if (ectx->err != NULL) {
+    err = ectx->err;
+    has_error = false;
+    while (err && !has_error) {
+        if (err->code < YANG_FIRST_WARNING) {
+            has_error = true;
+        }
+        err = err->next;
+    }
+    errors = mk_error_list(env, ectx->err);
+    yang_free_err_ctx(ectx);
+    if (!r || has_error) {
         res = enif_make_tuple2(env,
                                enif_make_atom(env, "error"),
-                               mk_error_list(env, ectx->err));
-        yang_free_err_ctx(ectx);
+                               errors);
         return res;
     }
-    yang_free_err_ctx(ectx);
     fname = enif_make_string(env, filename, ERL_NIF_LATIN1);
 
-    return enif_make_tuple2(env,
+    return enif_make_tuple3(env,
                             enif_make_atom(env, "ok"),
-                            mk_tree(env, stmt, fname));
+                            mk_tree(env, stmt, fname),
+                            errors);
+}
+
+static ERL_NIF_TERM
+mk_kwd(ErlNifEnv *env, yang_atom_t module_name, yang_atom_t keyword)
+{
+    if (module_name) {
+        return enif_make_tuple2(env,
+                                enif_make_atom(env, module_name),
+                                enif_make_atom(env, keyword));
+    } else {
+        return enif_make_atom(env, keyword);
+    }
+}
+
+static ERL_NIF_TERM
+mk_spec(ErlNifEnv *env, struct yang_statement_spec *spec)
+{
+    ERL_NIF_TERM arg, rule, rules;
+    struct yang_arg_type *type;
+    int i;
+    char occurance[2];
+
+    type = yang_get_arg_type(spec->arg_type_idx);
+    if (!type) {
+        arg = enif_make_list(env, 0);
+    } else {
+        arg = enif_make_atom(env, type->name);
+    }
+    occurance[1] = '\0';
+    rules = enif_make_list(env, 0);
+    for (i = spec->nrules-1; i >= 0; i--) {
+        occurance[0] = spec->rules[i].occurance;
+        rule = enif_make_tuple2(env,
+                                mk_kwd(env,
+                                       spec->rules[i].module_name,
+                                       spec->rules[i].keyword),
+                                enif_make_atom(env, occurance)),
+        rules = enif_make_list_cell(env, rule, rules);
+    }
+    return enif_make_tuple4(env,
+                            enif_make_atom(env, spec->keyword),
+                            arg,
+                            rules,
+                            am_undefined);
+}
+
+static ERL_NIF_TERM
+get_statement_spec_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    char buf0[STRSIZ];
+    char buf1[STRSIZ];
+    yang_atom_t mod;
+    yang_atom_t kwd;
+    struct yang_statement_spec *spec;
+    int arity;
+    const ERL_NIF_TERM *kwd_spec;
+
+    if (argc != 1) {
+        return enif_make_badarg(env);
+    }
+    if (enif_get_atom(env, argv[0], buf0, STRSIZ, ERL_NIF_LATIN1) <= 0) {
+        if (!enif_get_tuple(env, argv[0], &arity, &kwd_spec) || arity != 2) {
+            return enif_make_badarg(env);
+        }
+        if (!enif_get_atom(env, kwd_spec[0], buf0, STRSIZ, ERL_NIF_LATIN1)) {
+            return enif_make_badarg(env);
+        }
+        if (!enif_get_atom(env, kwd_spec[1], buf1, STRSIZ, ERL_NIF_LATIN1)) {
+            return enif_make_badarg(env);
+        }
+        mod = yang_make_atom(buf0);
+        kwd = yang_make_atom(buf1);
+    } else {
+        mod = NULL;
+        kwd = yang_make_atom(buf0);
+    }
+    spec = yang_get_statement_spec(mod, kwd);
+    if (!spec) {
+        return enif_make_atom(env, "not_found");
+    }
+    return enif_make_tuple2(env,
+                            enif_make_atom(env, "value"),
+                            mk_spec(env, spec));
+}
+
+static ERL_NIF_TERM
+get_grammar_module_names_nif(ErlNifEnv *env,
+                             int argc,
+                             const ERL_NIF_TERM argv[])
+{
+    int n = yang_get_grammar_module_names(0, NULL);
+    int i;
+    ERL_NIF_TERM res;
+    yang_atom_t module_names[n];
+
+    yang_get_grammar_module_names(n, module_names);
+    res = enif_make_list(env, 0);
+    for (i = 0; i < n; i++) {
+        res = enif_make_list_cell(env,
+                                  enif_make_atom(env, module_names[i]),
+                                  res);
+    }
+    return res;
 }
 
 static ERL_NIF_TERM
@@ -191,8 +339,10 @@ install_arg_types(ErlNifEnv *env, ERL_NIF_TERM etypes, unsigned int len)
                 return enif_make_badarg(env);
             }
         } else {
+            char *tmp;
             types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
-            types[i].syntax.xsd_regexp = strdup(buf);
+            tmp = (char *)malloc((strlen(buf) + 1) * sizeof(char));
+            types[i].syntax.xsd_regexp = strcpy(tmp, buf);
         }
         /* Handle elemt 3 - ReturnType */
         if (!enif_get_atom(env, type_spec[2], buf, STRSIZ, ERL_NIF_LATIN1)) {
@@ -325,9 +475,10 @@ install_grammar(ErlNifEnv *env, ERL_NIF_TERM module_name, ERL_NIF_TERM specs,
         if (!enif_get_atom(env, stmt_spec[1], buf, STRSIZ, ERL_NIF_LATIN1)) {
             if (enif_is_empty_list(env, stmt_spec[1])) {
                 spec[i].arg_type_idx = -1;
-            } else
+            } else {
                 fprintf(stderr, "bad grammar %d\n", __LINE__);
                 return enif_make_badarg(env);
+            }
         } else {
             if ((spec[i].arg_type_idx =
                  yang_get_arg_type_idx(yang_make_atom(buf))) == -1) {
@@ -406,6 +557,7 @@ install_grammar(ErlNifEnv *env, ERL_NIF_TERM module_name, ERL_NIF_TERM specs,
         enif_get_atom(env, stmt_spec[0], buf, STRSIZ, ERL_NIF_LATIN1);
         rule.module_name = m;
         rule.keyword = yang_make_atom(buf);
+        rule.min_yang_version = YANG_VERSION_1;
         /* This spec must exist, since it was added by
            yang_install_grammar() above */
         rule.spec = yang_get_statement_spec(m, rule.keyword);
@@ -432,6 +584,7 @@ install_grammar(ErlNifEnv *env, ERL_NIF_TERM module_name, ERL_NIF_TERM specs,
             }
             if (!(is_occurance(&buf[0]))) {
                 fprintf(stderr, "bad grammar %d\n", __LINE__);
+                return enif_make_badarg(env);
             }
             rule.occurance = buf[0];
             /* Handle element 2 of UseIn - UseInKeywords */
@@ -480,21 +633,26 @@ install_grammar_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 
     if (argc != 2 ||
         !enif_get_list_length(env, argv[1], &nspecs)) {
+        fprintf(stderr, "bad grammar %d\n", __LINE__);
         return enif_make_badarg(env);
     }
     tmp = argv[1];
     nrules = 0;
     for (i = 0; i < nspecs; i++) {
         if (!enif_get_list_cell(env, tmp, &head, &tail)) {
+            fprintf(stderr, "bad grammar %d\n", __LINE__);
             return enif_make_badarg(env);
         }
         if (!enif_get_tuple(env, head, &arity, &stmt_spec)) {
+            fprintf(stderr, "bad grammar %d\n", __LINE__);
             return enif_make_badarg(env);
         }
         if (arity != 4) {
+            fprintf(stderr, "bad grammar %d\n", __LINE__);
             return enif_make_badarg(env);
         }
         if (!enif_get_list_length(env, stmt_spec[2], &len)) {
+            fprintf(stderr, "bad grammar %d\n", __LINE__);
             return enif_make_badarg(env);
         }
         nrules += len;
@@ -517,27 +675,39 @@ set_type_bits(void)
         "status-arg",
         NULL};
     const char *int_types[] = {
-        "non-negative-integer",
+        "integer",
         NULL};
-    const char *atom_or_int_types[] = {
-        "length-arg",
+    const char *uint_types[] = {
+        "non-negative-integer",
+        "fraction-digits-arg",
+        NULL};
+    const char *atom_or_uint_types[] = {
         "max-value",
         NULL};
     int i;
 
     for (i = 0; atom_types[i]; i++) {
-        t = yang_get_arg_type(yang_make_atom(atom_types[i]));
+        t = yang_get_arg_type(
+            yang_get_arg_type_idx(yang_make_atom(atom_types[i])));
         t->flags |= F_ERL_ATOM;
     }
     for (i = 0; int_types[i]; i++) {
-        t = yang_get_arg_type(yang_make_atom(int_types[i]));
+        t = yang_get_arg_type(
+            yang_get_arg_type_idx(yang_make_atom(int_types[i])));
         t->flags |= F_ERL_INT;
     }
-    for (i = 0; atom_or_int_types[i]; i++) {
-        t = yang_get_arg_type(yang_make_atom(atom_or_int_types[i]));
-        t->flags |= F_ERL_ATOM_OR_INT;
+    for (i = 0; uint_types[i]; i++) {
+        t = yang_get_arg_type(
+            yang_get_arg_type_idx(yang_make_atom(uint_types[i])));
+        t->flags |= F_ERL_UINT;
     }
-    t = yang_get_arg_type(yang_make_atom("identifier-ref"));
+    for (i = 0; atom_or_uint_types[i]; i++) {
+        t = yang_get_arg_type(
+            yang_get_arg_type_idx(yang_make_atom(atom_or_uint_types[i])));
+        t->flags |= F_ERL_ATOM_OR_UINT;
+    }
+    t = yang_get_arg_type(
+        yang_get_arg_type_idx(yang_make_atom("identifier-ref")));
     t->flags |= F_ERL_IDENTIFIER_REF;
 }
 
@@ -571,6 +741,8 @@ upgrade(ErlNifEnv* env, void** priv_data, void** old_priv_data,
 static ErlNifFunc nif_funcs[] = {
     {"install_arg_types", 1, install_arg_types_nif},
     {"install_grammar", 2, install_grammar_nif},
+    {"get_statement_spec", 1, get_statement_spec_nif},
+    {"get_grammar_module_names", 0, get_grammar_module_names_nif},
     {"parse", 2, parse_nif}
 };
 

@@ -6,6 +6,9 @@
 #include "yang_atom.h"
 #include "yang_error.h"
 
+#define YANG_VERSION_1    1
+#define YANG_VERSION_1_1  2
+
 struct yang_statement;
 
 #define F_ARG_TYPE_SYNTAX_REGEXP (1 << 0)
@@ -26,16 +29,22 @@ struct yang_arg_type {
 };
 
 struct yang_statement {
+    /* NULL | prefix of keyword */
     yang_atom_t prefix;
+    /* NULL | name of module from which keyword is imported */
     yang_atom_t module_name; /* filled in by grammar check */
     yang_atom_t keyword;
     char *arg;
     struct yang_arg_type *arg_type; /* filled in by grammar check */
+    /* yang-version of the module where this statement is defined */
+    char yang_version;       /* filled in by grammar check */
     char *filename;
     int line;
     struct yang_statement *next;
     struct yang_statement *substmt;
 };
+
+extern bool yang_init_parser(void);
 
 extern bool yang_parse(char *filename,
                        struct yang_statement **stmt,

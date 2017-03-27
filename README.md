@@ -3,13 +3,15 @@ yanger
 
 Extensible YANG validator.
 
-NOTE: This project is current under development!
-
 Prerequisites
 =============
 erlang
-rebar
 libxml2-dev
+
+For running tests
+-----------------
+lux (https://github.com/hawk/lux)
+
 
 Contributing
 ============

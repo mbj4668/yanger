@@ -1,4 +1,3 @@
-#define _POSIX_C_SOURCE 200809L // for strdup
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,6 +35,36 @@ static int ngrammar = 0;
 /* array of keyword's argument types */
 static struct yang_arg_type *types = NULL;
 static int ntypes = 0;
+
+static const char *
+fmt_vsn(char vsn)
+{
+    if (vsn == YANG_VERSION_1) {
+        return "1";
+    } else if (vsn == YANG_VERSION_1_1) {
+        return "1.1";
+    } else {
+        return "unknown version";
+    }
+}
+
+int
+yang_get_grammar_module_names(int n, yang_atom_t *module_names)
+{
+    int i, j = 0;
+
+    /* the core grammar always exists with null module_name */
+    if (n < ngrammar-1) {
+        return ngrammar-1;
+    }
+    for (i = 0; i < ngrammar; i++) {
+        if (grammar[i].module_name) {
+            module_names[j] = grammar[i].module_name;
+            j++;
+        }
+    }
+    return j;
+}
 
 static struct grammar *
 get_grammar(yang_atom_t module_name)
@@ -100,6 +129,13 @@ match_rule(struct yang_statement *stmt,
     for (i = *start; i < nrules; i++) {
         if (stmt->module_name == rules[i].module_name &&
             stmt->keyword == rules[i].keyword) {
+            if (rules[i].min_yang_version > stmt->yang_version) {
+                build_keyword_from_stmt(buf, STRSIZ, stmt);
+                yang_add_err(ectx, YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD,
+                             stmt,
+                             "%s not valid in YANG version %s",
+                             buf, fmt_vsn(stmt->yang_version));
+            }
             if (rules[i].occurance == '1' || rules[i].occurance == '?') {
                 /* consume this match */
                 rules[i].occurance = '0';
@@ -125,6 +161,11 @@ match_rule(struct yang_statement *stmt,
                              "unexpected keyword '%s'", buf);
                 return false;
             }
+        } else if (stmt->prefix != NULL) {
+            /* allow extension statements mixed in */
+            int tmp = i + 1;
+            return match_rule(stmt, rules, &tmp, nrules, found,
+                              false, ectx);
         } else if (rules[i].keyword == am_sp_cut) {
             /* any non-optional statements left are errors */
             int j;
@@ -198,13 +239,14 @@ get_spec_from_rule(struct grammar *g,
     return NULL;
 }
 
-static bool
+static void
 chk_statements(struct yang_statement *stmt,
                struct yang_statement *parent,
                struct yang_statement_rule *rules,
                int nrules,
                bool canonical,
-               struct yang_error_ctx *ectx)
+               struct yang_error_ctx *ectx,
+               bool *res)
 {
     struct yang_statement_rule *rule;
     struct yang_statement_rule *subrules;
@@ -217,12 +259,20 @@ chk_statements(struct yang_statement *stmt,
 
     while (stmt) {
         /* is this a statement known to us? */
-        g = get_grammar(stmt->module_name);
+        if (stmt->module_name == NULL && stmt->prefix != NULL) {
+            /* unknown prefix; we couldn't find the module */
+            g = NULL;
+        } else {
+            g = get_grammar(stmt->module_name);
+        }
         if (g) {
             /* this statement is known to us, verify that it is valid here */
             if (!match_rule(stmt, rules, &start,
                             nrules, &rule, canonical, ectx)) {
-                return false;
+                *res = false;
+                /* Skip this statement, and continue */
+                stmt = stmt->next;
+                continue;
             }
             /* it is valid here, get its spec */
             subspec = rule->spec;
@@ -231,6 +281,7 @@ chk_statements(struct yang_statement *stmt,
                 build_keyword_from_rule(buf, STRSIZ, rule);
                 yang_add_err(ectx, YANG_ERR_INTERNAL, stmt,
                              "spec for '%s' not found", buf);
+                *res = false;
                 return false;
             }
             */
@@ -241,39 +292,34 @@ chk_statements(struct yang_statement *stmt,
                     if (!stmt->arg_type->syntax.cb.validate(
                             stmt->arg,
                             stmt->arg_type->syntax.cb.opaque)) {
+                        *res = false;
                         yang_add_err(ectx, YANG_ERR_GRAMMAR_BAD_ARGUMENT, stmt,
                                      "bad argument value \"%s\", "
                                      "should be of type %s",
                                      stmt->arg, stmt->arg_type->name);
-
-                        return false;
                     }
                 }
             }
             else if (subspec->arg_type_idx != -1 && !stmt->arg) {
                 build_keyword_from_rule(buf, STRSIZ, rule);
+                *res = false;
                 yang_add_err(ectx, YANG_ERR_GRAMMAR_MISSING_ARGUMENT, stmt,
                              "missing argument to '%s'", buf);
-                return false;
             } else if (subspec->arg_type_idx == -1 && stmt->arg) {
                 build_keyword_from_rule(buf, STRSIZ, rule);
+                *res = false;
                 yang_add_err(ectx, YANG_ERR_GRAMMAR_UNEXPECTED_ARGUMENT, stmt,
                              "did not expect an argument to '%s', got \"%s\"",
                              buf, stmt->arg);
-                return false;
             }
 
             sz = subspec->nrules * sizeof(struct yang_statement_rule);
             subrules = (struct yang_statement_rule *)malloc(sz);
             memcpy(subrules, subspec->rules, sz);
             /* a rule for this statement was found, verify its substmts */
-            if (!chk_statements(stmt->substmt, stmt, subrules,
-                                subspec->nrules, canonical, ectx)) {
-                free(subrules);
-                return false;
-            }
+            chk_statements(stmt->substmt, stmt, subrules,
+                           subspec->nrules, canonical, ectx, res);
             free(subrules);
-
         } else {
             // we can't check this one; skip it.
         }
@@ -285,13 +331,12 @@ chk_statements(struct yang_statement *stmt,
         if (rules[i].occurance == '1' || rules[i].occurance == '+') {
             build_keyword_from_rule(buf, STRSIZ, &rules[i]);
             build_keyword_from_stmt(buf2, STRSIZ, parent);
+            *res = false;
             yang_add_err(ectx, YANG_ERR_GRAMMAR_EXPECTED_KEYWORD, parent,
                          "expected keyword '%s' as substatement to '%s'",
                          buf, buf2);
-            return false;
         }
     }
-    return true;
 }
 
 bool
@@ -308,6 +353,11 @@ yang_init_grammar()
     am_sp_cut = yang_make_atom("$cut");
 
     if (!yang_init_core_stmt_grammar()) {
+        fprintf(stderr, "%s:%d: init grammar failed\n",
+                __FILE__, __LINE__);
+        return false;
+    }
+    if (!yang_init_parser()) {
         fprintf(stderr, "%s:%d: init grammar failed\n",
                 __FILE__, __LINE__);
         return false;
@@ -490,6 +540,12 @@ install_grammar_str(const char *module_name,
     struct yang_statement_spec spec[nspecs];
     struct yang_statement_rule rule[nrules];
 
+    yang_atom_t am_module_name = NULL;
+
+    if (module_name != NULL) {
+        am_module_name = yang_make_atom(module_name);
+    }
+
     memset(spec, 0, sizeof(spec));
     memset(rule, 0, sizeof(rule));
     i = 0;
@@ -512,20 +568,25 @@ install_grammar_str(const char *module_name,
         spec[s].rules = &rule[r];
         n = 0;
         while (stmts[i]) {
-            rule[r].module_name = NULL;
-            rule[r].keyword = yang_make_atom(stmts[i]);
-            rule[r].occurance = stmts[i+1][0];
-            i += 2;
+            rule[r].module_name = am_module_name;
+            if (strcmp(stmts[i], "1.1") == 0) {
+                rule[r].min_yang_version = YANG_VERSION_1_1;
+            } else {
+                rule[r].min_yang_version = YANG_VERSION_1;
+            }
+            rule[r].keyword = yang_make_atom(stmts[i+1]);
+            rule[r].occurance = stmts[i+2][0];
+            i += 3;
             r++;
             n++;
         }
         spec[s].nrules = n;
         /* skip the NULL markers */
-        i += 2;
+        i += 3;
         s++;
     }
 
-    if (!yang_install_grammar(NULL, spec, nspecs)) {
+    if (!yang_install_grammar(am_module_name, spec, nspecs)) {
         return false;
     }
     return true;
@@ -544,9 +605,9 @@ yang_install_grammar_str(const char *module_name, const char *stmts[])
         i += 2;
         while (stmts[i]) {
             nrules++;
-            i += 2;
+            i += 3;
         }
-        i += 2;
+        i += 3;
     }
     if (!install_grammar_str(module_name, stmts, nspecs, nrules)) {
         return false;
@@ -577,14 +638,12 @@ yang_add_rule_to_spec(struct yang_statement_rule *rule,
 
 
 struct yang_arg_type *
-yang_get_arg_type(yang_atom_t name)
+yang_get_arg_type(int arg_type_idx)
 {
-    int i;
-
-    if ((i = yang_get_arg_type_idx(name)) == -1) {
-        return NULL;
+    if (arg_type_idx >= 0 && arg_type_idx < ntypes) {
+        return &types[arg_type_idx];
     } else {
-        return &types[i];
+        return NULL;
     }
 }
 
@@ -612,6 +671,7 @@ static void
 set_module_name_from_prefix(struct yang_statement *stmt,
                             struct prefix_map *prefix_map,
                             int nprefixes,
+                            char vsn,
                             struct yang_error_ctx *ectx)
 {
     int i;
@@ -619,6 +679,7 @@ set_module_name_from_prefix(struct yang_statement *stmt,
     if (!stmt) {
         return;
     }
+    stmt->yang_version = vsn;
     if (stmt->prefix) {
         for (i = 0; i < nprefixes; i++) {
             if (stmt->prefix == prefix_map[i].prefix) {
@@ -631,8 +692,8 @@ set_module_name_from_prefix(struct yang_statement *stmt,
                          "undefined prefix %s", stmt->prefix);
         }
     }
-    set_module_name_from_prefix(stmt->substmt, prefix_map, nprefixes, ectx);
-    set_module_name_from_prefix(stmt->next, prefix_map, nprefixes, ectx);
+    set_module_name_from_prefix(stmt->substmt, prefix_map, nprefixes, vsn,ectx);
+    set_module_name_from_prefix(stmt->next, prefix_map, nprefixes, vsn, ectx);
 }
 
 static void
@@ -677,10 +738,11 @@ resolve_module_names_from_prefixes(int nprefixes,
     struct prefix_map prefix_map[nprefixes];
     struct yang_statement *s, *s2;
     int n = 0;
+    char vsn = YANG_VERSION_1;
 
     memset(prefix_map, 0, sizeof(prefix_map));
     /* build prefix map */
-    for (s = stmt->substmt; s; s = s->next) {
+    for (s = stmt->substmt; s && n < nprefixes; s = s->next) {
         if (s->prefix == NULL) {
             if (s->keyword == am_prefix) {
                 // this is our own prefix
@@ -708,9 +770,28 @@ resolve_module_names_from_prefixes(int nprefixes,
             }
         }
     }
+    /* find yang-version statement, if any */
+    for (s = stmt->substmt; s; s = s->next) {
+        if (s->keyword == am_yang_version) {
+            if (strcmp(s->arg, "1.1") == 0) {
+                vsn = YANG_VERSION_1_1;
+            }
+            break;
+        }
+        /* if we're part the header statements we break the loop */
+        if (!s->prefix
+            && ((stmt->keyword == am_module
+                 && s->keyword != am_namespace
+                 && s->keyword != am_prefix)
+                || (stmt->keyword == am_submodule
+                    && s->keyword != am_belongs_to))) {
+            break;
+        }
+    }
+    stmt->yang_version = vsn;
 
     /* recurse through all statements and set module_name on all extensions */
-    set_module_name_from_prefix(stmt, prefix_map, nprefixes, ectx);
+    set_module_name_from_prefix(stmt, prefix_map, nprefixes, vsn, ectx);
 }
 
 bool
@@ -722,6 +803,7 @@ yang_grammar_check_module(struct yang_statement *stmt,
     char buf[STRSIZ];
     int nprefixes;
     struct yang_statement *tmp;
+    bool res;
 
     /* build a pseudo top-rule for the module / submodule */
     top_rule[0].module_name = NULL;
@@ -735,6 +817,7 @@ yang_grammar_check_module(struct yang_statement *stmt,
                      "unexpected keyword '%s'", buf);
         return false;
     }
+    top_rule[0].min_yang_version = YANG_VERSION_1;
     top_rule[0].occurance = '1';
     top_rule[0].spec = get_spec_from_rule(get_grammar(NULL), &top_rule[0]);
 
@@ -758,7 +841,9 @@ yang_grammar_check_module(struct yang_statement *stmt,
     }
     resolve_module_names_from_prefixes(nprefixes, stmt, ectx);
 
-    return chk_statements(stmt, NULL, &top_rule[0], 1, canonical, ectx);
+    res = true;
+    chk_statements(stmt, NULL, &top_rule[0], 1, canonical, ectx, &res);
+    return res;
 }
 
 void
@@ -780,7 +865,8 @@ yang_print_grammar()
                    "null");
             for (r = 0; r < sp->nrules; r++) {
                 rp = &sp->rules[r];
-                printf("    %s %c (%p)\n",
+                printf("    %s %s %c (%p)\n",
+                       rp->min_yang_version == YANG_VERSION_1_1?"1.1":"   ",
                        rp->keyword, rp->occurance, rp->spec);
             }
         }

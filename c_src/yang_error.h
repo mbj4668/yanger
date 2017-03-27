@@ -3,6 +3,8 @@
 
 #include <stdio.h>
 
+#define YANG_FIRST_WARNING                         1000
+
 #define YANG_ERR_INTERNAL                             1
 #define YANG_ERR_MEMORY_ERROR                         2
 
@@ -13,6 +15,10 @@
 #define YANG_ERR_PARSE_EXPECTED_STRING              105
 #define YANG_ERR_PARSE_INCOMPLETE_STATEMENT         106
 #define YANG_ERR_PARSE_EXPECTED_QUOTED_STRING       107
+#define YANG_ERR_PARSE_TRAILING_GARBAGE             108
+#define YANG_ERR_PARSE_ILLEGAL_ESCAPE               109
+
+#define YANG_WARN_PARSE_ILLEGAL_ESCAPE             1000
 
 #define YANG_ERR_GRAMMAR_KEYWORD_ALREADY_FOUND      200
 #define YANG_ERR_GRAMMAR_EXPECTED_KEYWORD           201
