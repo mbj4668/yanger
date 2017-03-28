@@ -41,7 +41,7 @@ strerror({not_a_path_expression, _M, _L, _Query}) ->
     "XPath query is not a path expression";
 strerror({loc_step_predicates_fail, _M, _L, _Rsn}) ->
     "Predicates of location step will always fail";
-strerror({internal_error, M, L, Err}) ->
+strerror({internal_error, _M, _L, _Err}) ->
     "Internal error";
 strerror({axis_not_permitted, _M, _L, Axis}) ->
     "Axis '" ++ ?s2l(Axis) ++ "' not supported";
