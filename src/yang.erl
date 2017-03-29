@@ -2383,7 +2383,14 @@ common_substmts([{'when', Arg, Pos, _} = Stmt | T], Origin, M, Ctx0,
     %% bound when a grouping is used.
     case yang_xpath:compile(Arg, Pos, M, Ctx0#yctx.strict, Ctx0) of
         {ok, CompiledXPath, Ctx1} ->
-            Deps = yang_xpath:get_dep_paths(CompiledXPath, M#module.modulename),
+            Deps0 =
+                yang_xpath:get_dep_paths(CompiledXPath, M#module.modulename),
+            Deps =
+            if Origin /= 'local' ->
+                    [add_parent(Dep) || Dep <- Deps0];
+               true ->
+                    Deps0
+            end,
             common_substmts(T, Origin, M, Ctx1, FeatureL,
                             [{CompiledXPath, Deps, Origin, Stmt} | WhenL],
                             MustL);
@@ -2406,6 +2413,13 @@ common_substmts([_ | T], Origin, M, Ctx, FeatureL, WhenL, MustL) ->
     common_substmts(T, Origin, M, Ctx, FeatureL, WhenL, MustL);
 common_substmts([], _Origin, _M, Ctx, FeatureL, WhenL, MustL) ->
     {FeatureL, WhenL, MustL, Ctx}.
+
+add_parent(['..' | _] = RelPath) ->
+    ['..' | RelPath];
+add_parent(['.' | T]) ->
+    ['..' | T];
+add_parent(AbsPath) ->
+    AbsPath.
 
 run_mk_sn_hooks_rec(Ctx0, Sn0, Mode, UsesPos, Ancestors0)
   when Sn0#sn.kind /= '__tmp_augment__' ->
