@@ -3,13 +3,34 @@
 %%! -noinput
 
 main(Args) ->
-    code:add_patha(ebin()),
-    yanger:main(name(), Args).
+    ScriptName = script_name(),
+    code:add_patha(ebin(ScriptName)),
+    yanger:main(name(ScriptName), Args).
 
-ebin() ->
+ebin(ScriptName) ->
     %% The escript is located in .../yanger/bin
-    AppDir = filename:dirname(filename:dirname(escript:script_name())),
+    AppDir = filename:dirname(filename:dirname(ScriptName)),
     filename:join(AppDir, "ebin").
 
-name() ->
-    filename:basename(escript:script_name()).
+name(ScriptName) ->
+    filename:basename(ScriptName).
+
+script_name() ->
+    script_name(escript:script_name()).
+
+script_name([$/|_] = Name0) ->
+    case file:read_link(Name0) of
+        {ok, [$/|_] = Name} ->
+            Name;
+        {ok, RelName} ->
+            script_name(filename:join(filename:dirname(Name0), RelName));
+        _ ->
+            %% there may still be symlink components
+            {ok, Cwd} = file:get_cwd(),
+            ok = file:set_cwd(filename:dirname(Name0)),
+            {ok, Dir} = file:get_cwd(),
+            ok = file:set_cwd(Cwd),
+            filename:join(Dir, filename:basename(Name0))
+    end;
+script_name(RelName) ->
+    script_name(filename:absname(RelName)).
