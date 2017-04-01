@@ -37,6 +37,6 @@ yang_llerror.hrl: ../c_src/yang_error.h
 	$(ERLC) $<
 
 clean:
-	rm ../ebin/*.beam
+	rm -f ../ebin/*.*
 	rm -f yang_llerror.erl yang_parse.erl
 

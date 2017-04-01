@@ -1,45 +1,62 @@
 
-PARSER_NIF = ../priv/$(XHOST)/yang_parser_nif.so
-REGEX_NIF = ../priv/$(XHOST)/w3cregex_nif.so
+PARSER_NIF = ../priv/yang_parser_nif.so
+REGEX_NIF = ../priv/w3cregex_nif.so
 
 PRIV_FILES = $(PARSER_NIF) $(REGEX_NIF)
 
-CC=gcc
-LD=gcc
-
-CFLAGS = -Wall -I${ERL_DIR}/usr/include \
-	-I/usr/include/libxml2 \
-	-std=c99
-#	-pedantic-errors
-CWARNINGS       = \
-		-Werror \
-		-Wall   \
-		-Wsign-compare \
-		-Wstrict-prototypes \
-		-Wpointer-arith \
-		-Wcast-align \
-		-Wwrite-strings \
-		-Wnested-externs
+CFLAGS = -std=c99
+CWARNINGS = \
+       -Werror \
+       -Wall   \
+       -Wsign-compare \
+       -Wstrict-prototypes \
+       -Wpointer-arith \
+       -Wcast-align \
+       -Wwrite-strings \
+       -Wnested-externs
 
 CFLAGS += -fpic -DDYNAMIC_DRIVER
 
-LDDRV_FLAGS	= -shared
-
 ifneq ($(DEBUG),)
-CFLAGS += -g -ggdb
-CWARNINGS += -Wuninitialized
-ERLC_FLAGS += +debug_info
+  CFLAGS += -g -ggdb
+  CWARNINGS += -Wuninitialized
+  ERLC_FLAGS += +debug_info
 else
-CFLAGS += -O2
+  CFLAGS += -O2
 endif
 
 CFLAGS  += $(CWARNINGS)
 
+ERL_EVAL    = 'io:format("~s", [os:getenv("ROOTDIR")]), erlang:halt(0)'
+ERL_ROOTDIR = $(shell erl -noinput -eval $(ERL_EVAL))
+ifneq ($(findstring /, $(ERL_ROOTDIR)),)
+  CFLAGS += -I$(ERL_ROOTDIR)/usr/include
+endif
+
+XML_CFLAGS = $(shell pkg-config --cflags libxml-2.0)
+ifeq ($(XML_CFLAGS),)
+  XML_CFLAGS = -I/usr/include/libxml2
+endif
+CFLAGS += $(XML_CFLAGS)
+XML_LIBS = $(shell pkg-config --libs libxml-2.0)
+ifeq ($(XML_LIBS),)
+  XML_LIBS = -lxml2
+endif
+LIBS += $(XML_LIBS)
+
+LD = $(CC)
+
+ifeq ($(shell uname -s), Darwin)
+  LDDRV_FLAGS = -bundle -undefined dynamic_lookup
+else
+  LDDRV_FLAGS = -shared
+endif
+
+
 C_SOURCES := $(wildcard yang*.c)
 C_HEADERS := $(wildcard yang*.h)
-OBJS := $(C_SOURCES:%.c=./$(XHOST)/%.o)
+OBJS := $(C_SOURCES:%.c=./%.o)
 
-SHARED_LIBS += -lxml2
 
 all: $(PRIV_FILES) TAGS
 
@@ -48,29 +65,11 @@ TAGS: $(C_SOURCES) $(C_HEADERS)
 
 $(OBJS): $(C_HEADERS)
 
-%.o:	%.c
-	$(CC) $(CFLAGS) -c $<
-
-../priv/%.so: %.o
-	$(LD) $(LDDRV_FLAGS) -o $@ $< $(SHARED_LIBS)
-../priv//%.so: %.o
-	$(LD) $(LDDRV_FLAGS) -o $@ $< $(SHARED_LIBS)
-
 $(PARSER_NIF): $(OBJS)
-ifeq ($(XHOST),) # Native build
-	$(LD) $(LDDRV_FLAGS) -o $@ $^ $(SHARED_LIBS)
-else # Cross build
-	mkdir -p ../priv/$(XHOST)
-	$(XLD) $(XLDDRV_FLAGS) -o $@ $^ $(XSHARED_LIBS) $(SHARED_LIBS)
-endif # Cross build
+	$(LD) $(LDDRV_FLAGS) -o $@ $^ $(LIBS)
 
 $(REGEX_NIF): w3cregex_nif.o
-ifeq ($(XHOST),) # Native build
-	$(LD) $(LDDRV_FLAGS) -o $@ $^ $(SHARED_LIBS)
-else # Cross build
-	mkdir -p ../priv/$(XHOST)
-	$(XLD) $(XLDDRV_FLAGS) -o $@ $^ $(XSHARED_LIBS) $(SHARED_LIBS)
-endif # Cross build
+	$(LD) $(LDDRV_FLAGS) -o $@ $^ $(LIBS)
 
 debug:
 	$(MAKE) DEBUG=true all
@@ -79,4 +78,4 @@ debug:
 .PRECIOUS: $(OBJS)
 
 clean:
-	rm -f ../priv/$(XHOST)/*.so ./$(XHOST)/*.so ./$(XHOST)/*.o *.o TAGS
+	rm -f ../priv/*.so ./*.so ./*.o *.o TAGS
