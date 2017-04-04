@@ -1397,8 +1397,9 @@ add_identity(Id0, Map0, M, Ctx0) ->
 %% If called after mk_identities_map(), the map will not be modified.
 chk_base({_, BaseArg, Pos, _}, Map0, M, Ctx0, Bases) ->
     case get_identity(BaseArg, Pos, Map0, M, Ctx0) of
-        {BaseIdentity, Ctx1} when is_record(BaseIdentity, identity) ->
-            {Map1, Ctx2} = add_identity(BaseIdentity, Map0, M, Ctx1),
+        {BaseIdentity0, Ctx1} when is_record(BaseIdentity0, identity) ->
+            {Map1, Ctx2} = add_identity(BaseIdentity0, Map0, M, Ctx1),
+            {BaseIdentity, _} = get_identity(BaseArg, Pos, Map1, M, Ctx0),
             {Map1, Ctx2, [BaseIdentity | Bases]};
         {undefined, Ctx1} ->
             {Map0, Ctx1, Bases}
@@ -2383,16 +2384,8 @@ common_substmts([{'when', Arg, Pos, _} = Stmt | T], Origin, M, Ctx0,
     %% bound when a grouping is used.
     case yang_xpath:compile(Arg, Pos, M, Ctx0#yctx.strict, Ctx0) of
         {ok, CompiledXPath, Ctx1} ->
-            Deps0 =
-                yang_xpath:get_dep_paths(CompiledXPath, M#module.modulename),
-            Deps =
-            if Origin /= 'local' ->
-                    [add_parent(Dep) || Dep <- Deps0];
-               true ->
-                    Deps0
-            end,
             common_substmts(T, Origin, M, Ctx1, FeatureL,
-                            [{CompiledXPath, Deps, Origin, Stmt} | WhenL],
+                            [{CompiledXPath, [], Origin, Stmt} | WhenL],
                             MustL);
         {error, Ctx1} ->
             common_substmts(T, Origin, M, Ctx1, FeatureL, WhenL, MustL)
@@ -2403,9 +2396,8 @@ common_substmts([{'must', Arg, Pos, _} = Stmt | T], Origin, M, Ctx0,
     %% bound when a grouping is used.
     case yang_xpath:compile(Arg, Pos, M, Ctx0#yctx.strict, Ctx0) of
         {ok, CompiledXPath, Ctx1} ->
-            Deps = yang_xpath:get_dep_paths(CompiledXPath, M#module.modulename),
             common_substmts(T, Origin, M, Ctx1, FeatureL,
-                            WhenL, [{CompiledXPath, Deps, Stmt} | MustL]);
+                            WhenL, [{CompiledXPath, [], Stmt} | MustL]);
         {error, Ctx1} ->
             common_substmts(T, Origin, M, Ctx1, FeatureL, WhenL, MustL)
     end;
@@ -2413,13 +2405,6 @@ common_substmts([_ | T], Origin, M, Ctx, FeatureL, WhenL, MustL) ->
     common_substmts(T, Origin, M, Ctx, FeatureL, WhenL, MustL);
 common_substmts([], _Origin, _M, Ctx, FeatureL, WhenL, MustL) ->
     {FeatureL, WhenL, MustL, Ctx}.
-
-add_parent(['..' | _] = RelPath) ->
-    ['..' | RelPath];
-add_parent(['.' | T]) ->
-    ['..' | T];
-add_parent(AbsPath) ->
-    AbsPath.
 
 run_mk_sn_hooks_rec(Ctx0, Sn0, Mode, UsesPos, Ancestors0)
   when Sn0#sn.kind /= '__tmp_augment__' ->
@@ -2452,40 +2437,61 @@ run_mk_sn_hooks(#yctx{hooks = Hooks} = Ctx0, Sn0, HookField,
 %% This is a builtin pre_mk_sn hook.
 %% When mode is 'final', rewrite xpath expressions so that unprefixed
 %% names refer to current module.
-pre_mk_sn_xpath(Ctx0, Sn = #sn{must = MustL0, 'when' = WhenL0, module = M},
+pre_mk_sn_xpath(Ctx0, Sn = #sn{must = MustL0, 'when' = WhenL0,
+                               kind = Kind, module = M},
                 final, _UsesPos, _Ancestors)
   when MustL0 /= [] orelse WhenL0 /= [] ->
     {MustL1, Ctx1} =
         lists:foldl(
-          fun({Q, Deps, Stmt}, {Acc, Ctx0_0}) ->
+          fun({Q, _Deps = [], Stmt}, {Acc, Ctx0_0}) ->
                   case
                       yang_xpath:set_default_namespace(Q, M#module.xpath_ns_map)
                   of
                       fail = CompiledXPath ->
                           Ctx0_1 = add_error(Ctx0_0, yang:stmt_pos(Stmt),
                                              'YANG_ERR_XPATH_FAIL', []),
-                          {[{CompiledXPath, Deps, Stmt} | Acc], Ctx0_1};
+                          {[{CompiledXPath, [], Stmt} | Acc], Ctx0_1};
                       CompiledXPath ->
+                          Deps = yang_xpath:get_dep_paths(CompiledXPath,
+                                                          M#module.modulename),
                           {[{CompiledXPath, Deps, Stmt} | Acc], Ctx0_0}
                   end
           end, {[], Ctx0}, MustL0),
     {WhenL1, Ctx2} =
         lists:foldl(
-          fun({Q, Deps, Origin, Stmt}, {Acc, Ctx1_0}) ->
+          fun({Q, _Deps = [], Origin, Stmt}, {Acc, Ctx1_0}) ->
                   case
                       yang_xpath:set_default_namespace(Q, M#module.xpath_ns_map)
                   of
                       fail = CompiledXPath ->
                           Ctx1_1 = add_error(Ctx1_0, yang:stmt_pos(Stmt),
                                              'YANG_ERR_XPATH_FAIL', []),
-                          {[{CompiledXPath, Deps, Origin, Stmt} | Acc], Ctx1_1};
+                          {[{CompiledXPath, [], Origin, Stmt} | Acc], Ctx1_1};
                       CompiledXPath ->
+                          Deps0 =
+                              yang_xpath:get_dep_paths(CompiledXPath,
+                                                       M#module.modulename),
+                          Deps =
+                              if Origin /= 'local',
+                                 Kind /= 'choice', Kind /= 'case',
+                                 Deps0 /= false ->
+                                      [add_parent(Dep) || Dep <- Deps0];
+                                 true ->
+                                      Deps0
+                              end,
                           {[{CompiledXPath, Deps, Origin, Stmt} | Acc], Ctx1_0}
                   end
           end, {[], Ctx1}, WhenL0),
     {Ctx2, Sn#sn{must = MustL1, 'when' = WhenL1}};
 pre_mk_sn_xpath(Ctx, Sn, _M, _, _) ->
     {Ctx, Sn}.
+
+add_parent(['..' | _] = RelPath) ->
+    ['..' | RelPath];
+add_parent(['.' | T]) ->
+    ['..' | T];
+add_parent(AbsPath) ->
+    AbsPath.
 
 %% This is a builtin pre_mk_sn hook.
 pre_mk_sn_config(Ctx, Sn, _Mode = augment, _, _) ->
@@ -2973,8 +2979,7 @@ add_must({'must', Arg, Pos, _} = Stmt, M,
          {#sn{must = MustL} = Sn, Ctx0}) ->
     case yang_xpath:compile(Arg, Pos, M, Ctx0#yctx.strict, Ctx0) of
         {ok, CompiledXPath, Ctx1} ->
-            Deps = yang_xpath:get_dep_paths(CompiledXPath, M#module.modulename),
-            {Sn#sn{must = [{CompiledXPath, Deps, Stmt} | MustL]}, Ctx1};
+            {Sn#sn{must = [{CompiledXPath, [], Stmt} | MustL]}, Ctx1};
         {error, Ctx1} ->
             {Sn, Ctx1}
     end.
@@ -3653,10 +3658,8 @@ add_stmt(Stmt, #sn{stmt = SnStmt, must = MustL, module = M} = Sn, Ctx0) ->
                 yang_xpath:compile(Arg, Pos, M, Ctx0#yctx.strict, Ctx0)
             of
                 {ok, CompiledXPath, Ctx1} ->
-                    Deps = yang_xpath:get_dep_paths(CompiledXPath,
-                                                    M#module.modulename),
                     {Ctx1,
-                     Sn1#sn{must = [{CompiledXPath, Deps, Stmt} | MustL]}};
+                     Sn1#sn{must = [{CompiledXPath, [], Stmt} | MustL]}};
                 {error, Ctx1} ->
                     {Ctx1, Sn}
             end;
@@ -4372,12 +4375,21 @@ cursor_move({child, Id},
                 Name ->
                     Mod = InitModName
             end,
-            {false, add_error(Ctx, C#cursor.pos,
-                              'YANG_ERR_NODE_NOT_FOUND3',
-                              [yang_error:fmt_yang_identifier(Name),
-                               Mod,
-                               yang_error:fmt_yang_identifier(CurSn#sn.name),
-                               (CurSn#sn.module)#module.modulename])}
+            case CurSn#sn.module of
+                undefined ->
+                    {false, add_error(Ctx, C#cursor.pos,
+                                      'YANG_ERR_NODE_NOT_FOUND2',
+                                      [yang_error:fmt_yang_identifier(Name),
+                                       Mod])};
+                M ->
+                    {false,
+                     add_error(Ctx, C#cursor.pos,
+                               'YANG_ERR_NODE_NOT_FOUND3',
+                               [yang_error:fmt_yang_identifier(Name),
+                                Mod,
+                                yang_error:fmt_yang_identifier(CurSn#sn.name),
+                                M#module.modulename])}
+            end
     end;
 cursor_move({child, {Mod, Name}}, #cursor{cur = {top, OtherMod}} = C, Ctx)
   when Mod /= OtherMod ->

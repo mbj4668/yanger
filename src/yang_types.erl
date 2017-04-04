@@ -1173,6 +1173,8 @@ identityref_type_spec_fun({parse, Val, Pos},
                 {#identity{} = Identity, Ctx2} ->
                     IsDerived =
                         fun(Base) -> is_identity_derived(Identity, Base) end,
+%                    ?iof("** id: ~p\n++ bases: ~p\n\n",
+%                         [Identity, Bases]),
                     case all(IsDerived, Bases) of
                         true ->
                             {Identity, Ctx2};
