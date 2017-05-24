@@ -524,7 +524,7 @@ static const char *stmts[] = {
 };
 
 static bool
-chk_enum_arg(char *arg, void *opaque)
+chk_enum_arg(char *arg, void *opaque, char yang_version, char *errbuf, int sz)
 {
     int len;
     len = strlen(arg);
@@ -581,15 +581,18 @@ get_uint64(char *arg, uint64_t *i)
 }
 
 static bool
-chk_identifier(char *arg, void *opaque)
+chk_identifier(char *arg, void *opaque, char yang_version, char *errbuf, int sz)
 {
     char *p;
     xmlRegexpPtr xreg = (xmlRegexpPtr)opaque;
     if (xmlRegexpExec(xreg, (xmlChar *)arg) != 1) {
         return false;
     }
+    if (yang_version != YANG_VERSION_1) {
+        return true;
+    }
+    /* YANG 1: ensure arg doesn't start with [xX][mM][lL] */
     p = arg;
-    /* ensure arg doesn't start with [xX][mM][lL] */
     if (*p == '\0' || (*p != 'x' && *p != 'X')) {
         return true;
     }
@@ -601,6 +604,9 @@ chk_identifier(char *arg, void *opaque)
     if (*p == '\0' || (*p != 'l' && *p != 'L')) {
         return true;
     }
+    snprintf(errbuf, sz,
+             "bad argument value \"%s\", an identifier must not start with"
+             " [xX][mM][lL] in YANG version 1", arg);
     return false;
 }
 
@@ -612,21 +618,22 @@ chk_identifier(char *arg, void *opaque)
   in silent truncation of larger values.
 */
 static bool
-chk_integer(char *arg, void *opaque)
+chk_integer(char *arg, void *opaque, char yang_version, char *errbuf, int sz)
 {
     int64_t i;
     return get_int64(arg, &i);
 }
 
 static bool
-chk_non_negative_integer(char *arg, void *opaque)
+chk_non_negative_integer(char *arg, void *opaque, char yang_version,
+                         char *errbuf, int sz)
 {
     uint64_t i;
     return get_uint64(arg, &i);
 }
 
 static bool
-chk_max_value(char *arg, void *opaque)
+chk_max_value(char *arg, void *opaque, char yang_version, char *errbuf, int sz)
 {
     uint64_t i;
 
@@ -637,7 +644,8 @@ chk_max_value(char *arg, void *opaque)
 }
 
 static bool
-chk_fraction_digits_arg(char *arg, void *opaque)
+chk_fraction_digits_arg(char *arg, void *opaque, char yang_version,
+                        char *errbuf, int sz)
 {
     uint64_t i;
 
@@ -651,13 +659,23 @@ chk_fraction_digits_arg(char *arg, void *opaque)
 }
 
 static bool
-chk_if_feature_expr(char *arg, void *opaque)
+chk_if_feature_expr(char *arg, void *opaque, char yang_version,
+                    char *errbuf, int sz)
 {
-    /*
-      NOTE: this code allows 1.1 syntax in 1.0 modules - this needs to
-      be checked by the caller.
-    */
-    return yang_parse_if_feature_expr(arg);
+    if (yang_version == YANG_VERSION_1) {
+        /* YANG version 1: check identifier-ref regexp */
+        xmlRegexpPtr xreg = (xmlRegexpPtr)opaque;
+        if (xmlRegexpExec(xreg, (xmlChar *)arg) != 1) {
+            snprintf(errbuf, sz,
+                     "bad argument value \"%s\", should be of type "
+                     "identifier-ref in YANG version 1", arg);
+            return false;
+        } else {
+            return true;
+        }
+    } else {
+        return yang_parse_if_feature_expr(arg);
+    }
 }
 
 #define NTYPES 26
@@ -947,6 +965,8 @@ yang_init_core_stmt_grammar(void)
 
     types[i].name = yang_make_atom("if-feature-expr");
     types[i].syntax.cb.validate = &chk_if_feature_expr;
+    types[i].syntax.cb.opaque =
+        (void *)xmlRegexpCompile((xmlChar *)identifier_ref);
     types[i].flags = F_ARG_TYPE_SYNTAX_CB;
     i++;
 

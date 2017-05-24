@@ -1480,17 +1480,7 @@ get_feature_expr(Str, Pos, M, Ctx0) ->
 get_feature_expr0(Str, Pos, M, Ctx0, DoResolve) ->
     %% syntax is already checked by the C parser; this call will not fail
     {true, Expr0} = yang_if_feature:parse(?b2l(Str)),
-    IsIdentifier =
-        case Expr0 of
-            {identifier, _} -> true;
-            _ -> false
-        end,
-    %% YANG version 1 only allows a reference to a single identifier
-    if M#module.yang_version == '1',
-       not IsIdentifier ->
-            {undefined, add_error(Ctx0, Pos, 'YANG_ERR_BAD_ARGUMENT',
-                                  [Str, "identifier-ref"])};
-       DoResolve ->
+    if DoResolve ->
             yang_if_feature:resolve_prefixes(Expr0, Pos, M, Ctx0);
        true ->
             {Expr0, Ctx0}

@@ -70,7 +70,7 @@ yang_add_err_gen(struct yang_error_ctx *ectx,
     err->col = col;
 
     va_start(args, fmt);
-    vsprintf(err->msg, fmt, args);
+    vsnprintf(err->msg, sizeof(err->msg), fmt, args);
     va_end(args);
 }
 
@@ -94,7 +94,7 @@ yang_add_err(struct yang_error_ctx *ectx,
     err->col = -1;
 
     va_start(args, fmt);
-    vsprintf(err->msg, fmt, args);
+    vsnprintf(err->msg, sizeof(err->msg), fmt, args);
     va_end(args);
 }
 

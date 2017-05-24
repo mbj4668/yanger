@@ -289,14 +289,24 @@ chk_statements(struct yang_statement *stmt,
             if (subspec->arg_type_idx != -1 && stmt->arg) {
                 stmt->arg_type = &types[subspec->arg_type_idx];
                 if (stmt->arg_type->flags & F_ARG_TYPE_SYNTAX_CB) {
+                    char errbuf[BUFSIZ];
+                    errbuf[0] = '\0';
                     if (!stmt->arg_type->syntax.cb.validate(
                             stmt->arg,
-                            stmt->arg_type->syntax.cb.opaque)) {
+                            stmt->arg_type->syntax.cb.opaque,
+                            stmt->yang_version,
+                            errbuf, sizeof(errbuf))) {
                         *res = false;
-                        yang_add_err(ectx, YANG_ERR_GRAMMAR_BAD_ARGUMENT, stmt,
-                                     "bad argument value \"%s\", "
-                                     "should be of type %s",
-                                     stmt->arg, stmt->arg_type->name);
+                        if (errbuf[0] == '\0') {
+                            yang_add_err(ectx, YANG_ERR_GRAMMAR_BAD_ARGUMENT,
+                                         stmt,
+                                         "bad argument value \"%s\", "
+                                         "should be of type %s",
+                                         stmt->arg, stmt->arg_type->name);
+                        } else {
+                            yang_add_err(ectx, YANG_ERR_GRAMMAR_BAD_ARGUMENT,
+                                         stmt, errbuf);
+                        }
                     }
                 }
             }
@@ -366,7 +376,7 @@ yang_init_grammar()
 }
 
 static bool
-chk_xsd_regexp(char *arg, void *opaque)
+chk_xsd_regexp(char *arg, void *opaque, char yang_version, char *errbuf, int sz)
 {
     xmlRegexpPtr xreg = (xmlRegexpPtr)opaque;
     if (xmlRegexpExec(xreg, (xmlChar *)arg) != 1) {

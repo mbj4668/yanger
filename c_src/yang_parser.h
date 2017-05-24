@@ -19,7 +19,8 @@ struct yang_arg_type {
     union {
         char *xsd_regexp;
         struct {
-            bool (*validate)(char *arg, void *opaque);
+            bool (*validate)(char *arg, void *opaque, char yang_version,
+                             char *errbuf, int sz);
             void *opaque; /* any data needed by the validate function */
         } cb;
     } syntax;
