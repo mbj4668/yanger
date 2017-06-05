@@ -20,7 +20,9 @@ static yang_atom_t am_prefix;
 static yang_atom_t am_import;
 static yang_atom_t am_include;
 static yang_atom_t am_belongs_to;
-static yang_atom_t am_sp_cut;  /* '$cut' */
+static yang_atom_t am_sp_cut;              /* '$cut' */
+static yang_atom_t am_sp_interleave_begin; /* '$interleave-begin' */
+static yang_atom_t am_sp_interleave_end;   /* '$interleave-end' */
 
 struct grammar {
     yang_atom_t module_name;
@@ -118,6 +120,7 @@ static bool
 match_rule(struct yang_statement *stmt,
            struct yang_statement_rule *rules,
            int *start,
+           int *interleave,
            int nrules,
            struct yang_statement_rule **found,
            bool canonical,
@@ -135,6 +138,13 @@ match_rule(struct yang_statement *stmt,
                              stmt,
                              "%s not valid in YANG version %s",
                              buf, fmt_vsn(stmt->yang_version));
+            }
+            if (canonical && i < *interleave) {
+                build_keyword_from_stmt(buf, STRSIZ, stmt);
+                yang_add_err(ectx, YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD,
+                             stmt,
+                             "keyword '%s' not in canonical order", buf);
+                return false;
             }
             if (rules[i].occurance == '1' || rules[i].occurance == '?') {
                 /* consume this match */
@@ -158,13 +168,14 @@ match_rule(struct yang_statement *stmt,
                 build_keyword_from_stmt(buf, STRSIZ, stmt);
                 yang_add_err(ectx, YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD,
                              stmt,
-                             "unexpected keyword '%s'", buf);
+                             "keyword '%s' not in canonical order2a", buf);
                 return false;
             }
         } else if (stmt->prefix != NULL) {
             /* allow extension statements mixed in */
             int tmp = i + 1;
-            return match_rule(stmt, rules, &tmp, nrules, found,
+            int tmpi = -1;
+            return match_rule(stmt, rules, &tmp, &tmpi, nrules, found,
                               false, ectx);
         } else if (rules[i].keyword == am_sp_cut) {
             /* any non-optional statements left are errors */
@@ -181,6 +192,13 @@ match_rule(struct yang_statement *stmt,
             }
             /* everything before the cut is now done */
             *start = i+1;
+        } else if (rules[i].keyword == am_sp_interleave_begin &&
+                   i > *interleave) {
+            *interleave = i;
+        } else if (rules[i].keyword == am_sp_interleave_end &&
+                   i > *interleave) {
+            *interleave = -1;
+            *start = i+1;
         } else if (canonical &&
                    (rules[i].occurance == '1' || rules[i].occurance == '+')) {
             char buf2[STRSIZ];
@@ -189,7 +207,7 @@ match_rule(struct yang_statement *stmt,
             build_keyword_from_rule(buf, STRSIZ, &rules[i]);
             build_keyword_from_stmt(buf2, STRSIZ, stmt);
             yang_add_err(ectx, YANG_ERR_GRAMMAR_EXPECTED_KEYWORD, stmt,
-                         "expected keyword '%s' before '%s'",
+                         "expected keyword '%s' before '%s' in canonical order",
                          buf, buf2);
             return false;
         } else if (canonical) {
@@ -252,6 +270,7 @@ chk_statements(struct yang_statement *stmt,
     struct yang_statement_rule *subrules;
     struct yang_statement_spec *subspec;
     int start = 0, i;
+    int interleave = -1;
     char buf[STRSIZ];
     char buf2[STRSIZ];
     size_t sz;
@@ -267,7 +286,7 @@ chk_statements(struct yang_statement *stmt,
         }
         if (g) {
             /* this statement is known to us, verify that it is valid here */
-            if (!match_rule(stmt, rules, &start,
+            if (!match_rule(stmt, rules, &start, &interleave,
                             nrules, &rule, canonical, ectx)) {
                 *res = false;
                 /* Skip this statement, and continue */
@@ -361,6 +380,8 @@ yang_init_grammar()
     am_include = yang_make_atom("include");
     am_belongs_to = yang_make_atom("belongs-to");
     am_sp_cut = yang_make_atom("$cut");
+    am_sp_interleave_begin = yang_make_atom("$interleave-begin");
+    am_sp_interleave_end = yang_make_atom("$interleave-end");
 
     if (!yang_init_core_stmt_grammar()) {
         fprintf(stderr, "%s:%d: init grammar failed\n",
@@ -470,7 +491,9 @@ fix_grammar(void)
             s = &grammar[i].specs[j];
             for (k = 0; k < s->nrules; k++) {
                 r = &s->rules[k];
-                if (!r->spec && r->keyword != am_sp_cut) {
+                if (!r->spec && r->keyword != am_sp_cut &&
+                    !r->spec && r->keyword != am_sp_interleave_begin &&
+                    !r->spec && r->keyword != am_sp_interleave_end) {
                     if (!(g = get_grammar(r->module_name))) {
                         fprintf(stderr, "grammar for %s not found\n",
                                 r->module_name?r->module_name:"(null)");
