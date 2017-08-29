@@ -300,6 +300,8 @@ codes() ->
      , {'YANG_ERR_BAD_DEVIATE_DELETE', error,
         "the '~s' property with argument '~s' "
         "does not exist in the target node"}
+     , {'YANG_BAD_STATUS_REFERENCE', error,
+       'the "~s" definition is ~s, but the "~s" it references is ~s'}
     ].
 
 print_error_codes(#yctx{error_codes = Errors}) ->

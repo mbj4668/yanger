@@ -33,6 +33,7 @@
           name :: atom(),
           %% moduleref is the name and revision where this item is defined
           moduleref :: yang:modrev(),
+          status :: yang:yang_status(),
           type :: #type{},
           %% the default may be inherited from the base type
           %% 'undefined': no default given; 'invalid': invalid default given
@@ -107,6 +108,7 @@
           typedefs :: #typedefs{},
           %% pointer to the groupings in scope
           groupings :: #groupings{},
+          status :: yang:yang_status(),
     %% leaf, leaf-list:
           type :: 'undefined' | #type{},
     %% leaf, leaf-list, choice:
@@ -158,6 +160,7 @@
           name :: atom(),
           %% moduleref is the name and revision where this item is defined
           moduleref :: yang:modrev(),
+          status :: yang:yang_status(),
           v_status :: yang:validate_status(),
           typedefs :: 'undefined' | #typedefs{},
           groupings :: 'undefined' | #groupings{},

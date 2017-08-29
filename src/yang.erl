@@ -147,6 +147,8 @@
       | '__tmp_augment__'
       | atom().
 
+-type yang_status() :: 'current' | 'deprecated' | 'obsolete'.
+
 
 -type map(_Key, _Val) :: term().%gb_trees:gb_tree().
 -type map0() :: map(term(), term()).
@@ -1201,14 +1203,17 @@ mk_module_maps([{Kwd, Arg, _, Substmts} = S | Stmts],
                Ts, Gs, Is, Fs, Es, M, Ctx0) ->
     MRef = {M#module.modulename, M#module.modulerevision},
     %% Build maps with non-validated items.  These are validated below.
+    Status = get_stmts_arg(Substmts, 'status', 'current'),
     case Kwd of
         'typedef' ->
-            T = #typedef{name = Arg, stmt = S, moduleref = MRef},
+            T = #typedef{name = Arg, stmt = S, status = Status,
+                         moduleref = MRef},
             {Ts1, Ctx1} =
                 add_to_definitions_map(Arg, T, #typedef.stmt, Ts, Ctx0),
             mk_module_maps(Stmts, Ts1, Gs, Is, Fs, Es, M, Ctx1);
         'grouping' ->
-            G = #grouping{name = Arg, stmt = S, moduleref = MRef},
+            G = #grouping{name = Arg, stmt = S, status = Status,
+                          moduleref = MRef},
             {Gs1, Ctx1} =
                 add_to_definitions_map(Arg, G, #grouping.stmt, Gs, Ctx0),
             mk_module_maps(Stmts, Ts, Gs1, Is, Fs, Es, M, Ctx1);
@@ -1545,20 +1550,22 @@ mk_typedefs_and_groupings(Stmts, ParentTypedefs, ParentGroupings, M,
         mk_groupings(GsMap, GsMap, Typedefs, ParentGroupings, M, Ctx2),
     {Typedefs, Groupings, Ctx3}.
 
-mk_typedefs_and_groupings0([{Kwd, Arg, _, _Substmts} = S | Stmts],
+mk_typedefs_and_groupings0([{Kwd, Arg, _, Substmts} = S | Stmts],
                            Ts, Gs, MRef, IsInGrouping, Ctx0) ->
     %% Build maps with non-validated items.  These are validated
     %% in mk_typedefs() and mk_groupings().
+    Status = get_stmts_arg(Substmts, 'status', 'current'),
     case Kwd of
         'typedef' ->
             T = #typedef{name = Arg, stmt = S, v_status = undefined,
+                         status = Status,
                          moduleref = MRef, is_in_grouping = IsInGrouping},
             {Ts1, Ctx1} =
                 add_to_definitions_map(Arg, T, #typedef.stmt, Ts, Ctx0),
             mk_typedefs_and_groupings0(Stmts, Ts1, Gs, MRef, IsInGrouping,Ctx1);
         'grouping' ->
             G = #grouping{name = Arg, stmt = S, v_status = undefined,
-                          moduleref = MRef},
+                          status = Status,  moduleref = MRef},
             {Gs1, Ctx1} =
                 add_to_definitions_map(Arg, G, #grouping.stmt, Gs, Ctx0),
             mk_typedefs_and_groupings0(Stmts, Ts, Gs1, MRef, IsInGrouping,Ctx1);
@@ -1614,8 +1621,11 @@ add_typedef(T0, Map0, ParentTypedefs, M, Ctx0) ->
             Map1 = map_update(Name, T0#typedef{v_status = processing}, Map0),
             TypeStmt = search_one_stmt('type', Substmts),
             TypedefName = {M#module.modulename, Name},
+            Status = get_stmts_arg(Substmts, 'status', 'current'),
+
             {Map2, Ctx1, Type} =
-                mk_type(TypeStmt, Map1, ParentTypedefs, M, TypedefName, Ctx0),
+                mk_type(TypeStmt, Map1, ParentTypedefs, M, TypedefName,
+                        'typedef', Status, Ctx0),
             DefaultStmt = search_one_stmt('default', Substmts),
             {Default, Ctx2} = yang_types:mk_default(DefaultStmt, Type, M, Ctx1),
             MRef = {M#module.modulename, M#module.modulerevision},
@@ -1627,7 +1637,8 @@ add_typedef(T0, Map0, ParentTypedefs, M, Ctx0) ->
     end.
 
 %% If called outside of a typedef, TypedefMap is 'undefined'
-mk_type(Stmt, TypedefMap, ParentTypedefs, M, TypedefName, Ctx0) ->
+mk_type(Stmt, TypedefMap, ParentTypedefs, M, TypedefName,
+        Keyword, Status, Ctx0) ->
     {_, TypeArg, Pos, Substmts} = Stmt,
     Map0 = TypedefMap,
     %% First, figure out our base type name
@@ -1648,13 +1659,23 @@ mk_type(Stmt, TypedefMap, ParentTypedefs, M, TypedefName, Ctx0) ->
                                     add_typedef(RefTypedef, Map0,
                                                 ParentTypedefs, M, Ctx1),
                                 HandledRefTypedef = map_get(TypeName, Map1),
-                                {Map1, Ctx2, HandledRefTypedef};
+                                Ctx3 =
+                                    chk_status(Status,
+                                               HandledRefTypedef#typedef.status,
+                                               Keyword, 'typedef',
+                                               Pos, Ctx2),
+                                {Map1, Ctx3, HandledRefTypedef};
                             _ -> % true or none
                                 {Ctx2, RefTypedef} =
                                     mk_type_from_typedef(TypeName,
                                                          ParentTypedefs,
                                                          Pos, Ctx1),
-                                {Map0, Ctx2, RefTypedef}
+                                Ctx3 =
+                                    chk_status(Status,
+                                               RefTypedef#typedef.status,
+                                               Keyword, 'typedef',
+                                               Pos, Ctx2),
+                                {Map0, Ctx3, RefTypedef}
                         end;
                     {{imported, RefM}, TypeName, Ctx1} ->
                         {Ctx2, RefTypedef} =
@@ -1676,7 +1697,7 @@ mk_type(Stmt, TypedefMap, ParentTypedefs, M, TypedefName, Ctx0) ->
                   fun(S, {MapN, CtxN, Types}) ->
                           {MapN1, CtxN1, Type} =
                               mk_type(S, MapN, ParentTypedefs, M,
-                                      undefined, CtxN),
+                                      undefined, Keyword, Status, CtxN),
                           {MapN1, CtxN1, Types ++ [Type]}
                   end,
                   {Map3, Ctx4, []},
@@ -1922,9 +1943,15 @@ mk_children([{Kwd, Arg, Pos, Substmts} = Stmt | T], GroupingMap0,
                             %% find it again (the properly added grouping)
                             case map_lookup(GroupingName, GroupingMap1) of
                                 {value, G1} ->
+                                    Status = get_stmts_arg(Substmts, 'status',
+                                                           'current'),
+                                    Ctx3 = chk_status(Status,
+                                                      G1#grouping.status,
+                                                      'uses', 'grouping',
+                                                      Pos, Ctx2),
                                     mk_children_uses(G1, Stmt, GroupingMap1,
                                                      Typedefs, Groupings,
-                                                     M, IsInGrouping, Ctx2,
+                                                     M, IsInGrouping, Ctx3,
                                                      Mode, Ancestors, T,
                                                      Acc, XAcc);
                                 none ->
@@ -1940,9 +1967,15 @@ mk_children([{Kwd, Arg, Pos, Substmts} = Stmt | T], GroupingMap0,
                         _ -> % true or none
                             case grouping_lookup(GroupingName, Groupings) of
                                 {value, G} ->
+                                    Status = get_stmts_arg(Substmts, 'status',
+                                                           'current'),
+                                    Ctx2 = chk_status(Status,
+                                                      G#grouping.status,
+                                                      'uses', 'grouping',
+                                                      Pos, Ctx1),
                                     mk_children_uses(G, Stmt, GroupingMap0,
                                                      Typedefs, Groupings,
-                                                     M, IsInGrouping, Ctx1,
+                                                     M, IsInGrouping, Ctx2,
                                                      Mode, Ancestors, T,
                                                      Acc, XAcc);
                                 none ->
@@ -1994,7 +2027,7 @@ mk_children([{Kwd, Arg, Pos, Substmts} = Stmt | T], GroupingMap0,
                       true ->
                            Arg
                    end,
-            {FeatureL, WhenL, MustL, Ctx1} =
+            {FeatureL, WhenL, MustL, Status, Ctx1} =
                 common_substmts(Substmts, 'local', M, Ctx0),
             Sn0 = #sn{name = Name,
                       kind = Kind,
@@ -2004,6 +2037,7 @@ mk_children([{Kwd, Arg, Pos, Substmts} = Stmt | T], GroupingMap0,
                       if_feature = FeatureL,
                       'when' = WhenL,
                       must = MustL,
+                      status = Status,
                       stmt = Stmt},
             IfFeatureRes = check_if_features(FeatureL, Ctx1),
             if IfFeatureRes == false ->
@@ -2072,7 +2106,7 @@ mk_children([], GroupingMap, _Typedefs, _Groupings, _, _, _M,
 mk_children_uses(Grouping, UsesStmt, GroupingMap, Typedefs, Groupings, M,
                  IsInGrouping, Ctx0, Mode, Ancestors, RestStmts, Acc, XAcc) ->
     {_, _, Pos, Substmts} = UsesStmt,
-    {FeatureL, WhenL, [] = _MustL, Ctx1} =
+    {FeatureL, WhenL, [] = _MustL, _Status, Ctx1} =
         common_substmts(Substmts, 'uses', M, Ctx0),
     case check_if_features(FeatureL, Ctx1) of
         true ->
@@ -2355,46 +2389,51 @@ check_all_if_features([{Expr, _, _} | T], FMap) ->
 check_all_if_features([], _) ->
     true.
 
-%% Ret: {FeatureL, WhenL, MustL, Ctx}
+%% Ret: {FeatureL, WhenL, MustL, Status, Ctx}
 common_substmts(Substmts, Origin, M, Ctx) ->
-    common_substmts(Substmts, Origin, M, Ctx, [], [], []).
+    common_substmts(Substmts, Origin, M, Ctx, [], [], [], 'current').
 
 common_substmts([{'if-feature', Arg, Pos, _} = Stmt | T], Origin, M, Ctx0,
-                FeatureL, WhenL, MustL) ->
+                FeatureL, WhenL, MustL, Status) ->
     case get_feature_expr(Arg, Pos, M, Ctx0) of
         {undefined, Ctx1} ->
-            common_substmts(T, Origin, M, Ctx1, FeatureL, WhenL, MustL);
+            common_substmts(T, Origin, M, Ctx1, FeatureL, WhenL, MustL, Status);
         {Expr, Ctx1} ->
             common_substmts(T, Origin, M, Ctx1,
-                            [{Expr, Origin, Stmt} | FeatureL], WhenL, MustL)
+                            [{Expr, Origin, Stmt} | FeatureL], WhenL, MustL,
+                            Status)
     end;
 common_substmts([{'when', Arg, Pos, _} = Stmt | T], Origin, M, Ctx0,
-                FeatureL, WhenL, MustL) ->
+                FeatureL, WhenL, MustL, Status) ->
     %% NOTE: Keep unprefixed names unprefixed, since they can be
     %% bound when a grouping is used.
     case yang_xpath:compile(Arg, Pos, M, Ctx0#yctx.strict, Ctx0) of
         {ok, CompiledXPath, Ctx1} ->
             common_substmts(T, Origin, M, Ctx1, FeatureL,
                             [{CompiledXPath, [], Origin, Stmt} | WhenL],
-                            MustL);
+                            MustL, Status);
         {error, Ctx1} ->
-            common_substmts(T, Origin, M, Ctx1, FeatureL, WhenL, MustL)
+            common_substmts(T, Origin, M, Ctx1, FeatureL, WhenL, MustL, Status)
     end;
 common_substmts([{'must', Arg, Pos, _} = Stmt | T], Origin, M, Ctx0,
-                FeatureL, WhenL, MustL) ->
+                FeatureL, WhenL, MustL, Status) ->
     %% NOTE: Keep unprefixed names unprefixed, since they can be
     %% bound when a grouping is used.
     case yang_xpath:compile(Arg, Pos, M, Ctx0#yctx.strict, Ctx0) of
         {ok, CompiledXPath, Ctx1} ->
             common_substmts(T, Origin, M, Ctx1, FeatureL,
-                            WhenL, [{CompiledXPath, [], Stmt} | MustL]);
+                            WhenL, [{CompiledXPath, [], Stmt} | MustL],
+                            Status);
         {error, Ctx1} ->
-            common_substmts(T, Origin, M, Ctx1, FeatureL, WhenL, MustL)
+            common_substmts(T, Origin, M, Ctx1, FeatureL, WhenL, MustL, Status)
     end;
-common_substmts([_ | T], Origin, M, Ctx, FeatureL, WhenL, MustL) ->
-    common_substmts(T, Origin, M, Ctx, FeatureL, WhenL, MustL);
-common_substmts([], _Origin, _M, Ctx, FeatureL, WhenL, MustL) ->
-    {FeatureL, WhenL, MustL, Ctx}.
+common_substmts([{'status', Arg, _, _} | T], Origin, M, Ctx,
+                FeatureL, WhenL, MustL, _Status) ->
+    common_substmts(T, Origin, M, Ctx, FeatureL, WhenL, MustL, Arg);
+common_substmts([_ | T], Origin, M, Ctx, FeatureL, WhenL, MustL, Status) ->
+    common_substmts(T, Origin, M, Ctx, FeatureL, WhenL, MustL, Status);
+common_substmts([], _Origin, _M, Ctx, FeatureL, WhenL, MustL, Status) ->
+    {FeatureL, WhenL, MustL, Status, Ctx}.
 
 run_mk_sn_hooks_rec(Ctx0, Sn0, Mode, UsesPos, Ancestors0)
   when Sn0#sn.kind /= '__tmp_augment__' ->
@@ -2527,14 +2566,14 @@ pre_mk_sn_config(Ctx, Sn, _Mode, _UsesPos, Ancestors) ->
 %% for this function to run again.
 post_mk_sn_type(Ctx0,
                 #sn{stmt = Stmt, kind = Kind, type = PrevType,
-                    typedefs = Typedefs, module = M} = Sn,
+                    typedefs = Typedefs, status = Status, module = M} = Sn,
                 _Mode, _UsesPos, _Ancestors)
   when (Kind == 'leaf' orelse Kind == 'leaf-list') andalso
        PrevType == undefined ->
     TypeStmt = search_one_substmt('type', Stmt),
     {undefined, Ctx1, Type} =
         mk_type(TypeStmt, undefined, Typedefs, M,
-                undefined, Ctx0),
+                undefined, Kind, Status, Ctx0),
     Ctx2 =
         if Kind == 'leaf-list',
            is_record(Type#type.type_spec, empty_type_spec) ->
@@ -3115,7 +3154,7 @@ mk_operation_default_children(Sn) ->
 
 mk_augments([{'augment', Arg, Pos, Substmts} = Stmt | T], Typedefs, Groupings,
             M, Ctx0, IsTopLevel, Acc) ->
-    {FeatureL, WhenL, [] = _MustL, Ctx1} =
+    {FeatureL, WhenL, [] = _MustL, _Status, Ctx1} =
         common_substmts(Substmts, 'augment', M, Ctx0),
     case check_if_features(FeatureL, Ctx1) of
         true ->
@@ -3775,6 +3814,7 @@ post_expand_sn_leafref(Ctx,
                        M, Ancestors) ->
     if is_record(TypeSpec, leafref_type_spec) ->
             validate_leafref_path_and_default(Base, Default, TypeSpec, Sn,
+                                              Sn#sn.status, Sn#sn.stmt,
                                               M, Ancestors, Ctx);
        true ->
             Ctx
@@ -3826,10 +3866,12 @@ post_expand_typedefs(#typedefs{same_as_parent = false, map = Map},
                      Ancestors, M, Ctx) ->
     map_foldl(
       fun(_, #typedef{type = #type{type_spec = TypeSpec, base = Base},
+                      status = Status, stmt = Stmt,
                       default = Default}, Ctx0)
             when is_record(TypeSpec, leafref_type_spec) ->
               validate_leafref_path_and_default(Base, Default, TypeSpec,
                                                 _Sn = undefined,
+                                                Status, Stmt,
                                                 M, Ancestors, Ctx0);
          (_, _, Ctx0) ->
               Ctx0
@@ -3841,7 +3883,7 @@ post_expand_typedefs(_, _, _, Ctx) ->
 %% will be reported for each 'uses', with the grouping's pos()...
 
 validate_leafref_path_and_default(#typedef{default = BaseDefault}, Default,
-                                  TypeSpec, Sn, M, Ancestors, Ctx0) ->
+                                  TypeSpec, Sn, _, _, M, Ancestors, Ctx0) ->
     %% Validate the default if possible,
     %% ignoring leafref path validation failure
     case yang_types:validate_leafref_path(TypeSpec, Sn, M, Ancestors, Ctx0) of
@@ -3856,13 +3898,16 @@ validate_leafref_path_and_default(#typedef{default = BaseDefault}, Default,
             %% error is reported in "root" typedef check
             Ctx0
     end;
-validate_leafref_path_and_default(_, Default,
-                                  TypeSpec, Sn, M, Ancestors, Ctx0) ->
+validate_leafref_path_and_default(_, Default, TypeSpec,
+                                  Sn, Status, Stmt, M, Ancestors, Ctx0) ->
     %% Validate the path - and the default if any
     case yang_types:validate_leafref_path(TypeSpec, Sn, M, Ancestors, Ctx0) of
         {true, TargetSn, FinalSn} ->
-            Ctx1 = validate_leafref_config(Sn, TargetSn, TypeSpec, Ctx0, false),
-            validate_leafref_default(Default, Sn, FinalSn, M, Ctx1);
+            Ctx1 = chk_status(Status, TargetSn#sn.status,
+                              stmt_keyword(Stmt), TargetSn#sn.kind,
+                              stmt_pos(Stmt), Ctx0),
+            Ctx2 = validate_leafref_config(Sn, TargetSn, TypeSpec, Ctx1, false),
+            validate_leafref_default(Default, Sn, FinalSn, M, Ctx2);
         {false, Ctx1} ->
             Ctx1
     end.
@@ -3937,6 +3982,15 @@ get_schema_node(Ids, [_ | Sns], Ancestors) ->
     get_schema_node(Ids, Sns, Ancestors);
 get_schema_node(_, [], _) ->
     false.
+
+chk_status(XStatus, YStatus, XKeyword, YKeyword, Pos, Ctx) ->
+    if (XStatus == 'current' andalso YStatus /= 'current' orelse
+        (XStatus == 'deprecated' andalso YStatus == 'obsolete')) ->
+            add_error(Ctx, Pos, 'YANG_BAD_STATUS_REFERENCE',
+                      [XKeyword, XStatus, YKeyword, YStatus]);
+       true ->
+            Ctx
+    end.
 
 %% sort all augments into local and remote augments
 -spec sort_augments([#augment{}], LocalName :: atom()) ->
