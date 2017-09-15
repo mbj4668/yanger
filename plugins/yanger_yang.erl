@@ -211,8 +211,14 @@ classify_quoting(Arg, ArgStr, QP, Keyword) ->
         _ ->
             ArgTypeName = []
     end,
-    if Keyword == 'pattern' ->
+    if Keyword == 'pattern' orelse
+       Keyword == 'when' orelse
+       Keyword == 'must' ->
             prefer_squote;
+       Keyword == 'yang-version' ->
+            noquote;
+       ArgTypeName == 'identifier-ref' ->
+            noquote;
        (is_binary(Arg) andalso not(ArgTypeName == 'date'))
        orelse Keyword == 'default'
        orelse Keyword == 'enum'
@@ -359,6 +365,7 @@ replace_patterns() ->
      {<<"\t">>, <<"\\t">>}].
 
 force_newline_arg(description) -> true;
+force_newline_arg(organization) -> true;
 force_newline_arg(contact) -> true;
 force_newline_arg({'tailf-common', info}) -> true;
 force_newline_arg(_) -> false.
