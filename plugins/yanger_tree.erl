@@ -106,6 +106,8 @@ emit_tree(Ctx, [Mod|Mods], AllMods, Fd, Depth, Path) ->
     Chs    = [C || C <- Mod#module.children, is_data_def(C#sn.kind, Ctx)],
     Rpcs   = [C || C <- Mod#module.children, C#sn.kind == 'operation'],
     Notifs = [C || C <- Mod#module.children, C#sn.kind == 'notification'],
+    YangDatas = [C || C <- Mod#module.children,
+                      ?stmt_kw(C#sn.stmt) == {'ietf-restconf', 'yang-data'}],
     AllModuleNames = [Mx#module.name|| Mx <- AllMods],
     Augs =
         lists:foldl(
@@ -124,25 +126,53 @@ emit_tree(Ctx, [Mod|Mods], AllMods, Fd, Depth, Path) ->
             print_header(Mod, Fd)
     end,
     print_list(Chs, Mod, Fd, Path, data, Depth),
+    SectionPrinted1 = true, % always print separator after data, even if empty
+    maybe_print_separator(SectionPrinted1 andalso Augs /= []),
     lists:foreach(
       fun(Augment) ->
-              io:format(Fd, "augment ~s:~n", [?stmt_arg(Augment#augment.stmt)]),
+              io:format(Fd, "  augment ~s:~n",
+                        [?stmt_arg(Augment#augment.stmt)]),
               print_list(Augment#augment.children, Mod, Fd, Path, data, Depth)
       end, Augs),
+    SectionPrinted2 = Augs /= [] orelse SectionPrinted1,
     if Path == [] ->
+            maybe_print_separator(SectionPrinted2 andalso Rpcs /= []),
             print_list(Rpcs, Mod, Fd, Path, rpc, Depth),
-            print_list(Notifs, Mod, Fd, Path, notification, Depth);
+            SectionPrinted3 = Rpcs /= [] orelse SectionPrinted2,
+
+            maybe_print_separator(SectionPrinted3 andalso Notifs /= []),
+            print_list(Notifs, Mod, Fd, Path, notification, Depth),
+            SectionPrinted4 = Notifs /= [] orelse SectionPrinted3,
+
+            maybe_print_separator(SectionPrinted4 andalso YangDatas /= []),
+            lists:foreach(
+              fun(YD) ->
+                      io:format(Fd, "  yang-data ~s:~n",
+                                [?stmt_arg(YD#sn.stmt)]),
+                      print_list(YD#sn.children, Mod, Fd, Path, data, Depth)
+              end, YangDatas);
        true ->
             ok
     end,
-    emit_tree(Ctx, Mods, AllMods, Fd, Depth, Path).
+    case Mods of
+        [] ->
+            ok;
+        _ ->
+            io:format("\n", []),
+            emit_tree(Ctx, Mods, AllMods, Fd, Depth, Path)
+    end.
+
+maybe_print_separator(true) ->
+    io:format("\n", []);
+maybe_print_separator(false) ->
+    ok.
 
 print_list(Chs, Mod, Fd, Path, Mode, Depth) ->
     case (Chs == []) orelse (Mode == data) of
         true  -> skip;
-        false -> io:format("~ss:~n", [Mode])
+        false -> io:format("  ~ss:~n", [Mode])
     end,
-    print_children(Chs, Mod, Fd, undefined, " ", Path, Mode, Depth, 0).
+    print_children(Chs, Mod, Fd, undefined, "  ", Path, Mode, Depth, 0).
 
 print_header(Module, Fd) ->
     {Kw,ModArg,_,Substmts} = Module#module.stmt,
@@ -208,16 +238,15 @@ print_node(Sn, Mod, Fd, PKey, Prefix, Path, Mode, Depth, Width) ->
     io:format(Fd, "~s~s--", [LsInit, status_str(Sn#sn.stmt)]),
     Name = name(Sn, Mod),
     Flags = flags_str(Sn, Mode),
-    case KW of
-        'list' ->
+    if KW == 'list' ->
             io:format(Fd, "~s ~s*", [Flags, Name]);
-        'container' ->
+       KW == 'container' ->
             case ?search_one(presence,Subs) of
                 false -> NameAdd = Name;
                 _     -> NameAdd = Name ++ "!"
             end,
             io:format(Fd,"~s ~s",[Flags,NameAdd]);
-        'choice' ->
+       KW == 'choice' ->
             MArg = ?stmt_arg(Mod#module.stmt),
             case
                 (?search_one(mandatory,Subs) == false) orelse (MArg == false)
@@ -225,11 +254,14 @@ print_node(Sn, Mod, Fd, PKey, Prefix, Path, Mode, Depth, Width) ->
                 true -> io:format(Fd,"~s (~s)?",[Flags,StmtArg]);
                 _    -> io:format(Fd,"~s (~s)", [Flags,StmtArg])
             end;
-        'case' -> io:format(Fd,":(~s)",[StmtArg]);
-        'leaf-list' ->
+       KW == 'case' ->
+            io:format(Fd,":(~s)",[StmtArg]);
+       KW == 'leaf-list' ->
             io:format(Fd, "~s ~s~s",
                       [Flags, mk_str(Name ++ "*", Width+1),TypeName]);
-        'leaf' ->
+       KW == 'leaf';
+       KW == 'anyxml';
+       KW == 'anydata' ->
             NewName =
                 case
                     PKey /= undefined
@@ -245,8 +277,12 @@ print_node(Sn, Mod, Fd, PKey, Prefix, Path, Mode, Depth, Width) ->
                         end;
                     true  -> mk_str(Name, Width+1)
                 end,
-            io:format(Fd, "~s ~s~s", [Flags, NewName, TypeName]);
-        _ ->
+            if KW == 'leaf' ->
+                    io:format(Fd, "~s ~s~s", [Flags, NewName, TypeName]);
+               true ->
+                    io:format(Fd, "~s ~s<~s>", [Flags, NewName, KW])
+            end;
+       true ->
             io:format(Fd, "~s ~s~s", [Flags, mk_str(Name, Width+1), TypeName])
     end,
     case (KW == list) andalso (?search_one(key, Subs) /= false) of
