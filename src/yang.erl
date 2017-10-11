@@ -906,11 +906,9 @@ parse_body(Stmts, M0, Ctx0) ->
                     _Acc = SubChildren, []),
     {ModKW, ModArg, ModPos, ModSubs} = M2#module.stmt,
     M3 = M2#module{stmt = {ModKW, ModArg, ModPos, ModSubs ++ XAcc}},
-    %% Validate that all children have unique names
-    Ctx4 = v_unique_names(Children, Ctx3),
     %% Build the augments list.
-    {Augments, Ctx5} =
-        mk_augments(Stmts, M3#module.typedefs, M2#module.groupings, M3, Ctx4,
+    {Augments, Ctx4} =
+        mk_augments(Stmts, M3#module.typedefs, M2#module.groupings, M3, Ctx3,
                     _IsTopLevel = true, []),
     {LocalAugments, RemoteAugments0} =
         sort_augments(Augments, M3#module.modulename),
@@ -918,9 +916,11 @@ parse_body(Stmts, M0, Ctx0) ->
         lists:concat([SM#module.local_augments ||
                          {SM,_} <- M3#module.submodules]),
     %% Apply local augments and augments from the submodules
-    {AugmentedChildren, Ctx6} =
+    {AugmentedChildren, Ctx5} =
         augment_children(SubModuleAugments ++ LocalAugments,
-                         Children, final, [M3], Ctx5),
+                         Children, final, [M3], Ctx4),
+    %% Validate that all children have unique names
+    Ctx6 = v_unique_names(AugmentedChildren, Ctx5),
     %% Build the deviations list
     %% Track imports used only in deviations separately, to allow plugins
     %% to record dependencies based on the combination of #module.imports,
