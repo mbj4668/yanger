@@ -754,7 +754,7 @@ resolve_module_names_from_prefixes(int nprefixes,
     /* build prefix map */
     for (s = stmt->substmt; s && n < nprefixes; s = s->next) {
         if (s->prefix == NULL) {
-            if (s->keyword == am_prefix) {
+            if (s->keyword == am_prefix && stmt->arg) {
                 // this is our own prefix
                 add_prefix(s, yang_make_atom(stmt->arg),
                            prefix_map, &n, ectx);
