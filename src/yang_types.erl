@@ -1022,6 +1022,10 @@ union_type_spec_fun({parse, Val, Pos},
     %% try each member type
     parse_union_type(Types, Val, Pos, Type, M, Ctx0).
 
+parse_union_type([#type{type_spec_fun = undefined}|_],
+                 _Str, _Pos, _UType, _M, Ctx) ->
+    %% bad member type, don't continue, error already reported
+    {undefined, Ctx};
 parse_union_type([#type{type_spec_fun = TypeSpecF} = Type|T],
                  Str, Pos, UType, M, Ctx) ->
     case TypeSpecF({parse, Str, Pos}, Type, M, Ctx) of
@@ -1173,8 +1177,6 @@ identityref_type_spec_fun({parse, Val, Pos},
                 {#identity{} = Identity, Ctx2} ->
                     IsDerived =
                         fun(Base) -> is_identity_derived(Identity, Base) end,
-%                    ?iof("** id: ~p\n++ bases: ~p\n\n",
-%                         [Identity, Bases]),
                     case all(IsDerived, Bases) of
                         true ->
                             {Identity, Ctx2};
