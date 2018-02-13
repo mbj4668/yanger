@@ -369,9 +369,9 @@ v_dep_path(Dep, {_, _, Pos, _}, Ctx, Sn, M, Ancestors) ->
             true  -> yang:mk_cursor(undefined, [], Pos, M, data);
             false -> yang:mk_cursor(Sn, Ancestors, Pos, M, data)
         end,
-    case follow_dep_path(Path, InitCursor, Ctx#yctx{errors = []}) of
-        true ->
-            true;
+    case yang:cursor_follow_path(Path, InitCursor, Ctx#yctx{errors = []}) of
+        {true, #cursor{cur = CurSn}} ->
+            {true, CurSn};
         {false, #yctx{errors = Errors}} ->
             {false, Errors}
     end.
@@ -397,15 +397,6 @@ dep_path_to_cursor_path0([Name | T], CurModName) ->
     [{child, {CurModName, Name}} | dep_path_to_cursor_path0(T, CurModName)];
 dep_path_to_cursor_path0([], _) ->
     [].
-
-%% Follow the dep path and check that it exists.
-follow_dep_path(Path, InitCursor, Ctx) ->
-    case yang:cursor_follow_path(Path, InitCursor, Ctx) of
-        {true, _} ->
-            true;
-        {false, ErrCtx} ->
-            {false, ErrCtx}
-    end.
 
 is_dep_path_absolute(['..' | _]) -> false;
 is_dep_path_absolute(['.' | _]) -> false;

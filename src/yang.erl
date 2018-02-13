@@ -3840,8 +3840,15 @@ post_expand_sn_xpath_dep(Ctx, #sn{must = MustL, 'when' = WhenL} = Sn,
                             yang_xpath:v_dep_path(Dep, Stmt,
                                                   Ctx1, Sn, M, Ancestors)
                         of
-                            true ->
-                                Ctx1;
+                            {true, DepSn} ->
+                                if Sn#sn.config == true andalso
+                                   DepSn#sn.config == false ->
+                                        Pos = stmt_pos(Stmt),
+                                        add_xpath_ref_config_error(Ctx1, Pos,
+                                                                   DepSn);
+                                   true ->
+                                        Ctx1
+                                end;
                             {false, Errors} ->
                                 %% This means the calculated
                                 %% dep points to something
@@ -3854,6 +3861,18 @@ post_expand_sn_xpath_dep(Ctx, #sn{must = MustL, 'when' = WhenL} = Sn,
                         end
                 end, Ctx0, Deps)
       end, Ctx, L).
+
+add_xpath_ref_config_error(Ctx, Pos, TargetSn) ->
+    #sn{name = TargetName, stmt = TargetStmt} = TargetSn,
+    add_error(Ctx, Pos, 'YANG_ERR_XPATH_REF_BAD_CONFIG',
+              [yang_error:fmt_yang_identifier(TargetName),
+               yang_error:fmt_pos(stmt_pos(TargetStmt))]).
+
+add_leafref_config_error(Ctx, Pos, TargetSn) ->
+    #sn{name = TargetName, stmt = TargetStmt} = TargetSn,
+    add_error(Ctx, Pos, 'YANG_ERR_LEAFREF_BAD_CONFIG',
+              [yang_error:fmt_yang_identifier(TargetName),
+               yang_error:fmt_pos(stmt_pos(TargetStmt))]).
 
 add_xpath_bad_ref(#yerror{code = Code, args = Args, pos = Pos},
                #yctx{error_codes = Codes} = Ctx) ->
@@ -3945,11 +3964,7 @@ validate_leafref_config(Sn, TargetSn, TypeSpec, Ctx, IsTypedef) ->
                         #leafref_type_spec{path_stmt = PathStmt} = TypeSpec,
                         stmt_pos(PathStmt)
                 end,
-            #sn{name = TargetName, stmt = TargetStmt} = TargetSn,
-            add_error(Ctx, Pos,
-                      'YANG_ERR_LEAFREF_BAD_CONFIG',
-                      [yang_error:fmt_yang_identifier(TargetName),
-                       yang_error:fmt_pos(stmt_pos(TargetStmt))]);
+            add_leafref_config_error(Ctx, Pos, TargetSn);
        true ->
             Ctx
     end.

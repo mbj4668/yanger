@@ -284,6 +284,9 @@ codes() ->
         "the default value for a key leaf is ignored"}
      , {'YANG_ERR_XPATH_BAD_REF', warning,
         "The XPath expression references an undefined node: ~s"}
+     , {'YANG_ERR_XPATH_REF_BAD_CONFIG', warning,
+        "the node is config, but refers to a "
+        "non-config node ~s defined at ~s"}
      , {'YANG_ERR_XPATH', error,"XPath error: ~s"}
      , {'YANG_ERR_XPATH_FAIL', error,
         "The XPath expression will always fail"}
