@@ -231,6 +231,9 @@ print_children(Children, Mod, Fd, PKey, Prefix, Path, Mode, Depth, Width) ->
 -spec print_node(#sn{}, #module{}, erlang:device(), 'undefined' | [atom()],
                  string(), undefined | [atom()], mode(),
                  integer(), integer()) -> ok.
+print_node(#sn{if_feature_result = false},
+           _Mod, _Fd, _PKey, _Prefix, _Path, _Mode, _Depth, _Width) ->
+    skip;
 print_node(Sn, Mod, Fd, PKey, Prefix, Path, Mode, Depth, Width) ->
     {KW, StmtArg, _, Subs} = Sn#sn.stmt,
     TypeName = typename(Sn#sn.type, Mod),

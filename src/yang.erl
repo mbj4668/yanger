@@ -2029,24 +2029,19 @@ mk_children([{Kwd, Arg, Pos, Substmts} = Stmt | T], GroupingMap0,
                    end,
             {FeatureL, WhenL, MustL, Status, Ctx1} =
                 common_substmts(Substmts, 'local', M, Ctx0),
+            IfFeatureRes = check_if_features(FeatureL, Ctx1),
             Sn0 = #sn{name = Name,
                       kind = Kind,
                       module = M,
                       typedefs = Typedefs,
                       groupings = Groupings,
                       if_feature = FeatureL,
+                      if_feature_result = IfFeatureRes,
                       'when' = WhenL,
                       must = MustL,
                       status = Status,
                       stmt = Stmt},
-            IfFeatureRes = check_if_features(FeatureL, Ctx1),
-            if IfFeatureRes == false ->
-                    %% skip this schema node
-                    mk_children(T, GroupingMap0, Typedefs, Groupings,
-                                ParentTypedefs, ParentGroupings,
-                                M, IsInGrouping, Ctx1,
-                                Mode, Ancestors, Acc, XAcc);
-               Kwd == 'leaf' orelse Kwd == 'leaf-list' ->
+            if Kwd == 'leaf' orelse Kwd == 'leaf-list' ->
                     {Ctx2, Sn1} =
                         run_mk_sn_hooks(Ctx1, Sn0, #hooks.pre_mk_sn, Mode,
                                         undefined, Ancestors),
@@ -2108,35 +2103,29 @@ mk_children_uses(Grouping, UsesStmt, GroupingMap, Typedefs, Groupings, M,
     {_, _, Pos, Substmts} = UsesStmt,
     {FeatureL, WhenL, [] = _MustL, _Status, Ctx1} =
         common_substmts(Substmts, 'uses', M, Ctx0),
-    case check_if_features(FeatureL, Ctx1) of
-        true ->
-            GroupingChildren1 =
-                if FeatureL /= [] orelse WhenL /= [] ->
-                        [Ch#sn{if_feature = FeatureL ++ Ch#sn.if_feature,
-                               'when' = WhenL ++ Ch#sn.'when'} ||
-                            Ch <- Grouping#grouping.children];
-                   true ->
-                        Grouping#grouping.children
-                end,
-            {ExpandedChildren, Ctx2} =
-                expand_uses(GroupingChildren1, Substmts,
-                            Typedefs, Groupings, Pos, M, Ctx1, Mode, Ancestors),
-            %% possibly copy stms from the grouping
-            CopyMap = (Ctx0#yctx.env)#env.copy_from_grouping_stmts,
-            CopySubstmts = [S || S <- stmt_substmts(Grouping#grouping.stmt),
-                                 map_is_key(stmt_keyword(S), CopyMap)],
-            mk_children(RestStmts, GroupingMap,
-                        Typedefs, Groupings,
-                        Typedefs, Groupings, M,
-                        IsInGrouping, Ctx2, Mode, Ancestors,
-                        ExpandedChildren ++ Acc, XAcc ++ CopySubstmts);
-        false ->
-            mk_children(RestStmts, GroupingMap,
-                        Typedefs, Groupings,
-                        Typedefs, Groupings, M,
-                        IsInGrouping, Ctx1, Mode, Ancestors,
-                        Acc, XAcc)
-    end.
+    IfFeatureRes = check_if_features(FeatureL, Ctx1),
+    GroupingChildren1 =
+        if FeatureL /= [] orelse WhenL /= [] ->
+                [Ch#sn{if_feature = FeatureL ++ Ch#sn.if_feature,
+                       if_feature_result =
+                           IfFeatureRes and Ch#sn.if_feature_result,
+                       'when' = WhenL ++ Ch#sn.'when'} ||
+                    Ch <- Grouping#grouping.children];
+           true ->
+                Grouping#grouping.children
+        end,
+    {ExpandedChildren, Ctx2} =
+        expand_uses(GroupingChildren1, Substmts,
+                    Typedefs, Groupings, Pos, M, Ctx1, Mode, Ancestors),
+    %% possibly copy stms from the grouping
+    CopyMap = (Ctx0#yctx.env)#env.copy_from_grouping_stmts,
+    CopySubstmts = [S || S <- stmt_substmts(Grouping#grouping.stmt),
+                         map_is_key(stmt_keyword(S), CopyMap)],
+    mk_children(RestStmts, GroupingMap,
+                Typedefs, Groupings,
+                Typedefs, Groupings, M,
+                IsInGrouping, Ctx2, Mode, Ancestors,
+                ExpandedChildren ++ Acc, XAcc ++ CopySubstmts).
 
 expand_uses(GroupingChildren, UsesSubstmts, Typedefs, Groupings,
             UsesPos, M, Ctx, Mode, Ancestors) ->
@@ -3156,42 +3145,39 @@ mk_augments([{'augment', Arg, Pos, Substmts} = Stmt | T], Typedefs, Groupings,
             M, Ctx0, IsTopLevel, Acc) ->
     {FeatureL, WhenL, [] = _MustL, _Status, Ctx1} =
         common_substmts(Substmts, 'augment', M, Ctx0),
-    case check_if_features(FeatureL, Ctx1) of
-        true ->
-            {Children0, _, _, Ctx2} =
-                %% Create the children w/o explicit config property.
-                %% The #sn{} nodes will get the correct config later when
-                %% they are inserted into the tree.
-                mk_children(Substmts, undefined, Typedefs, Groupings,
-                            undefined, undefined,
-                            M, _IsInGrouping = false, Ctx1,
-                            _Mode = augment, _Ancestors = [], _Acc = [], []),
-            Ctx3 = v_unique_names(Children0, Ctx2),
-            case parse_schema_nodeid(IsTopLevel, Arg, Pos, M, Ctx3) of
-                {ok, SchemaNodeId, Ctx4} ->
-                    %% Propagate when/if-feature from the augment statement
-                    %% to the children. (must is not allowed in augment)
-                    Children1 =
-                        if FeatureL /= [] orelse WhenL /= [] ->
-                                [Ch#sn{if_feature = FeatureL ++
-                                           Ch#sn.if_feature,
-                                       'when' = WhenL ++ Ch#sn.'when'}
-                                 || Ch <- Children0];
-                           true ->
-                                Children0
-                        end,
-                    Aug = #augment{target_node = SchemaNodeId,
-                                   stmt = Stmt,
-                                   has_when = WhenL /= [],
-                                   children = Children1},
-                    mk_augments(T, Typedefs, Groupings, M, Ctx4, IsTopLevel,
-                                [Aug | Acc]);
-                {error, Ctx4} ->
-                    mk_augments(T, Typedefs, Groupings, M, Ctx4, IsTopLevel,
-                                Acc)
-            end;
-        false ->
-            mk_augments(T, Typedefs, Groupings, M, Ctx1, IsTopLevel, Acc)
+    IfFeatureRes = check_if_features(FeatureL, Ctx1),
+    {Children0, _, _, Ctx2} =
+        %% Create the children w/o explicit config property.
+        %% The #sn{} nodes will get the correct config later when
+        %% they are inserted into the tree.
+        mk_children(Substmts, undefined, Typedefs, Groupings,
+                    undefined, undefined,
+                    M, _IsInGrouping = false, Ctx1,
+                    _Mode = augment, _Ancestors = [], _Acc = [], []),
+    Ctx3 = v_unique_names(Children0, Ctx2),
+    case parse_schema_nodeid(IsTopLevel, Arg, Pos, M, Ctx3) of
+        {ok, SchemaNodeId, Ctx4} ->
+            %% Propagate when/if-feature from the augment statement
+            %% to the children. (must is not allowed in augment)
+            Children1 =
+                if FeatureL /= [] orelse WhenL /= [] ->
+                        [Ch#sn{if_feature = FeatureL ++ Ch#sn.if_feature,
+                               if_feature_result =
+                                   IfFeatureRes and Ch#sn.if_feature_result,
+                               'when' = WhenL ++ Ch#sn.'when'}
+                         || Ch <- Children0];
+                   true ->
+                        Children0
+                end,
+            Aug = #augment{target_node = SchemaNodeId,
+                           stmt = Stmt,
+                           has_when = WhenL /= [],
+                           children = Children1},
+            mk_augments(T, Typedefs, Groupings, M, Ctx4, IsTopLevel,
+                        [Aug | Acc]);
+        {error, Ctx4} ->
+            mk_augments(T, Typedefs, Groupings, M, Ctx4, IsTopLevel,
+                        Acc)
     end;
 mk_augments([_ | T], Typedefs, Groupings, M, Ctx, IsTopLevel, Acc) ->
     mk_augments(T, Typedefs, Groupings, M, Ctx, IsTopLevel, Acc);

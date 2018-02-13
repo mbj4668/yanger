@@ -138,6 +138,7 @@
           if_feature = [] :: [{#feature{},
                                Origin :: 'uses' | 'augment' | 'local',
                                yang:stmt()}],
+          if_feature_result = true :: boolean(),
           augmented_by = [] :: [yang:augment_rec()],
           is_augment_top_node = false :: boolean(),
           stmt :: yang:stmt(), % pointer to raw statement
