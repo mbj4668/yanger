@@ -963,10 +963,10 @@ bits_type_spec_fun({parse, Val, _Pos},
                 Acc;
             (Name, Acc) ->
                 {_, BitPos} = lists:keyfind(?b2a(Name), 1, Bits),
-                Acc bor (1 bsl BitPos)
+                [BitPos | Acc]
         end,
     try
-        {ok, lists:foldl(F, 0, BinNames)}
+        {ok, lists:foldl(F, [], BinNames)}
     catch
         _:_ ->
             {error, "bit not defined for bits type", stmt_pos(Type#type.stmt)}

@@ -292,7 +292,7 @@
           all_enum_stmts = [] :: [yang:stmt()]
          }).
 
-%% Parsed default value: integer() (bitmask)
+%% Parsed default value: [integer()] (list of positions for set bits)
 -record(bits_type_spec, {
           bits = [] :: [{Name :: atom(), Position :: integer()}],
           bit_stmts = [] :: [yang:stmt()],
