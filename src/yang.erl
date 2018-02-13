@@ -3475,8 +3475,7 @@ combine_prefix_maps(#module{modulename = TName,
                                        imports    = NewImports},
             TargetM2 = TargetM1#module{xpath_ns_map =
                                            yang_xpath:mk_ns_map(TargetM1)},
-            NewChs = [update_sn_mod(Ch, TargetM2) ||
-                         Ch <- TargetM2#module.children],
+            NewChs = update_sn_mod(TargetM2#module.children, TargetM2, []),
             NewTargetM = TargetM2#module{children = NewChs},
             Ctx2 = Ctx1#yctx{unused_imports = [{TName, NewUnusedL}|UnusedRem]},
             {NewTargetM, Ctx2};
@@ -3495,22 +3494,52 @@ find_prefix_pos(PArg, [_ | T]) ->
     find_prefix_pos(PArg, T).
 
 %% Recursively update #sn.module
-update_sn_mod(#sn{module = #module{modulename = SnModuleName} = SnM,
-                  children = Chs} = Sn,
-              #module{modulename = NewModuleName} = NewMod) ->
-    NewM = if SnModuleName == NewModuleName ->
-                   %% Replace the module
-                   NewMod;
-              true ->
-                   %% Replace only the prefix maps
-                   %% Is this needed - and OK?
-                   %% Augmented nodes will lose their original mappings
-                   SnM#module{prefix_map = NewMod#module.prefix_map,
-                              xpath_ns_map = NewMod#module.xpath_ns_map}
-           end,
-    NewChs = [update_sn_mod(Ch, NewMod) || Ch <- Chs],
-    Sn#sn{module = NewM, children = NewChs}.
+update_sn_mod([#sn{module = #module{modulename = SnModuleName} = SnMod,
+                   children = Chs} = Sn | Rest],
+              #module{modulename = NewModuleName} = NewMod,
+              MergedModL) ->
+    if SnModuleName == NewModuleName ->
+            %% Replace the module
+            NewSnMod = NewMod,
+            NewMergedModL = MergedModL;
+       true ->
+            %% Replace the prefix maps with merged versions
+            case lists:keyfind(SnModuleName, #module.modulename, MergedModL) of
+                #module{} = NewSnMod ->
+                    %% already have #module{} with merged maps
+                    NewMergedModL = MergedModL;
+                false ->
+                    %% do the merge
+                    NewSnMod = merge_prefix_maps(SnMod, NewMod),
+                    NewMergedModL = [NewSnMod | MergedModL]
+            end
+    end,
+    NewChs = update_sn_mod(Chs, NewMod, NewMergedModL),
+    [Sn#sn{module = NewSnMod, children = NewChs} |
+     update_sn_mod(Rest, NewMod, NewMergedModL)];
+update_sn_mod([], _NewMod, _MergedModL) ->
+    [].
 
+%% "Simplified version" of combine_prefix_maps/3
+merge_prefix_maps(#module{prefix_map = SnPrefixMap} = SnMod,
+                  #module{modulename = NewModuleName,
+                          prefix_map = NewModPrefixMap}) ->
+    %% fix up '$self' entries in NewModPrefixMap
+    PrefixMap0 = map_foldl(fun (Prefix, '$self', Map) ->
+                                   map_insert(Prefix, NewModuleName, Map);
+                               (Prefix, ModuleName, Map) ->
+                                   map_insert(Prefix, ModuleName, Map)
+                           end,
+                           map_new(),
+                           NewModPrefixMap),
+    %% let the "original" map win in case of duplicates
+    PrefixMap = map_foldl(fun (Prefix, ModuleName, Map) ->
+                                  map_update(Prefix, ModuleName, Map)
+                          end,
+                          PrefixMap0,
+                          SnPrefixMap),
+    NewSnMod = SnMod#module{prefix_map = PrefixMap},
+    NewSnMod#module{xpath_ns_map = yang_xpath:mk_ns_map(NewSnMod)}.
 
 %% Deviate 'Children' with the statements from 'Deviations'.
 %% Return the deviated 'Children'.
