@@ -150,7 +150,7 @@
 -type yang_status() :: 'current' | 'deprecated' | 'obsolete'.
 
 
--type map(_Key, _Val) :: term().%gb_trees:gb_tree().
+-type map(_Key, _Val) :: gb_trees:gb_tree().
 -type map0() :: map(term(), term()).
 
 %% Each module and submodule has its own prefix map
@@ -1671,10 +1671,15 @@ mk_type(Stmt, TypedefMap, ParentTypedefs, M, TypedefName,
                                                          ParentTypedefs,
                                                          Pos, Ctx1),
                                 Ctx3 =
-                                    chk_status(Status,
-                                               RefTypedef#typedef.status,
-                                               Keyword, 'typedef',
-                                               Pos, Ctx2),
+                                    if RefTypedef /= undefined ->
+                                            chk_status(
+                                              Status,
+                                              RefTypedef#typedef.status,
+                                              Keyword, 'typedef',
+                                              Pos, Ctx2);
+                                       true ->
+                                            Ctx2
+                                    end,
                                 {Map0, Ctx3, RefTypedef}
                         end;
                     {{imported, RefM}, TypeName, Ctx1} ->
