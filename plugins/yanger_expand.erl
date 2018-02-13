@@ -176,9 +176,7 @@ create_prefix_map(M) ->
 
 create_prefix_map(M, PxMap0) ->
     PxMap1 =
-        yang:map_foldl(fun (Px, '$self', Map0) ->
-                               yang:map_insert('$self', Px, Map0);
-                           (Px, Mod, Map0) ->
+        yang:map_foldl(fun (Px, Mod, Map0) ->
                                case yang:map_lookup(Mod, Map0) of
                                    {value, Px} ->
                                        Map0;
