@@ -15,3 +15,7 @@ clean: $(LOCALCLEAN)
 	      ( cd $$d && $(MAKE) $@ ) || exit 1 ; \
 	    fi ; \
 	  done
+
+include vsn.mk
+dialyzer:
+	dialyzer -DVSN=\"$(VSN)\" -pa ../yanger/ebin --src src/*.erl

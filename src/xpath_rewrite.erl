@@ -66,13 +66,7 @@ rewrite_expr({union, Paths}, NS_map) ->
 rewrite_expr({comp, Op, E1, E2}, NS_map) ->
     mk_comp(Op, rewrite_expr(E1, NS_map), rewrite_expr(E2, NS_map));
 rewrite_expr({arith, Op, E1, E2}, NS_map) ->
-    case {rewrite_expr(E1, NS_map), rewrite_expr(E2, NS_map)} of
-        {{number,_} = N1, {number,_} = N2} ->
-            {succ, E3} = xpath_eval:arith(Op, N1, N2),
-            E3;
-        {R1, R2} ->
-            {arith, Op, R1, R2}
-    end;
+    {arith, Op, rewrite_expr(E1, NS_map), rewrite_expr(E2, NS_map)};
 rewrite_expr({bool, 'or', E1, E2}, NS_map) ->
     mk_or(rewrite_expr(E1, NS_map), rewrite_expr(E2, NS_map));
 rewrite_expr({bool, 'and', E1, E2}, NS_map) ->
@@ -634,25 +628,7 @@ ensure_axis_permitted(_Axis) ->
 %% at the root.)
 
 tag_of(Tag_str) ->
-    %% FIXME confd_server is *not* a good test, what we want is "are
-    %% we running confdc or confd"
-    case whereis(confd_server) of
-        undefined ->
-            %% Assume we are compiling, anything goes
-            list_to_atom(Tag_str);
-        _ ->
-            case catch list_to_existing_atom(Tag_str) of
-                {'EXIT', _} ->
-                    ?xp_exit(tag_not_in_any_schema, Tag_str);
-                Tag ->
-                    case catch cs:tag2htag(Tag) of
-                        {'EXIT', _} ->
-                            ?xp_exit(tag_not_in_any_schema, Tag_str);
-                        _ ->
-                            Tag
-                    end
-            end
-    end.
+    list_to_atom(Tag_str).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

@@ -32,7 +32,7 @@
 -export([parse_schema_nodeid/4, parse_schema_nodeid/5,
          parse_absolute_schema_nodeid/4,
          parse_descendant_schema_nodeid/4]).
--export([mk_cursor/5, cursor_reset/2, cursor_follow_path/3, cursor_move/3,
+-export([mk_cursor/6, cursor_reset/2, cursor_follow_path/3, cursor_move/3,
          find_child/2, find_child/5]).
 -export([has_mandatory_descendant/1]).
 
@@ -85,9 +85,10 @@
 -export_type([builtin_type_name/0, cursor_path/0, cursor_type/0,
               hookfun/0, keyword/0, kind/0,
               map/2, map0/0, module_rec/0, pos/0, prefix_map/0,
-              revision/0, stmt/0, typedef_rec/0, augment_rec/0,
-              validate_status/0, yang_identifier/0,
-              yang_version/0, modrev/0]).
+              revision/0, stmt/0,
+              grouping_rec/0, typedef_rec/0, augment_rec/0,
+              validate_status/0, yang_identifier/0, yang_status/0,
+              import/0, yang_version/0, modrev/0]).
 
 -type yang_version() :: '1' | '1.1'.
 
@@ -150,7 +151,7 @@
 -type yang_status() :: 'current' | 'deprecated' | 'obsolete'.
 
 
--type map(_Key, _Val) :: gb_trees:gb_tree().
+-type map(Key, Val) :: gb_trees:tree(Key, Val).
 -type map0() :: map(term(), term()).
 
 %% Each module and submodule has its own prefix map
@@ -286,6 +287,7 @@ new_ctx(Plugins) ->
                  modrevs = map_new(),
                  revs = map_new(),
                  typemap = map_new(),
+                 files = map_new(),
                  env = Env},
     Ctx2 = lists:foldl(fun(M, Ctx1) -> M:init(Ctx1) end, Ctx0, Plugins),
     Ctx2#yctx{env = (Ctx2#yctx.env)#env{
@@ -604,7 +606,7 @@ search_file(Ctx, FromPos, ModKeyword, ModuleName, Revision,
     end.
 
 %% called for modules and submodules
-add_parsed_stmt_tree(Ctx00, [{ModKeyword, ModuleName, Pos, Substmts}] = Stmt,
+add_parsed_stmt_tree(Ctx00, [{ModKeyword, ModuleName, Pos, Substmts} = Stmt],
                      FileName, AddCause,
                      ExpectedModuleName, ExpectedRevision, ExpectFailLevel,
                      IncludingModuleRevision) ->
@@ -658,8 +660,8 @@ add_parsed_stmt_tree(Ctx00, [{ModKeyword, ModuleName, Pos, Substmts}] = Stmt,
                                               Revs0)
                             end,
                     Ctx2 = Ctx1#yctx{modrevs = ModRevs, revs = Revs1},
-                    {Ctx3, Stmt1} =
-                        run_hooks(#hooks.post_parse_stmt_tree, Ctx2, Stmt),
+                    {Ctx3, [Stmt1]} =
+                        run_hooks(#hooks.post_parse_stmt_tree, Ctx2, [Stmt]),
                     IncludingModuleRevision1 =
                         case ModKeyword of
                             'module' ->
@@ -667,7 +669,13 @@ add_parsed_stmt_tree(Ctx00, [{ModKeyword, ModuleName, Pos, Substmts}] = Stmt,
                             'submodule' ->
                                 IncludingModuleRevision
                         end,
+                    PrefixMap = mk_prefix_map(Substmts, Ctx3),
                     M0 = #module{filename = FileName,
+                                 kind = ModKeyword,
+                                 name = ModuleName,
+                                 modulename = ModuleName,
+                                 stmt = Stmt,
+                                 prefix_map = PrefixMap,
                                  revision = ModuleRevision,
                                  modulerevision = IncludingModuleRevision1,
                                  add_cause = AddCause},
@@ -684,13 +692,7 @@ add_parsed_stmt_tree(Ctx00, [{ModKeyword, ModuleName, Pos, Substmts}] = Stmt,
 %% This implies that we don't have to check that mandatory statements
 %% are present, and that arguments are of correct type.
 %% parse_module :: {boolean(), Ctx, M}
-parse_module([{Keyword, ModuleName, _Pos, Substmts} = Stmt], M0, Ctx) ->
-    PrefixMap = mk_prefix_map(Substmts, Ctx),
-    M = M0#module{name = ModuleName,
-                  modulename = ModuleName,
-                  kind = Keyword,
-                  stmt = Stmt,
-                  prefix_map = PrefixMap},
+parse_module({_ModuleKeyword, _Name, _Pos, Substmts}, M, Ctx) ->
     parse_header(Substmts, M, Ctx).
 
 %% Handle header stmts
@@ -2788,7 +2790,7 @@ post_mk_sn_unique(Ctx, Sn, _, _, _) ->
 post_mk_sn_unique0({'unique', Arg, Pos, _}, Sn, Ctx0, Ancestors) ->
     Leafs = re:split(Arg, "\\s+", [{return, binary}]),
     M = Sn#sn.module,
-    Cursor = mk_cursor(Sn, Ancestors, Pos, M, schema),
+    Cursor = mk_cursor(Sn, Ancestors, Pos, M, schema, Ctx0),
     {_, LeafSns, Ctx1} =
         lists:foldl(
           fun(Leaf, Acc) ->
@@ -4362,21 +4364,20 @@ add_llerrors([], Ctx) ->
     Ctx.
 
 -spec mk_cursor(#sn{} | undefined, [#sn{}], yang:pos(),
-                #module{}, yang:cursor_type()) ->
+                #module{}, yang:cursor_type(), #yctx{}) ->
           #cursor{}.
-mk_cursor(#sn{kind = Kind} = Sn, Ancestors, Pos, M, data) ->
+mk_cursor(#sn{kind = Kind} = Sn, Ancestors, Pos, M, data, Ctx) ->
     %% Possibly adjust the cur node so that we're not starting in a
     %% non-data node.
     C = #cursor{pos = Pos, cur = Sn, init_modulename = M#module.modulename,
                 ancestors = Ancestors, module = M, type = data},
     if Kind == 'choice' orelse Kind == 'case' ->
-            %% pass an uninitialized ctx; it won't be used in cursor_move()
-            {true, NewC} = cursor_move(parent, C, #yctx{}),
+            {true, NewC} = cursor_move(parent, C, Ctx),
             NewC;
        true ->
             C
     end;
-mk_cursor(Sn, Ancestors, Pos, M, Type) ->
+mk_cursor(Sn, Ancestors, Pos, M, Type, _Ctx) ->
     #cursor{pos = Pos, cur = Sn, init_modulename = M#module.modulename,
             ancestors = Ancestors, module = M, type = Type}.
 

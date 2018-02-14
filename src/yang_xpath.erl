@@ -5,6 +5,9 @@
          set_default_namespace/2,
          get_dep_paths/2, v_dep_path/6]).
 
+-export_type([ns_map/0]).
+-type ns_map() :: term().
+
 -ifdef(debug).
 -export([prefixes/1]).
 -endif.
@@ -366,8 +369,8 @@ v_dep_path(Dep, {_, _, Pos, _}, Ctx, Sn, M, Ancestors) ->
     Path = dep_path_to_cursor_path(Dep, Ctx),
     InitCursor =
         case is_dep_path_absolute(Dep) of
-            true  -> yang:mk_cursor(undefined, [], Pos, M, data);
-            false -> yang:mk_cursor(Sn, Ancestors, Pos, M, data)
+            true  -> yang:mk_cursor(undefined, [], Pos, M, data, Ctx);
+            false -> yang:mk_cursor(Sn, Ancestors, Pos, M, data, Ctx)
         end,
     case yang:cursor_follow_path(Path, InitCursor, Ctx#yctx{errors = []}) of
         {true, #cursor{cur = CurSn}} ->

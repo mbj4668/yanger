@@ -521,24 +521,7 @@ get_error_mask() ->
     os:getenv("YANGERROR").
 
 delayed_halt(Code) ->
-    %% Work around buffer flushing issue in erlang:halt if OTP older
-    %% than R15B01.
-    %% TODO: remove workaround once we require R15B01 or newer
-    %% R15B01 introduced erlang:halt/2
-    case erlang:is_builtin(erlang, halt, 2) of
-        true ->
-            erlang:halt(Code, [{flush,true}]);
-        false ->
-            case os:type() of
-                {win32, nt} ->
-                    timer:sleep(100),
-                    erlang:halt(Code);
-                _ ->
-                    erlang:halt(Code),
-                    %% workaround to delay exit until all output is written
-                    receive after infinity -> ok end
-            end
-    end.
+    erlang:halt(Code, [{flush,true}]).
 
 debug_print(_, Modules, Fd) ->
     lists:foreach(fun(M) -> pp_module(M, Fd) end, Modules).

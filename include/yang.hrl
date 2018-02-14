@@ -24,8 +24,8 @@
           base :: 'builtin' | yang:builtin_type_name() | yang:typedef_rec() |
                   {ModuleName :: atom(), TypeName :: atom()}, % plugin-defined
           type_spec :: yang_types:type_spec(),
-          type_spec_fun :: yang_types:type_spec_fun(),
-          stmt :: yang:stmt(),
+          type_spec_fun :: 'undefined' | yang_types:type_spec_fun(),
+          stmt :: 'undefined' | yang:stmt(),
           pmap = yang:map_new() :: yang:map0() % used by plugins
          }).
 
@@ -34,7 +34,7 @@
           %% moduleref is the name and revision where this item is defined
           moduleref :: yang:modrev(),
           status :: yang:yang_status(),
-          type :: #type{},
+          type :: 'undefined' | #type{},
           %% the default may be inherited from the base type
           %% 'undefined': no default given; 'invalid': invalid default given
           default :: 'undefined' | 'invalid' | {yang:stmt(), term()},
@@ -97,18 +97,18 @@
 -record(sn, {
           name :: atom()                          % local nodes
                 | {ModuleName :: atom(), atom()}, % augmented nodes
-          kind :: yang:kind(),
+          kind :: 'undefined' | yang:kind(),
           %% pointer to our module.  NOTE: the module record is not
           %% yet complete; specifically its .children is [].
-          module :: yang:module_rec(),
+          module :: 'undefined' | yang:module_rec(),
           %% 'ignore' means that the config statement should be ignored
           %% for this subtree.
           config :: 'undefined' | 'ignore' | 'true' | 'false',
           %% pointer to the typedefs in scope
-          typedefs :: #typedefs{},
+          typedefs = #typedefs{} :: #typedefs{},
           %% pointer to the groupings in scope
-          groupings :: #groupings{},
-          status :: yang:yang_status(),
+          groupings = #groupings{} :: #groupings{},
+          status :: 'undefined' | yang:yang_status(),
     %% leaf, leaf-list:
           type :: 'undefined' | #type{},
     %% leaf, leaf-list, choice:
@@ -141,7 +141,7 @@
           if_feature_result = true :: boolean(),
           augmented_by = [] :: [yang:augment_rec()],
           is_augment_top_node = false :: boolean(),
-          stmt :: yang:stmt(), % pointer to raw statement
+          stmt :: 'undefined' | yang:stmt(), % pointer to raw statement
           pmap = yang:map_new() :: yang:map0() % used by plugins
          }).
 
@@ -203,7 +203,7 @@
           %% The ns map is used to map XPath prefixes to namespaces.  However,
           %% instead of using the 'namespace' value as namespace, we use the
           %% 'modulename'.
-          xpath_ns_map :: xpath:ns_map(),
+          xpath_ns_map :: yang_xpath:ns_map(),
           submodules = [] :: [{#module{}, yang:pos()}],
           %% from the module and all submodules
           imports = [] :: [yang:import()],
@@ -238,22 +238,22 @@
           %% this type's max value; for the 'max' keyword
           max :: integer(),
           range :: [{Min :: integer(), Max :: integer()} | (Val :: integer())],
-          range_stmt :: undefined | yang:stmt()
+          range_stmt :: 'undefined' | yang:stmt()
          }).
 
 %% Parsed default value: binary()
 -record(string_type_spec, {
-          parent :: undefined | #type{},
+          parent :: 'undefined' | #type{},
           %% this type's min length; for the 'min' keyword
           min :: integer(),
           %% this type's max length; for the 'max' keyword
           max :: yang_types:max_length_type(),
-          length :: undefined |
+          length :: 'undefined' |
                     [{Min :: integer(), Max :: yang_types:max_length_type()} |
                      (Val :: yang_types:max_length_type())],
           patterns = [] :: [{CompiledRegexp :: term(), Regexp :: binary(),
                              InvertMatch :: boolean()}],
-          length_stmt :: undefined | yang:stmt(),
+          length_stmt :: 'undefined' | yang:stmt(),
           pattern_stmts = [] :: [yang:stmt()]
          }).
 
@@ -263,10 +263,10 @@
           min :: integer(),
           %% this type's max length; for the 'max' keyword
           max :: yang_types:max_length_type(),
-          length :: undefined |
+          length :: 'undefined' |
                     [{Min :: integer(), Max :: yang_types:max_length_type()} |
                      (Val :: yang_types:max_length_type())],
-          length_stmt :: undefined | yang:stmt()
+          length_stmt :: 'undefined' | yang:stmt()
          }).
 
 %% Parsed default value: 'true' | 'false'
@@ -274,14 +274,14 @@
 
 %% Parsed default value: integer() (shifted by fraction_digits)
 -record(decimal64_type_spec, {
-          fraction_digits :: integer(),
+          fraction_digits :: 'undefined' | integer(),
           %% this type's min value shifted by fraction_digits
           min :: integer(),
           %% this type's max value shifted by fraction_digits
           max :: integer(),
           %% range values shifted by fraction_digits
           range :: [{Min :: integer(), Max :: integer()} | (Val :: integer())],
-          range_stmt :: undefined | yang:stmt()
+          range_stmt :: 'undefined' | yang:stmt()
          }).
 
 %% Parsed default value: integer() (from 'value')
@@ -320,8 +320,8 @@
 
 %% No parsed default value (i.e. always 'undefined')
 -record(leafref_type_spec, {
-          path :: yang_types:extended_leafref_path(),
-          path_stmt :: yang:stmt(),
+          path :: 'undefined' | yang_types:extended_leafref_path(),
+          path_stmt :: 'undefined' | yang:stmt(),
           parsed_xpath,
           %% Available in YANG 1.1
           require_instance = true :: boolean()
@@ -356,7 +356,7 @@
           %%   {#yctx{}, #sn{}}.
           %%
           %% Mode :: final | grouping
-          %% UsesPos :: undefined | yang:pos()
+          %% UsesPos :: 'undefined' | yang:pos()
           %% Ancestors :: [#sn{} | #module{}]}
           %%
           %% *_mk_sn is called for each schema node when it is created,
@@ -480,7 +480,8 @@
                              yang:revision() | latest | undefined},
                             {FileName :: string(),
                              yang:revision() | undefined}),
-          features :: none % 'none' means compile for no features at all
+          features :: 'undefined'
+                    | 'none' % 'none' means compile for no features at all
                     | yang:map(ModName :: atom(), [FeatureName :: atom()]),
           typemap :: yang:map(yang:builtin_type_name()
                               | {ModuleName :: atom(), TypeName :: atom()},
@@ -510,13 +511,12 @@
              TreatAsNone :: [atom()],
              TreatAsWarning :: [atom()],
              TreatAsError :: [atom()]},
-          env = #env{},
+          env :: #env{},
           hooks = #hooks{} :: #hooks{},
           unused_imports = [] :: [{ModuleName :: atom(), [yang:import()]}],
           %% Imports that have only been used in deviations
           deviation_imports = [] :: [{ModuleName :: atom(), [yang:import()]}],
           pmap = yang:map_new() :: yang:map0() % used by plugins
-          %% FIXME: see class ctx in __init__.py
          }).
 
 %% See yang:cursor_move()

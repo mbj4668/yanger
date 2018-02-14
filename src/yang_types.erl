@@ -148,32 +148,25 @@ integer_type_spec_fun({derive, TypeS}, #type{type_spec = TypeSpec} = Base,
     %%    present.  the grammar has already verified that there is at
     %%    most one range stmt present
     {Restrictions, Ctx1} = get_substmts(['range'], TypeS, Ctx0),
-    {New, Ctx2} =
-        lists:foldl(
-          fun({'range', Arg, Pos, _} = Stmt, {Cur, Ctx}) ->
-                  %% parse the range arg, check each value against
-                  %% the base type, build new #integer_type_spec{}
-                  %% also figure out min & max
-                  ParseF =
-                      fun (Val) ->
+    lists:foldl(
+      fun({'range', Arg, Pos, _} = Stmt, {Cur, Ctx}) ->
+              %% parse the range arg, check each value against
+              %% the base type, build new #integer_type_spec{}
+              %% also figure out min & max
+              ParseF =
+                  fun (Val) ->
                           integer_type_spec_fun({parse, Val, Pos}, Base, M, Ctx)
-                      end,
-                  BaseRange = TypeSpec#integer_type_spec.range,
-                  case parse_range(Arg, ParseF, BaseRange, range, Ctx, Pos) of
-                      {true, Range, Min, Max} ->
-                          {#integer_type_spec{range_stmt = Stmt, range = Range,
-                                              min = Min, max = Max},
-                           Ctx};
-                      {false, NewCtx} ->
-                          {Cur, NewCtx}
-                  end
-          end, {#integer_type_spec{}, Ctx1}, Restrictions),
-    if New == #integer_type_spec{} ->
-            %% not modified; use the same typespec
-            {TypeSpec, Ctx2};
-       true ->
-            {New, Ctx2}
-    end;
+                  end,
+              BaseRange = TypeSpec#integer_type_spec.range,
+              case parse_range(Arg, ParseF, BaseRange, range, Ctx, Pos) of
+                  {true, Range, Min, Max} ->
+                      {#integer_type_spec{range_stmt = Stmt, range = Range,
+                                          min = Min, max = Max},
+                       Ctx};
+                  {false, NewCtx} ->
+                      {Cur, NewCtx}
+              end
+      end, {TypeSpec, Ctx1}, Restrictions);
 integer_type_spec_fun({parse, Val, _Pos}, #type{type_spec = TypeSpec},
                       _M, _Ctx) ->
     #integer_type_spec{min = Min, max = Max, range = Range} = TypeSpec,
@@ -327,28 +320,21 @@ string_type_spec_fun({parse, Val, Pos}, #type{type_spec = TypeSpec} = Type,
 binary_type_spec_fun({derive, TypeS}, #type{type_spec = TypeSpec}, _M, Ctx0) ->
     {Restrictions, Ctx1} = get_substmts(['length'], TypeS, Ctx0),
     #binary_type_spec{min = BMin, max = BMax, length = BLength} = TypeSpec,
-    {New, Ctx2} =
-        lists:foldl(
-          fun({'length', Arg, Pos, _} = Stmt, {Cur, Ctx}) ->
-                  ParseF = fun (Val) ->
-                                   parse_length(Val, BMin, BMax, BLength)
-                           end,
-                  case parse_range(Arg, ParseF, BLength, length, Ctx, Pos) of
-                      {true, Length, Min, Max} ->
-                          {Cur#binary_type_spec{length_stmt = Stmt,
-                                                length = Length,
-                                                min = Min, max = Max},
-                           Ctx};
-                      {false, NewCtx} ->
-                          {Cur, NewCtx}
-                  end
-          end, {#binary_type_spec{}, Ctx1}, Restrictions),
-    if New == #binary_type_spec{} ->
-            %% not modified; use the same typespec
-            {TypeSpec, Ctx2};
-       true ->
-            {New, Ctx2}
-    end;
+    lists:foldl(
+      fun({'length', Arg, Pos, _} = Stmt, {Cur, Ctx}) ->
+              ParseF = fun (Val) ->
+                               parse_length(Val, BMin, BMax, BLength)
+                       end,
+              case parse_range(Arg, ParseF, BLength, length, Ctx, Pos) of
+                  {true, Length, Min, Max} ->
+                      {Cur#binary_type_spec{length_stmt = Stmt,
+                                            length = Length,
+                                            min = Min, max = Max},
+                       Ctx};
+                  {false, NewCtx} ->
+                      {Cur, NewCtx}
+              end
+      end, {TypeSpec, Ctx1}, Restrictions);
 binary_type_spec_fun({parse, Val, _Pos}, #type{type_spec = TypeSpec},
                      _M, _Ctx) ->
     #binary_type_spec{length = Length} = TypeSpec,
@@ -1352,7 +1338,7 @@ validate_leafref_path(#leafref_type_spec{path = undefined},
 validate_leafref_path(#leafref_type_spec{path_stmt = Stmt} = TypeSpec,
                       Sn, M, Ancestors, Ctx) ->
     PathPos = yang:stmt_pos(Stmt),
-    InitCursor = yang:mk_cursor(Sn, Ancestors, PathPos, M, data),
+    InitCursor = yang:mk_cursor(Sn, Ancestors, PathPos, M, data, Ctx),
     case validate_leafref_path0(TypeSpec, InitCursor, [Sn], Ctx) of
         {circular, Ctx1} ->
             {false, Ctx1};
