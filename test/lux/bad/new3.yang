@@ -1,0 +1,13 @@
+module new3 {
+  namespace urn:new3;
+  prefix n;
+
+  // make sure that 1.1 construct gives error in 1
+  // compare with yang-1.1/new.yang
+
+  container yy {
+    if-feature "f or g"; // LINE: YANG_ERR_GRAMMAR_BAD_ARGUMENT
+  }
+
+  container XmlStuff; // // LINE: YANG_ERR_GRAMMAR_BAD_ARGUMENT
+}

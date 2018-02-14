@@ -1,0 +1,23 @@
+module a-aug {
+  namespace urn:a-aug;
+  prefix aa;
+
+  import a {
+    prefix a;
+  }
+
+  augment /a:a {
+    list a {
+      key k;
+      leaf k {
+        type string;
+      }
+      leaf v1 {
+        type string;
+      }
+      leaf v2 {
+        type string;
+      }
+    }
+  }
+}

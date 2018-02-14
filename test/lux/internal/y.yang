@@ -1,0 +1,12 @@
+module y {
+  namespace urn:y;
+  prefix y;
+
+  container c {
+    config true;
+  }
+  container o {
+    config false;
+  }
+
+}

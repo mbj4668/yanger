@@ -1,0 +1,22 @@
+module g {
+  namespace urn:g;
+  prefix g;
+
+  import f {
+    prefix f;
+  }
+
+  feature a;
+
+  container g {
+    container a {
+      if-feature a;
+    }
+    container fa {
+      if-feature f:a;
+    }
+    container fb {
+      if-feature f:b;
+    }
+  }
+}

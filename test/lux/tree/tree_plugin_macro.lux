@@ -1,0 +1,66 @@
+# author: kris@tail-f.com
+[doc Test of the yanger tree plugin. Comparing it to the predecessor pyang tree]
+
+# We add --ignore warnings to pyang because otherwise
+# pyang will emit warnings that yanger does not emit.
+[macro tree_compare FILE]
+    !yanger -f tree -p ${DIR} ${DIR}/${FILE} | sed 's/ *$//' > test.yanger.tree
+    !echo ==$?==
+    ?==0==
+
+    !pyang --no-path-recurse --ignore-errors -f tree -p ${DIR} ${DIR}/${FILE} | sed 's/ *$//' > test.pyang.tree
+    !echo ==$?==
+    ?==0==
+
+    !diff -u test.pyang.tree test.yanger.tree
+    !echo ==$?==
+    ?==0==
+    -
+[endmacro]
+
+
+[shell test_yanger_tree]
+    [timeout 20]
+
+    # use pyang test modules
+    [global DIR=../../../../../pyang/test/test_good]
+    [invoke tree_compare yt2.yang]
+    [invoke tree_compare yt3.yang]
+    [invoke tree_compare yt4.yang]
+    [invoke tree_compare yt5.yang]
+    [invoke tree_compare yt6.yang]
+    [invoke tree_compare yt7.yang]
+    [invoke tree_compare yt8.yang]
+    [invoke tree_compare yt9.yang]
+    [invoke tree_compare yt10.yang]
+    [invoke tree_compare qs.yang]
+    [invoke tree_compare q.yang]
+    [invoke tree_compare w.yang]
+    [invoke tree_compare xt5.yang]
+    [invoke tree_compare xt6.yang]
+    [invoke tree_compare xt7.yang]
+    [invoke tree_compare xt10.yang]
+    [invoke tree_compare a.yang]
+    [invoke tree_compare b.yang]
+
+    # and use some yanger modules
+    [global DIR=../internal]
+    [invoke tree_compare mksn.yang]
+    [global DIR=.]
+    [invoke tree_compare small2.yang]
+    [invoke tree_compare small3.yang]
+    [invoke tree_compare small4.yang]
+    [invoke tree_compare a.yang]
+    ## FIXME: grouping expansion must be done differently!
+    ## In order for the #groupings{} to be correct, I think we must
+    ## topo sort all groupings and process them in the correct order.
+    #[invoke tree_compare small5.yang]
+
+    # and the complicated ietf-snmp-cfg module
+    [global DIR=ietf-snmp-cfg]
+    [invoke tree_compare ietf-snmp.yang]
+
+[cleanup]
+    !rm -f test.yanger.tree
+    !rm -f test.pyang.tree
+

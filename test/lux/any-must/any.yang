@@ -1,0 +1,16 @@
+module any {
+  yang-version 1.1;
+  namespace urn:any;
+  prefix any;
+
+  leaf foo {
+    type int32;
+  }
+
+  anyxml bar {
+    must "../foo = 42";
+  }
+  anydata baz {
+    must "../foo = 42";
+  }
+}

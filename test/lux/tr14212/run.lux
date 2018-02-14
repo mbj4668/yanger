@@ -1,0 +1,9 @@
+[doc Test that yanger handles multiple imports of same module.]
+
+[shell shell]
+    -[Ee][Rr][Rr][Oo][Rr]
+    !yanger -f yang y.yang
+    ?x1:foo
+    ?x1:bar
+    !echo ==$$?==
+    ?==0==

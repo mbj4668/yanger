@@ -1,0 +1,7 @@
+[doc Verify that 'must' is allowed as substatement to 'anyxml'/'anydata']
+
+[shell test]
+    -error
+    !yanger any.yang
+    !echo ==$$?==
+    ?==0==

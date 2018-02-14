@@ -1,0 +1,47 @@
+module aug-when-mand {
+  yang-version 1.1;
+  namespace urn:awm;
+  prefix awm;
+
+  import new {
+    prefix new;
+  }
+
+  /* allowed by YANG-1.1 */
+  augment /new:t {
+    when true();
+    leaf mand {
+      type string;
+      mandatory true;
+    }
+  }
+
+  /* but not this */
+  augment /new:t {
+    leaf opt {
+      type string;
+    }
+    container np {
+      when true();
+      leaf mand { // LINE: YANG_ERR_MANDATORY_NODE_IN_AUGMENT
+        type string;
+        mandatory true;
+      }
+    }
+  }
+
+  /* have to do that like this */
+  augment /new:t {
+    leaf opt1 {
+      type string;
+    }
+    container np1;
+  }
+  augment /new:t/awm:np1 {
+    when true();
+    leaf mand {
+      type string;
+      mandatory true;
+    }
+  }
+}

@@ -1,0 +1,7 @@
+[doc Test that yanger can be run]
+
+[shell yanger]
+    !yanger -h
+    ?Usage: yanger
+
+

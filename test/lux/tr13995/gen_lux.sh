@@ -1,0 +1,1 @@
+../bad/gen_lux.sh

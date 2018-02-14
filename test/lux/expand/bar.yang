@@ -1,0 +1,16 @@
+module bar {
+  namespace "urn:bar";
+  prefix bar;
+
+  include bar-sub1;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  container stuff {
+    leaf address {
+      type inet:ipv4-address;
+    }
+  }
+}

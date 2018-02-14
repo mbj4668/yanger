@@ -1,0 +1,20 @@
+module minmax {
+  namespace urn:minmax;
+  prefix mm;
+
+  grouping g {
+    leaf-list ll {
+      type int32;
+      min-elements 2;
+    }
+  }
+
+  list l {
+    key k;
+    max-elements 3;
+    leaf k {
+      type int32;
+    }
+    uses g;
+  }
+}

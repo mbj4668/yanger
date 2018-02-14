@@ -1,0 +1,25 @@
+module lref {
+  namespace urn:lref;
+  prefix b;
+
+  import ltgt {
+    prefix a;
+  }
+
+  container y {
+    leaf x {
+      type string;
+    }
+    leaf foo {
+      type leafref {
+        path "/a:y[name=current()/../x]/tgt"; // LINE: YANG_ERR_NODE_NOT_FOUND2
+
+      }
+    }
+    leaf bar {
+      type leafref {
+        path "deref(../x)/../foo"; // LINE: YANG_ERR_DEREF_NOT_LEAFREF
+      }
+    }
+  }
+}

@@ -1,0 +1,29 @@
+module smiv2 {
+  namespace urn:smiv2;
+  prefix s;
+
+  import ietf-yang-smiv2 {
+    prefix smiv2;
+  }
+
+  container x {
+    smiv2:subid 3; // LINE: SMIv2_ERR_SUBID
+  }
+
+  container y {
+    smiv2:oid "1.3.6.2";
+    container z {
+      smiv2:subid 3;
+    }
+    leaf e {
+      type string;
+      smiv2:subid 3;
+      smiv2:oid "1.3.5"; // LINE: SMIv2_ERR_SUBID_AND_OID
+    }
+    leaf q {
+      smiv2:subid 3; // LINE: SMIv2_ERR_DUPLICATE_OID
+      type string;
+    }
+  }
+
+}

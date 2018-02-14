@@ -1,0 +1,8 @@
+module b {
+  namespace urn:b;
+  prefix b;
+
+  leaf b {
+    type int32;
+  }
+}

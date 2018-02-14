@@ -1,0 +1,130 @@
+module u {
+  yang-version 1.1;
+  namespace urn:u;
+  prefix u;
+
+  include usub; // error; bad version in submodule
+  revision 2015-11-06;
+  feature foo;
+  feature bar;
+
+  typedef id {
+    type string {
+      pattern '[a-zA-Z_][a-zA-Z0-9\-_.]*';
+      pattern '[xX][mM][lL].*' {
+        modifier invert-match;
+      }
+    }
+  }
+
+  leaf foo {
+    type id;
+    default "xMlu"; // bad pattern - LINE: YANG_ERR_TYPE_VALUE
+  }
+
+  leaf bar {
+    type id;
+    default "xmq-foo"; // ok pattern
+  }
+
+  typedef rr {
+    type enumeration {
+      enum r {
+        if-feature foo;
+      }
+    }
+  }
+
+  list l2 {
+    key "id";
+    leaf id {
+      if-feature foo; // illegal in 1.1 - LINE: YANG_ERR_KEY_BAD_SUBSTMT
+      when "."; // illegal in 1.1 - LINE: YANG_ERR_KEY_BAD_SUBSTMT
+      type int32;
+    }
+  }
+
+  identity id1;
+  identity id2;
+  identity id3 {
+    base id1;
+    base idx; // LINE: YANG_ERR_DEFINITION_NOT_FOUND
+  }
+
+  leaf idref1 {
+    type identityref {
+      base id1;
+      base id2;
+    }
+    default id2; // LINE: YANG_ERR_TYPE_VALUE
+  }
+
+  leaf-list ll {
+    type uint32;
+    default 1;
+    default -2; // bad value - LINE: YANG_ERR_TYPE_VALUE
+  }
+  typedef fff {
+    type uint32;
+    default 42; // LINE: YANG_ERR_TYPE_VALUE
+  }
+  leaf-list lla {    // error, restriction doesn't match default
+    type fff {       // reported for the default above, with ref to the range
+      range "0..10"; // - it's the default that doesn't match the restriction:-)
+    }                // - same as for leafs
+  }
+  leaf-list llb {
+    type uint32;
+    default 1; // LINE: YANG_ERR_DEFAULT_AND_MIN_ELEMENTS
+    default 2; // LINE: YANG_ERR_DEFAULT_AND_MIN_ELEMENTS
+    min-elements 2;
+  }
+
+// FIXME: The path errors should be reported for the use of typedef/grouping
+// - we still report them for the path statements
+//
+//  typedef foo {
+//    type leafref {
+//      path "/x1/y1";
+//    }
+//  }
+//  typedef foo2 {
+//    type leafref {
+//      path "/x1/y2";
+//    }
+//  }
+//
+//  leaf goo {
+//    type foo; //error; /x1 doesn't exist - LINE : YANG_ERR_??
+//  }
+//
+//  grouping ggg {
+//    leaf rrr {
+//      type leafref {
+//        path "/x1/y1";
+//      }
+//    }
+//    typedef gggfoo {
+//      type leafref {
+//        path "/x1/y1";
+//      }
+//    }
+//    leaf ggggoo {
+//      type gggfoo;
+//    }
+//  }
+//
+//  grouping ggg2 {
+//    typedef gggfoo2 {
+//      type leafref {
+//        path "/x2/y1";
+//      }
+//    }
+//    leaf ggggoo2 {
+//      type gggfoo2;
+//    }
+//  }
+//
+//  uses ggg; // error; /x1 doesn't exist - LINE : YANG_ERR_??
+
+}

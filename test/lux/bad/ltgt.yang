@@ -1,0 +1,36 @@
+module ltgt {
+  namespace urn:ltgt;
+  prefix a;
+
+  grouping g {
+    list x {
+      leaf name {
+        type string;
+      }
+    }
+  }
+
+  list y {
+    key name;
+    leaf name {
+      type string;
+    }
+    leaf tgt {
+      type string;
+    }
+  }
+  list l { // LINE: YANG_ERR_NEED_KEY
+    unique name;
+    leaf name {type string;}
+  }
+
+  uses g; // LINE: YANG_ERR_NEED_KEY_USES
+
+  container oper {
+    config false;
+    uses g;
+  }
+  container conf {
+    uses g; // LINE: YANG_ERR_NEED_KEY_USES
+  }
+}

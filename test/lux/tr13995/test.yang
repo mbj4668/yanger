@@ -1,0 +1,393 @@
+module test {
+  namespace "http://tail-f.com/example/test";
+  prefix test;
+
+  typedef normal-int-type {
+    type uint32;
+  }
+
+  typedef wrap-leafref {
+    type leafref {
+      path "/non-direct-ref-typedef/index_inter";
+    }
+  }
+
+  list direct-ref {
+
+    key index_inter;
+    leaf index_inter {
+      type leafref {
+        path "../con1/index";
+      }
+    }
+
+    container con1 {
+      leaf index { // (2)
+        type uint32;
+        default 0;
+      }
+      leaf refindex {
+        type leafref {
+          path "../index"; // (1) direct, points at (2)
+        }
+        default false; // LINE: YANG_ERR_TYPE_VALUE
+      }
+    }
+  }
+
+  list non-direct-ref {
+
+    key index_inter;
+    leaf index_inter {
+      type leafref {
+        path "../con1/index"; // (2) points at (3)
+      }
+    }
+
+    container con1 {
+      leaf index { // (3)
+        type uint32;
+        default 0;
+      }
+      leaf refindex {
+        type leafref {
+          path "../../index_inter"; // (1) not direct, points at (2)
+        }
+        default false; // LINE: YANG_ERR_TYPE_VALUE
+      }
+    }
+  }
+
+  list non-direct-ref-leaflist {
+
+    key index_inter;
+    leaf index_inter {
+      type leafref {
+        path "../con1/index"; // (2) points at (3)
+      }
+    }
+
+    container con1 {
+      leaf-list index { // (3)
+        type uint32;
+      }
+      leaf refindex {
+        type leafref {
+          path "../../index_inter"; // (1) not direct, points at (2)
+        }
+        default false; // LINE: YANG_ERR_TYPE_VALUE
+      }
+    }
+  }
+
+  list non-direct-ref-typedef {
+
+    key index_inter;
+    leaf index_inter {
+      type leafref {
+        path "../con1/index"; // (2) points at (3)
+      }
+    }
+
+    container con1 {
+      leaf index { // (3)
+        type normal-int-type;
+        default 0;
+      }
+      leaf refindex {
+        type wrap-leafref; // leafref with path
+                           // "/non-direct-ref-typedef/index_inter"
+        default false; // LINE: YANG_ERR_TYPE_VALUE
+      }
+    }
+  }
+
+  // Even longer chain of leafrefs
+  list non-direct-ref-typedef-longer {
+
+    key index_inter;
+    leaf index_inter {
+      type leafref {
+        path "../something-else"; // (2) points at (3)
+      }
+    }
+
+    leaf something-else {
+      type leafref {
+        path "../con1/index"; // (3) points at (4)
+      }
+    }
+
+    container con1 {
+      leaf index { // (4)
+        type normal-int-type;
+        default 0;
+      }
+      leaf refindex {
+        type wrap-leafref; // leafref with path
+                           // "/non-direct-ref-typedef/index_inter"
+        default false; // LINE: YANG_ERR_TYPE_VALUE
+      }
+    }
+  }
+
+  // Every other leafref in this chain is a config false
+  container non-direct-ref-config-check {
+
+    leaf index_inter {
+      type leafref {
+        path "../con1/index";
+      }
+      config false;
+    }
+
+    leaf index_inter2 {
+      type leafref {
+        path "../index_inter"; //LINE: YANG_ERR_LEAFREF_BAD_CONFIG
+      }
+    }
+
+    leaf index_inter3 {
+      type leafref {
+        path "../index_inter2";
+      }
+      config false;
+    }
+
+    leaf index_inter4 {
+      type leafref {
+        path "../index_inter3"; //LINE: YANG_ERR_LEAFREF_BAD_CONFIG
+      }
+    }
+
+    leaf index_inter5 {
+      type leafref {
+        path "../index_inter4";
+      }
+      config false;
+    }
+
+    container con1 {
+      leaf index {
+        type uint32;
+      }
+      leaf refindex {
+        type leafref {
+          path "../../index_inter5"; //LINE: YANG_ERR_LEAFREF_BAD_CONFIG
+        }
+      }
+    }
+  }
+
+  // Leafref chain where all nodes contain invalid default values
+  container non-direct-ref-default-long {
+
+    leaf base-leaf {
+      type uint32;
+      default 14;
+    }
+
+    leaf lr1 {
+      type leafref {
+        path "../base-leaf";
+      }
+      default false; // LINE: YANG_ERR_TYPE_VALUE
+    }
+
+    leaf lr2 {
+      type leafref {
+        path "../lr1";
+      }
+      default "hello"; // LINE: YANG_ERR_TYPE_VALUE
+    }
+
+    leaf lr3 {
+      type leafref {
+        path "../lr2";
+      }
+      default false; // LINE: YANG_ERR_TYPE_VALUE
+    }
+
+    leaf lr4 {
+      type leafref {
+        path "../lr3";
+      }
+      default "frobnicate"; // LINE: YANG_ERR_TYPE_VALUE
+    }
+
+    leaf lr5 {
+      type leafref {
+        path "../lr4";
+      }
+      default true; // LINE: YANG_ERR_TYPE_VALUE
+    }
+  }
+
+  // A mix of invalid default values and "config -> config false"
+  container non-direct-ref-default-and-config {
+
+    leaf base-leaf {
+      type uint32;
+      default 14;
+    }
+
+    leaf lr1 {
+      type leafref {
+        path "../base-leaf";
+      }
+      default false; // LINE: YANG_ERR_TYPE_VALUE
+      config false;
+    }
+
+    leaf lr2 {
+      type leafref {
+        path "../lr1"; //LINE: YANG_ERR_LEAFREF_BAD_CONFIG
+      }
+      default "hello"; // LINE: YANG_ERR_TYPE_VALUE
+    }
+
+    leaf lr3-no-warn {
+      type leafref {
+        path "../lr2";
+      }
+      default "frog"; // LINE: YANG_ERR_TYPE_VALUE
+      config false;
+    }
+
+    leaf lr3 {
+      type leafref {
+        path "../lr3-no-warn";
+      }
+      default "frobnicator"; // LINE: YANG_ERR_TYPE_VALUE
+      config false;
+    }
+
+    leaf lr4 {
+      type leafref {
+        path "../lr3"; //LINE: YANG_ERR_LEAFREF_BAD_CONFIG
+      }
+      default "frobnicate-some-more"; // LINE: YANG_ERR_TYPE_VALUE
+    }
+
+    leaf lr5 {
+      type leafref {
+        path "../lr4";
+      }
+      default true; // LINE: YANG_ERR_TYPE_VALUE
+      config false;
+    }
+
+    leaf lr6 {
+      type leafref {
+        path "../lr5"; //LINE: YANG_ERR_LEAFREF_BAD_CONFIG
+      }
+      default "wolf"; // LINE: YANG_ERR_TYPE_VALUE
+    }
+  }
+
+  // Circular leafref chains can't check for default type
+  // mismatch since none of them have a type other than leafref
+  container non-direct-ref-circular {
+
+    leaf base-leaf {
+      type leafref {
+        path "../lr6"; //LINE: YANG_ERR_CIRCULAR_DEPENDENCY_LEAFREF
+      }
+    }
+
+    leaf lr1 {
+      type leafref {
+        path "../base-leaf"; //LINE: YANG_ERR_CIRCULAR_DEPENDENCY_LEAFREF
+      }
+      default false;
+      config false;
+    }
+
+    leaf lr2 {
+      type leafref {
+        path "../lr1"; //LINE: YANG_ERR_CIRCULAR_DEPENDENCY_LEAFREF
+      }
+      default "hello";
+    }
+
+    leaf lr3 {
+      type leafref {
+        path "../lr2"; //LINE: YANG_ERR_CIRCULAR_DEPENDENCY_LEAFREF
+      }
+      default "frobnicator";
+      config false;
+    }
+
+    leaf lr4 {
+      type leafref {
+        path "../lr3"; //LINE: YANG_ERR_CIRCULAR_DEPENDENCY_LEAFREF
+      }
+      default "frobnicate-some-more";
+    }
+
+    leaf lr5 {
+      type leafref {
+        path "../lr4"; //LINE: YANG_ERR_CIRCULAR_DEPENDENCY_LEAFREF
+      }
+      default true;
+      config false;
+    }
+
+    leaf lr6 {
+      type leafref {
+        path "../lr5"; //LINE: YANG_ERR_CIRCULAR_DEPENDENCY_LEAFREF
+      }
+      default "xyz123";
+    }
+  }
+
+  // Broken path
+  container non-direct-ref-broken-path {
+
+    leaf base-leaf {
+      type uint32;
+    }
+
+    leaf lr1 {
+      type leafref {
+        path "../base-leaf";
+      }
+      default false; // LINE: YANG_ERR_TYPE_VALUE
+    }
+
+    leaf lr2 {
+      type leafref {
+        path "../lr1";
+      }
+      default "hello"; // LINE: YANG_ERR_TYPE_VALUE
+    }
+
+    leaf lr3 {
+      type leafref {
+        path "../lr2";
+      }
+      default "frobnicator"; // LINE: YANG_ERR_TYPE_VALUE
+    }
+
+    leaf lr4 {
+      type leafref {
+        path "../lr3xxxxx-not-existing"; // LINE: YANG_ERR_NODE_NOT_FOUND3
+      }
+      default "frobnicate-some-more";
+    }
+
+    leaf lr5 {
+      type leafref {
+        path "../lr4";
+      }
+      default true;
+    }
+
+    leaf lr6 {
+      type leafref {
+        path "../lr5";
+      }
+      default "xyz123";
+    }
+  }
+}

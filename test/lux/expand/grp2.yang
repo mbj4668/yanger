@@ -1,0 +1,112 @@
+module grp2 {
+  namespace "urn:grp2";
+  prefix grp2;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  typedef key-attribute-string-type {
+    type string;
+  }
+
+  typedef ipv4addr {
+    type union {
+      type inet:ipv4-address;
+      type string;
+    }
+  }
+
+  grouping apply-group {
+    leaf-list apply-groups {
+      ordered-by user;
+      type string;
+    }
+    leaf-list apply-groups-except {
+      ordered-by user;
+      type string;
+    }
+  }
+
+  container configuration {
+    uses apply-group;
+    list groups {
+      ordered-by user;
+      key "name";
+      leaf name {
+        type string;
+      }
+      uses top-configuration;
+    }
+    uses top-configuration;
+  }
+
+  grouping top-configuration {
+    leaf version {
+      type string;
+      description
+        "Software version information";
+    }
+    container system {
+      description
+        "System parameters";
+      uses juniper-system;
+    }
+    container chassis {
+      description
+        "Chassis configuration";
+      uses chassis-type;
+    }
+  }
+
+  grouping juniper-system {
+    uses apply-group;
+    leaf host-name {
+      type string;
+    }
+    container ntp {
+      uses apply-group;
+    }
+    container backup-router {
+      presence "";
+      leaf address {
+        mandatory true;
+        type ipv4addr;
+      }
+      leaf-list destination {
+        type uint32;
+        ordered-by user;
+      }
+    }
+  }
+
+  grouping chassis-type {
+    uses apply-group;
+    container nssu {
+      presence "enable nssu";
+      description
+        "Nonstop Software Upgrade settings";
+      uses apply-group;
+      list upgrade-group {
+        key "name";
+        ordered-by user;
+        description
+          "Nonstop Software Upgrade group";
+        leaf name {
+          type key-attribute-string-type {
+            length "1 .. 254";
+          }
+        }
+        uses apply-group;
+        leaf-list fpcs {
+          max-elements "16";
+          description
+            "FPCs associated with update-group";
+          type uint32 {
+            range "0 .. 31";
+          }
+        }
+      }
+    }
+  }
+}

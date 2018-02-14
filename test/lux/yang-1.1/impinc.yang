@@ -1,0 +1,21 @@
+module impinc {
+  yang-version 1.1;
+  namespace urn:impinc;
+  prefix ii;
+
+  import ietf-yang-types {
+    prefix yang;
+    description foo;            // new in 1.1.
+    reference "RFC 6991";       // new in 1.1
+  }
+
+  include incsub {
+    description bar;            // new in 1.1.
+    reference "RFC XXXX";       // new in 1.1
+  }
+
+  leaf x {
+    type yang:date-and-time;
+  }
+}
+

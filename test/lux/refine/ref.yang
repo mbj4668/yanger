@@ -1,0 +1,47 @@
+module ref {
+  namespace urn:ref;
+  prefix r;
+
+  extension foo;
+
+  grouping g {
+    container a {
+      leaf b {
+        type string;
+        default hej;
+        must "../c";
+      }
+      leaf c {
+        type string;
+        mandatory true;
+        reference orig;
+      }
+      leaf-list d {
+        type string;
+        max-elements 4;
+      }
+    }
+  }
+
+  uses g {
+    refine a {
+      presence x; // add presence
+    }
+    refine a/b {
+      default hopp; // change default
+      must "../d"; // add must
+      r:foo; // allow this
+    }
+    refine a/c {
+      mandatory false; // change mandatory
+      config false; // change config
+      reference hoppa; // chage reference
+    }
+    refine a/d {
+      min-elements 2; // add min-elements
+      max-elements 10; // change max-elements
+      description hej; // add description
+    }
+  }
+}
+

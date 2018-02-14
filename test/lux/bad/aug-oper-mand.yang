@@ -1,0 +1,33 @@
+module aug-oper-mand {
+  namespace urn:aom;
+  prefix aom;
+
+  import t {
+    prefix t;
+  }
+
+  augment /t:t {
+    leaf mand {  // LINE: YANG_ERR_MANDATORY_NODE_IN_AUGMENT
+      config false;
+      type string;
+      mandatory true;
+    }
+    container oper {
+      config false;
+      list mand {  // LINE: YANG_ERR_MANDATORY_NODE_IN_AUGMENT
+        key k;
+        leaf k {
+          type string;
+        }
+        min-elements 1;
+      }
+    }
+    container config {
+      leaf mand {  // LINE: YANG_ERR_MANDATORY_NODE_IN_AUGMENT
+        config false;
+        type string;
+        mandatory true;
+      }
+    }
+  }
+}

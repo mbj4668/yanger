@@ -1,0 +1,21 @@
+module b {
+  namespace urn:b;
+  prefix b1;
+
+  import c {
+    prefix c1; // NOTE: different prefix than in a.yang when b:b is used.
+  }
+
+  grouping b {
+    container w {
+      leaf x {
+        type string;
+      }
+      leaf y {
+        type string;
+        must "../x";
+        must "/c1:q";
+      }
+    }
+  }
+}

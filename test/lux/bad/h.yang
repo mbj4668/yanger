@@ -1,0 +1,126 @@
+module h {
+  yang-version 1.1;
+  namespace urn:h;
+  prefix h;
+
+  container xx {
+    list a {
+      key name;
+      leaf name {
+        type string;
+      }
+      leaf-list value {
+        type string;
+      }
+    }
+    choice c {
+      default c;
+      case a {
+        leaf aref {
+          type leafref {
+            path "../a/name"; // ok
+          }
+        }
+        leaf bref {
+          type leafref {
+            path "../b"; // ok
+          }
+        }
+        leaf cref {
+          type leafref {
+            path "../c"; // LINE: YANG_ERR_NODE_NOT_FOUND3
+          }
+        }
+        leaf xref {
+          type leafref {
+            path "../x"; // ok, but will always fail!
+          }
+        }
+        leaf b {
+          type string;
+        }
+      }
+      case c {
+        leaf x { // LINE: YANG_ERR_MANDATORY_NODE_IN_DEFAULT_CASE
+          type string;
+          mandatory true;
+        }
+      }
+    }
+    choice d {
+      default e; // LINE: YANG_ERR_DEFAULT_CASE_NOT_FOUND
+    }
+    action doit {
+      input {
+        leaf aref {
+          type leafref {
+            path "../../a/name"; // ok
+          }
+        }
+        leaf bref {
+          type leafref {
+            path "../b"; // ok
+          }
+        }
+        leaf cref {
+          type leafref {
+            path "../c"; // LINE: YANG_ERR_NODE_NOT_FOUND3
+          }
+        }
+        leaf xref {
+          type leafref {
+            path "../x2"; // LINE: YANG_ERR_NODE_NOT_FOUND3
+          }
+        }
+        leaf b {
+          type string;
+        }
+      }
+      output {
+        leaf x2 {
+          type string;
+        }
+      }
+    }
+  }
+
+  rpc x {
+    input; // LINE: YANG_ERR_EXPECTED_DATA_DEF
+    output; // LINE: YANG_ERR_EXPECTED_DATA_DEF
+  }
+
+  rpc doit {
+    input {
+      leaf aref {
+        type leafref {
+          path "../../xx/a/name"; // ok
+        }
+      }
+      leaf bref {
+        type leafref {
+          path "../b"; // ok
+        }
+      }
+      leaf cref {
+        type leafref {
+          path "../c"; // LINE: YANG_ERR_NODE_NOT_FOUND3
+        }
+      }
+      leaf xref {
+        type leafref {
+          path "../x2"; // LINE: YANG_ERR_NODE_NOT_FOUND3
+        }
+      }
+
+      leaf b {
+        type string;
+      }
+    }
+    output {
+      leaf x2 {
+        type string;
+      }
+    }
+  }
+
+}

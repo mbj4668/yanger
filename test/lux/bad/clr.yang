@@ -1,0 +1,21 @@
+module clr {
+  namespace urn:clr;
+  prefix clr;
+
+  import t {
+    prefix t;
+  }
+
+  leaf x {
+    type leafref {
+      path /t:t/x; // LINE: YANG_ERR_CIRCULAR_DEPENDENCY_LEAFREF
+    }
+  }
+  augment /t:t {
+    leaf x {
+      type leafref {
+        path /x; // LINE: YANG_ERR_CIRCULAR_DEPENDENCY_LEAFREF
+      }
+    }
+  }
+}

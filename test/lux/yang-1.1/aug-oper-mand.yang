@@ -1,0 +1,35 @@
+module aug-oper-mand {
+  yang-version 1.1;
+  namespace urn:aom;
+  prefix aom;
+
+  import new {
+    prefix new;
+  }
+
+  /* allowed by YANG-1.1 */
+  augment /new:t {
+    leaf mand {
+      config false;
+      type string;
+      mandatory true;
+    }
+    container oper {
+      config false;
+      list mand {
+        key k;
+        leaf k {
+          type string;
+        }
+        min-elements 1;
+      }
+    }
+    container config {
+      leaf mand {
+        config false;
+        type string;
+        mandatory true;
+      }
+    }
+  }
+}

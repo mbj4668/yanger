@@ -1,0 +1,9 @@
+module lldef1 {
+  namespace urn:lldef1;
+  prefix lldef1;
+
+  leaf-list ll {
+    type string;
+    default foo; // LINE: YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD
+  }
+}

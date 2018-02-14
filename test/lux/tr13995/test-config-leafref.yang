@@ -1,0 +1,29 @@
+// Separate YANG module because of YANG 1.1
+module test-config-leafref {
+  yang-version 1.1;
+  namespace "http://tail-f.com/example/test";
+  prefix test;
+
+  container non-direct-ref {
+
+    leaf index_inter {
+      type leafref {
+        path "../con1/index";
+        require-instance true;
+      }
+      config false;
+    }
+
+    container con1 {
+      leaf index {
+        type uint32;
+      }
+      leaf refindex {
+        type leafref {
+          path "../../index_inter"; // LINE: YANG_ERR_LEAFREF_BAD_CONFIG
+          require-instance true;
+        }
+      }
+    }
+  }
+}

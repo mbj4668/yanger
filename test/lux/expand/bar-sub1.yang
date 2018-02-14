@@ -1,0 +1,22 @@
+submodule bar-sub1 {
+  belongs-to bar {
+    prefix bar;
+  }
+
+  import ietf-inet-types {
+    prefix in;
+  }
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+
+  container sub1-stuff {
+    leaf address {
+      type in:ipv4-address;
+    }
+    leaf time-of-action {
+      type yang:date-and-time;
+    }
+  }
+}

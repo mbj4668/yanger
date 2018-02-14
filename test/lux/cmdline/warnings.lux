@@ -1,0 +1,63 @@
+[doc Test -W, -w, and -E]
+
+[shell yanger]
+    !yanger warnings.yang
+    -error:
+    ?warning: the revision
+    ?SH-PROMPT
+    !echo ==$$?==
+    ?==0==
+    ?SH-PROMPT
+    -
+
+    !yanger -W error warnings.yang
+    -warning:
+    ?error: the revision
+    ?SH-PROMPT
+    !echo ==$$?==
+    ?==1==
+    ?SH-PROMPT
+    -
+
+    !yanger -E YANG_ERR_REVISION_ORDER warnings.yang
+    -warning:
+    ?error: the revision
+    ?SH-PROMPT
+    !echo ==$$?==
+    ?==1==
+    ?SH-PROMPT
+    -
+
+    !yanger -W error -W YANG_ERR_REVISION_ORDER warnings.yang
+    -error:
+    ?warning: the revision
+    ?SH-PROMPT
+    !echo ==$$?==
+    ?==0==
+    ?SH-PROMPT
+    -
+
+    !yanger -Wnone warnings.yang
+    -warning:
+    ?SH-PROMPT
+    !echo ==$$?==
+    ?==0==
+    ?SH-PROMPT
+    -
+
+    !yanger -w YANG_ERR_REVISION_ORDER warnings.yang
+    -warning:
+    ?SH-PROMPT
+    !echo ==$$?==
+    ?==0==
+    ?SH-PROMPT
+    -
+
+    !yanger -Werror -w YANG_ERR_REVISION_ORDER warnings.yang
+    -warning:
+    ?SH-PROMPT
+    !echo ==$$?==
+    ?==0==
+    ?SH-PROMPT
+    -
+

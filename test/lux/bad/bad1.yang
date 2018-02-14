@@ -1,0 +1,25 @@
+module bad1 {
+  namespace urn:bad1;
+
+  contact "hej"; // expect prefix LINE: YANG_ERR_GRAMMAR_EXPECTED_KEYWORD
+
+  leafx; // LINE: YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD
+
+  leafy; // LINE: YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD
+
+  container xmLLeaf; // LINE: YANG_ERR_GRAMMAR_BAD_ARGUMENT
+  container xm;
+  container X;
+  container xm_LLeaf;
+
+  container a {
+    choice b {
+      case c {
+        must "/X"; // LINE: YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD
+        leaf d {
+          type string;
+        }
+      }
+    }
+  }
+}

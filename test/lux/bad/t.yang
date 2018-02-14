@@ -1,0 +1,44 @@
+module t {
+  namespace "urn:t";
+  prefix "t";
+
+  grouping obsolete-grouping {
+    status obsolete;
+    container d;
+  }
+
+  typedef deprecated-type {
+    status deprecated;
+    type string;
+  }
+
+  typedef bad-type {
+    type deprecated-type; // LINE: YANG_BAD_STATUS_REFERENCE
+  }
+
+  container t {
+    grouping obsolete-grouping2 {
+      status obsolete;
+      container d2;
+    }
+    leaf current-leaf { type string; }
+    leaf deprecated-leaf { type string; status deprecated; }
+    leaf obsolete-leaf { type string; status obsolete;}
+    leaf c {
+      status current;
+      type deprecated-type; // LINE: YANG_BAD_STATUS_REFERENCE
+    }
+    leaf r { // LINE: YANG_BAD_STATUS_REFERENCE
+      type leafref {
+        path "/t/deprecated-leaf";
+      }
+    }
+    uses obsolete-grouping { // LINE: YANG_BAD_STATUS_REFERENCE
+      status deprecated;
+    }
+    uses obsolete-grouping2 { // LINE: YANG_BAD_STATUS_REFERENCE
+      status current;
+    }
+  }
+}
+

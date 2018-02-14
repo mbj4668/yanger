@@ -1,0 +1,22 @@
+module xt2 {
+  namespace "xt2"; // LINE: YANG_ERR_GRAMMAR_BAD_ARGUMENT
+  prefix "xt2";
+
+  import h {
+    prefix xt2; // LINE: YANG_ERR_GRAMMAR_DUPLICATE_PREFIX
+  }
+  import a {
+    prefix a;
+  }
+  import b {
+    prefix a; // LINE: YANG_ERR_GRAMMAR_DUPLICATE_PREFIX
+  }
+
+  organization "hopp";
+  contact "hej";
+  description "arne" + /* hmm*/ ' ' + 'anka';
+  revision "2008-01-01" { description "initinla"; }
+
+}
+
+

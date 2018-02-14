@@ -1,0 +1,20 @@
+module rev {
+  namespace urn:rev;
+  prefix rev;
+
+  revision 2015-04-01;
+
+  import ietf-inet-types { // LINE: YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD
+    prefix inet;
+  }
+  import ietf-yang-types { // LINE: YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD
+    prefix yang;
+  }
+
+  leaf address {
+    type inet:ip-address;
+  }
+  leaf now {
+    type yang:date-and-time;
+  }
+}

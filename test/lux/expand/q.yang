@@ -1,0 +1,30 @@
+module q {
+
+
+  namespace "urn:q";
+  prefix "q";
+
+
+
+
+description "Foo" + " bar
+                      baz bong.
+
+                     Hello.
+
+                    ";
+
+  container "foo" + "-" + "bar" {
+    leaf
+      "fff_ggg" { type "u" + "int32"; } uses blurb;
+  }
+  grouping blurb {          leaf
+  blurb { type 'str' +
+'ing'
+;
+description
+"
+ x
+"
+;
+}}}

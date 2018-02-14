@@ -1,0 +1,13 @@
+module b {
+  namespace urn:b;
+  prefix b;
+
+  import types {
+    revision-date 2013-07-15;
+    prefix t;
+  }
+
+  leaf b {
+    type t:t;
+  }
+}

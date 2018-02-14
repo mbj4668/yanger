@@ -1,0 +1,12 @@
+[doc Test that duplicate augemnted nodes are detected]
+
+
+[shell compilation]
+    -==0==
+    !yanger --print-error-code a.yang
+    !echo ==$$?==
+    ?YANG_ERR_DUPLICATE_SCHEMA_NODE
+    ?==1==
+
+    !exit
+    [endshell]

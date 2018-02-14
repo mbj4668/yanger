@@ -1,0 +1,20 @@
+module small5 {
+  namespace urn:q;
+  prefix q;
+
+
+  grouping a {
+    grouping b {
+      uses c {
+        augment d {
+          container e;
+        }
+      }
+    }
+    uses b;
+  }
+  grouping c {
+    container d;
+  }
+  uses a;
+}

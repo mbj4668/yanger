@@ -1,0 +1,27 @@
+[doc minimal test, expanding a module should not crash]
+
+
+[macro expand MODULE]
+    [progress ${MODULE}]
+    -
+    !rm -f _tmp_*_${MODULE}
+    ?SH-PROMPT
+    -[Ee]rror
+    !yanger -f yang -t expand -o _tmp_1_${MODULE} ${MODULE}
+    ?SH-PROMPT
+    -==[1-9][0-9]*==
+    !echo ==$$?==
+    ?==0==
+    ?SH-PROMPT
+
+[endmacro]
+
+
+[shell test]
+    [invoke expand grp2.yang]
+    [invoke expand q.yang]
+    [invoke expand a.yang]
+    [invoke expand foo.yang]
+    [invoke expand foo2.yang]
+    [invoke expand bar.yang]
+

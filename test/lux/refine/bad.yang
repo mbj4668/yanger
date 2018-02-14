@@ -1,0 +1,65 @@
+module bad {
+  namespace urn:bad;
+  prefix b;
+
+  grouping g {
+    container a {
+      leaf b {
+        type int64;
+      }
+    }
+    container c {
+      config false;
+      list d;
+    }
+  }
+
+  uses g {
+    refine a {
+      config false;
+    }
+    refine a/b {
+      default hopp; // error: bad type
+      config true; // error: config true under config false
+      must ". ."; // error: xpath syntax error
+    }
+    refine c {
+      config true; // error: the list c/d does not have any keys!
+    }
+    refine c/d {
+      min-elements 10;
+      max-elements 2; // error: max-elements < min-elements
+    }
+  }
+
+  grouping b {
+    leaf x {
+      type int32;
+      default hej; // error: bad type
+    }
+  }
+
+  container y {
+    container a {
+      uses b;
+    }
+    container b {
+      uses b;
+    }
+    container c {
+      uses b {
+        refine x {
+          default 42;
+        }
+      }
+    }
+    container d {
+      uses b {
+        refine x {
+          default hopp; // error; bad type
+        }
+      }
+    }
+  }
+
+}

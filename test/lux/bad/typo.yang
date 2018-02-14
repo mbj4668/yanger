@@ -1,0 +1,8 @@
+module typo {
+  namespace urn:typo;
+  prefix t;
+
+  leaf bad {
+    type strings; // LINE: YANG_ERR_DEFINITION_NOT_FOUND
+  }
+}

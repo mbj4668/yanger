@@ -1,0 +1,29 @@
+module grouping {
+  namespace urn:q;
+  prefix q;
+
+  grouping x {
+    grouping b {
+      grouping b; // LINE: YANG_ERR_DUPLICATE_DEFINITION
+      grouping c; // LINE: YANG_ERR_DUPLICATE_DEFINITION
+      grouping d;
+    }
+  }
+  grouping a {
+    grouping y {
+      uses c {
+/* FIXME: grouping expansion error
+        augment x {
+          container z;
+        }
+*/
+      }
+    }
+    uses y;
+  }
+  grouping c {
+    grouping d;
+    container x;
+  }
+  uses a;
+}

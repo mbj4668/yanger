@@ -1,0 +1,98 @@
+module uses {
+  namespace "urn:uses";
+  prefix u;
+
+  /* check that groupings are only porcessed once */
+  grouping g2 {
+    list l2 {
+      key e2; // LINE: YANG_ERR_TYPE_EMPTY_IN_KEY
+      leaf e2 {
+        type empty;
+      }
+      leaf-list ll2 {
+        type empty; // LINE: YANG_ERR_TYPE_EMPTY_IN_LEAF_LIST
+      }
+      leaf l1 {
+        type uint8 {
+          range "-1..1"; // LINE: YANG_ERR_BAD_RANGE_VALUE
+        }
+      }
+    }
+  }
+
+  grouping g1 {
+    list l1 {
+      key e1; // LINE: YANG_ERR_TYPE_EMPTY_IN_KEY
+      leaf e1 {
+        type empty;
+      }
+      leaf-list ll1 {
+        type empty; // LINE: YANG_ERR_TYPE_EMPTY_IN_LEAF_LIST
+      }
+    }
+    container c1 {
+      /* using a grouping that is "later" alphabetically
+         but not in file order - used to cause duplicated processing */
+      uses g2;
+      /* using a grouping that is "later" in file order
+         but not alphabetically */
+      uses g0;
+      /* same grouping name in different subtrees is OK... */
+      container c11 {
+        grouping g3 {
+          leaf-list ll3 {
+            type empty; // LINE: YANG_ERR_TYPE_EMPTY_IN_LEAF_LIST
+          }
+        }
+        uses g3;
+      }
+      container c12 {
+        grouping g3 {
+          list l3 {
+            key e3; // LINE: YANG_ERR_TYPE_EMPTY_IN_KEY
+            leaf e3 {
+              type empty;
+            }
+          }
+        }
+        uses g3;
+      }
+      uses g3; // LINE: YANG_ERR_DEFINITION_NOT_FOUND
+    }
+  }
+
+  grouping g0 {
+    list l0 {
+      key e0; // LINE: YANG_ERR_TYPE_EMPTY_IN_KEY
+      leaf e0 {
+        type empty;
+      }
+      leaf-list ll0 {
+        type empty; // LINE: YANG_ERR_TYPE_EMPTY_IN_LEAF_LIST
+      }
+    }
+  }
+
+  /* check circular dependency detection */
+  grouping z0 {
+    container cc0 {
+      uses z1;
+    }
+  }
+  grouping z1 {
+    container cc1 {
+      uses z2;
+    }
+  }
+  grouping z2 { // LINE: YANG_ERR_CIRCULAR_DEPENDENCY
+    container cc2 {
+      uses z0;
+    }
+  }
+
+  container c {
+    uses g1;
+    uses z2;
+  }
+
+}

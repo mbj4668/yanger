@@ -1,0 +1,10 @@
+[doc test grouping expansion]
+
+[shell test]
+    !yanger -f tree a.yang
+    """??
+    module: a
+      +--rw ospf
+         +--rw external-out?   boolean
+    SH-PROMPT
+    """

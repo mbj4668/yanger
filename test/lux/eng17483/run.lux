@@ -1,0 +1,7 @@
+[doc Test deviation that adds a must expression to augmented node, using prefix defined in the deviation module]
+
+[shell compilation]
+    -[Ee][Rr][Rr][Oo][Rr]
+    !yanger --deviation-module a-aug-dev.yang a-aug.yang
+    !echo ==$$?==
+    ?==0==

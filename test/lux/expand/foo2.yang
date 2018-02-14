@@ -1,0 +1,85 @@
+module foo2 {
+  namespace "urn:foo2";
+  prefix foo2;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+
+  typedef mytype {
+    type string;
+  }
+
+  container foo {
+    list bar {
+      key k;
+      leaf k {
+        type string;
+      }
+      uses hello;
+      leaf value {
+        type uint32 {
+          range "1..42";
+        }
+        default 42;
+      }
+      leaf ip-address {
+        type inet:ipv4-address;
+      }
+    }
+  }
+  container bar {
+    leaf baz {
+      type uint64;
+    }
+    list interface {
+      key "address prefix";
+      leaf address {
+        type inet:ipv4-address;
+      }
+      leaf prefix {
+        type uint32 {
+          range 0..32;
+        }
+      }
+    }
+  }
+  grouping hello {
+    leaf hello-1 {
+      type mytype;
+    }
+    typedef type2 {
+      type string;
+      default "foobar";
+    }
+    leaf hello-2 {
+      type type2 {
+        length 0..64;
+      }
+      default "baz";
+    }
+    leaf hello-4 {
+      type type2;
+    }
+  }
+
+  container stats {
+    config false;
+
+    leaf counter1 {
+      type yang:counter64;
+    }
+    leaf-list knobs {
+      type enumeration {
+        enum "a";
+        enum "b";
+        enum "c";
+        enum "d";
+      }
+    }
+  }
+}

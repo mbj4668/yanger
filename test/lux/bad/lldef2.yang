@@ -1,0 +1,74 @@
+module lldef2 {
+  yang-version 1.1;
+  namespace urn:lldef2;
+  prefix lldef2;
+
+  grouping g1 {
+    leaf-list ll3 {
+      type int32;
+      default bar; // LINE: YANG_ERR_TYPE_VALUE
+      default +10;
+      default 10;
+    }
+  }
+  grouping g2 {
+    leaf-list llref2 {
+      type leafref {
+        path /ll2;
+      }
+      default foobar; // LINE: YANG_ERR_TYPE_VALUE
+      default +10;
+      // This error should not be reported here,
+      // but for the 'uses g2' below (it's only
+      // an error for 'uses' from config) - see
+      // FIXME for validate_leafref_xxx in yang.erl
+      default 10; // LINE: YANG_ERR_DUPLICATE_DEFAULT_VALUE
+    }
+  }
+
+  leaf-list ll1 {
+    type string;
+    min-elements 1;
+    default foo; // LINE: YANG_ERR_DEFAULT_AND_MIN_ELEMENTS
+    default bar; // LINE: YANG_ERR_DEFAULT_AND_MIN_ELEMENTS
+  }
+  leaf-list ll2 {
+    type int32;
+    default +10;
+    default foo; // LINE: YANG_ERR_TYPE_VALUE
+    default 10; // LINE: YANG_ERR_DUPLICATE_DEFAULT_VALUE
+    default 30;
+    default 0xa; // LINE: YANG_ERR_DUPLICATE_DEFAULT_VALUE
+  }
+  leaf-list llref {
+    type leafref {
+      path /ll2;
+    }
+    default baz; // LINE: YANG_ERR_TYPE_VALUE
+    default +10;
+    default 10; // LINE: YANG_ERR_DUPLICATE_DEFAULT_VALUE
+  }
+  uses g1; // LINE: YANG_ERR_DUPLICATE_DEFAULT_VALUE
+  uses g2;
+
+  container oper {
+    config false;
+    leaf-list ll2 {
+      type int32;
+      default +10;
+      default 20;
+      default xxx; // LINE: YANG_ERR_TYPE_VALUE
+      default 30;
+      default 0xa;
+    }
+    leaf-list llref {
+      type leafref {
+        path /ll2;
+      }
+      default +10;
+      default yyy; // LINE: YANG_ERR_TYPE_VALUE
+      default 10;
+    }
+    uses g1;
+  }
+}

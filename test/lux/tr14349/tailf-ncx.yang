@@ -1,0 +1,19 @@
+/*
+ * Little piece of tailf-ncs to test augmenting
+ * into the NCS device tree from ConfD tests.
+ */
+module tailf-ncx {
+  prefix tailf-ncx;
+  namespace "http://cisco.com/yang/ncx";
+
+  container devices {
+    list device {
+      key name;
+      leaf name {
+        type string;
+      }
+      container config {
+      }
+    }
+  }
+}

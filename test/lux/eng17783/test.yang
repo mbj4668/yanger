@@ -1,0 +1,6 @@
+module  {
+  namespace "http://tail-f.com/test";
+  prefix "test";
+  container test {
+  }
+}

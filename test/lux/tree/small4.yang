@@ -1,0 +1,49 @@
+module small3 {
+
+   namespace "http://xml.juniper.net/junos/10.0R3/junos";
+   prefix junos;
+
+   list dynamic-profiles {
+      key name;
+      uses testgroup;
+   }
+
+   grouping testgroup {
+      leaf name {
+         description "inget";
+         type string;
+      }
+
+      list inget {
+         key name;
+         uses juniper-dynamic-profile-object;
+      }
+   }
+
+   grouping juniper-dynamic-profile-object {
+      leaf name {
+         description "Name for dynamic profile";
+         type string;
+      }
+
+      list variables {
+         key mandatory;
+         uses juniper-dynamic-variable-object;
+      }
+   }
+
+   grouping juniper-dynamic-variable-object {
+      leaf name {
+         description "Name of variable";
+         type empty;
+      }
+      leaf default-value {
+         type empty;
+         description "Default value for variable";
+      }
+      leaf mandatory {
+         description "Variable must be supplied by external server";
+         type string;
+      }
+   }
+}

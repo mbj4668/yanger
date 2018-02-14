@@ -1,0 +1,11 @@
+[doc Test that missing module name gives correct error]
+
+
+[shell compilation]
+    !yanger --print-error-code test.yang 2>&1
+    !echo ==$$?==
+    ?YANG_ERR_GRAMMAR_MISSING_ARGUMENT
+    ?==1==
+
+    !exit
+    [endshell]

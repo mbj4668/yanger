@@ -1,0 +1,19 @@
+submodule b-sub1 {
+
+  belongs-to b {
+    prefix b;
+  }
+
+  import tailf-common {
+    prefix tailf;
+  }
+  import a {
+    prefix a;
+  }
+
+  leaf ports {
+    type leafref {
+      path "/a:vlan/add";
+    }
+  }
+}

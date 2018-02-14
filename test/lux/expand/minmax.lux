@@ -1,0 +1,26 @@
+[doc Verify that yanger -t expand preserves min-elements/max-elements]
+
+[shell test]
+    !yanger -t expand -f yang minmax.yang
+"""???
+module minmax {
+  namespace "urn:minmax";
+  prefix mm;
+
+  list l {
+    max-elements 3;
+    key k;
+    leaf k {
+      type int32;
+    }
+    leaf-list ll {
+      min-elements 2;
+      type int32;
+    }
+  }
+}
+"""
+    ?SH-PROMPT
+    !echo ==$$?==
+    ?==0==
+    ?SH-PROMPT

@@ -23,7 +23,7 @@
 help() ->
 <<"Each node is printed as:
 
-<status> <flags> <name> <opts> <type> <if-features>
+<status>--<flags> <name> <opts> <type> <if-features>
 
   <status> is one of:
     +  for current
@@ -32,7 +32,9 @@ help() ->
 
   <flags> is one of:
     rw  for configuration data
-    ro  for non-configuration data
+    ro  for non-configuration data, output parameters to rpcs
+        and actions, and notification parameters
+    -w  for input parameters to rpcs and actions
     -x  for rpcs/actions
     -n  for notifications
 
@@ -125,23 +127,24 @@ emit_tree(Ctx, [Mod|Mods], AllMods, Fd, Depth, Path) ->
        true ->
             print_header(Mod, Fd)
     end,
-    print_list(Chs, Mod, Fd, Path, data, Depth),
+    print_list(Chs, Mod, Fd, Path, data, Depth, ""),
     SectionPrinted1 = true, % always print separator after data, even if empty
     maybe_print_separator(SectionPrinted1 andalso Augs /= []),
     lists:foreach(
       fun(Augment) ->
               io:format(Fd, "  augment ~s:~n",
                         [?stmt_arg(Augment#augment.stmt)]),
-              print_list(Augment#augment.children, Mod, Fd, Path, data, Depth)
+              print_list(Augment#augment.children, Mod, Fd, Path, data,
+                         Depth, "  ")
       end, Augs),
     SectionPrinted2 = Augs /= [] orelse SectionPrinted1,
     if Path == [] ->
             maybe_print_separator(SectionPrinted2 andalso Rpcs /= []),
-            print_list(Rpcs, Mod, Fd, Path, rpc, Depth),
+            print_list(Rpcs, Mod, Fd, Path, rpc, Depth, "  "),
             SectionPrinted3 = Rpcs /= [] orelse SectionPrinted2,
 
             maybe_print_separator(SectionPrinted3 andalso Notifs /= []),
-            print_list(Notifs, Mod, Fd, Path, notification, Depth),
+            print_list(Notifs, Mod, Fd, Path, notification, Depth, "  "),
             SectionPrinted4 = Notifs /= [] orelse SectionPrinted3,
 
             maybe_print_separator(SectionPrinted4 andalso YangDatas /= []),
@@ -149,7 +152,8 @@ emit_tree(Ctx, [Mod|Mods], AllMods, Fd, Depth, Path) ->
               fun(YD) ->
                       io:format(Fd, "  yang-data ~s:~n",
                                 [?stmt_arg(YD#sn.stmt)]),
-                      print_list(YD#sn.children, Mod, Fd, Path, data, Depth)
+                      print_list(YD#sn.children, Mod, Fd, Path, data, Depth,
+                                "  ")
               end, YangDatas);
        true ->
             ok
@@ -167,12 +171,12 @@ maybe_print_separator(true) ->
 maybe_print_separator(false) ->
     ok.
 
-print_list(Chs, Mod, Fd, Path, Mode, Depth) ->
+print_list(Chs, Mod, Fd, Path, Mode, Depth, Prefix) ->
     case (Chs == []) orelse (Mode == data) of
-        true  -> skip;
-        false -> io:format("  ~ss:~n", [Mode])
+            true  -> skip;
+            false -> io:format("  ~ss:~n", [Mode])
     end,
-    print_children(Chs, Mod, Fd, undefined, "  ", Path, Mode, Depth, 0).
+    print_children(Chs, Mod, Fd, undefined, Prefix, Path, Mode, Depth, 0).
 
 print_header(Module, Fd) ->
     {Kw,ModArg,_,Substmts} = Module#module.stmt,

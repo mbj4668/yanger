@@ -1,0 +1,21 @@
+module esc {
+
+  namespace "http://www.cisco.com/esc/esc_datamodel";
+  prefix "esc";
+
+  import tailf-ncx {
+    prefix ncx;
+  }
+
+  augment "/ncx:devices/ncx:device/ncx:config" {
+    container esc_datamodel {
+      container tenants {
+        container tenant {
+          leaf name {
+            type string;
+          }
+        }
+      }
+    }
+  }
+}

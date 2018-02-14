@@ -1,0 +1,46 @@
+[doc Print an error when a leafref's path statement contains a name]
+[doc with a faulty prefix pointing to the current module.]
+
+[global fail_pattern=[Ee][Rr][Rr][Oo][Rr]]
+
+[shell compilation]
+    # Should give an error
+    !yanger example.yang
+    ???example.yang:16: error: the node 'config' from module 'example' (in node 'device' from 'tailf-ncx') is not found
+
+    !echo ==$$?==
+    ?==1==
+
+    # Should give an error
+    !yanger b.yang
+    ???b.yang:14: error: the node 'add' from module 'b' (in node 'vlan' from 'a') is not found
+
+    !echo ==$$?==
+    ?==1==
+
+    !yanger b-sub1.yang
+    ???b-sub1.yang:16: error: the node 'add' from module 'b' (in node 'vlan' from 'a') is not found
+
+    !echo ==$$?==
+    ?==1==
+
+    # Should not give an error
+    -$fail_pattern
+    !yanger example-ok.yang
+
+    !echo ==$$?==
+    ?==0==
+
+    !yanger c.yang
+
+    !echo ==$$?==
+    ?==0==
+
+    !yanger b-sub2.yang
+
+    !echo ==$$?==
+    ?==0==
+
+
+    !exit
+    [endshell]

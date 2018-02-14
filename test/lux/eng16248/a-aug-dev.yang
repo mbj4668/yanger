@@ -1,0 +1,17 @@
+module a-aug-dev {
+  namespace urn:a-aug-dev;
+  prefix aad;
+
+  import a {
+    prefix a;
+  }
+  import a-aug {
+    prefix b;
+  }
+
+  deviation /a:a/b:a {
+    deviate add {
+      unique v1;
+    }
+  }
+}

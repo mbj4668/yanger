@@ -1,0 +1,20 @@
+module y {
+  namespace urn:y;
+  prefix y;
+
+  import x {
+    prefix x1;
+  }
+  import x {
+    prefix x2;
+  }
+
+  leaf f {
+    type x1:foo;
+  }
+
+  leaf b {
+    type x1:bar;
+  }
+}
+

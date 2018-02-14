@@ -1,0 +1,10 @@
+module types {
+  namespace urn:types;
+  prefix t;
+
+  revision 2013-07-15;
+
+  typedef t {
+    type string;
+  }
+}

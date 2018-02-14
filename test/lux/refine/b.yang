@@ -1,0 +1,17 @@
+module b {
+  namespace urn:b;
+  prefix b;
+
+  import a {
+    prefix q;
+  }
+
+  augment /q:a {
+    uses q:g {
+      refine foo {
+        must "/q:a/q:b = 'hej'";
+      }
+    }
+  }
+}
+

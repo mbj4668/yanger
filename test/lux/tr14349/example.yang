@@ -1,0 +1,32 @@
+module example {
+  prefix example;
+  namespace "http://cisco.com/yang/nso/esc-manager";
+
+  import tailf-ncx {
+    prefix ncx;
+  }
+
+  import esc {
+    prefix esc;
+  }
+
+  grouping vm-grouping {
+    leaf tenant {
+      type leafref {
+        path "deref(../vm-device)/../config/esc:esc_datamodel/esc:tenants/esc:tenant/esc:name";
+      }
+    }
+
+    leaf vm-device {
+      mandatory true;
+      description "Device name of the created VM";
+      type leafref {
+        path "/ncx:devices/ncx:device/ncx:name";
+      }
+    }
+  }
+
+  container xyz {
+    uses vm-grouping;
+  }
+}

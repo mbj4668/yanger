@@ -1,0 +1,17 @@
+module a-aug {
+  namespace urn:a-aug;
+  prefix aa;
+
+  import a {
+    prefix a;
+  }
+
+  augment /a:a {
+    list a {
+      key k;
+      leaf k {
+        type int32;
+      }
+    }
+  }
+}

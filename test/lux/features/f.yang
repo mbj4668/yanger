@@ -1,0 +1,21 @@
+module f {
+  namespace urn:f;
+  prefix f;
+
+  feature a;
+  feature b;
+  feature c;
+
+  container f {
+    container a {
+      if-feature a;
+    }
+    container b {
+      if-feature b;
+    }
+    container c {
+      if-feature c;
+    }
+  }
+}
+

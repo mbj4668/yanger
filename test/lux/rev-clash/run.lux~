@@ -1,0 +1,13 @@
+[doc Test that multiple revisions of a module can be imported]
+
+[global fail_pattern=[Ee][Rr][Rr][Oo][Rr]]
+
+[shell test]
+    -$fail_pattern
+    !rm -f *.fxs
+    !echo ==$$?==
+    ?==0==
+
+    !confdc -c a.yang
+    !echo ==$$?==
+    ?==0==

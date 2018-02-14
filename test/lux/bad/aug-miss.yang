@@ -1,0 +1,22 @@
+module aug-miss {
+  namespace urn:aug-miss;
+  prefix am;
+
+  import h {
+    prefix h;
+  }
+  import not-found { // LINE: YANG_ERR_MODULE_NOT_FOUND
+    prefix nf;
+  }
+
+  augment /h:xx {
+    leaf new {
+      type string;
+    }
+  }
+  augment /nf:yy {
+    leaf zz {
+      type string;
+    }
+  }
+}

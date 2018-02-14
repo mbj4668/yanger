@@ -1,0 +1,40 @@
+module aug-mand {
+  namespace "urn:aug";
+  prefix aug;
+
+  import t {
+    prefix t;
+  }
+
+  augment "/t:t" {
+    leaf m {  // LINE: YANG_ERR_MANDATORY_NODE_IN_AUGMENT
+      type int32;
+      mandatory true;
+    }
+    container p {
+      presence "";
+      leaf l {
+        type int32;
+        mandatory true;
+      }
+    }
+    container c {
+      list l {  // LINE: YANG_ERR_MANDATORY_NODE_IN_AUGMENT
+        key k;
+        leaf k {
+          type string;
+        }
+        min-elements 1;
+      }
+    }
+  }
+
+  /* 'when' should not allow mandatory in 1.0 */
+  augment "/t:t" {
+    when false();
+    leaf mm {  // LINE: YANG_ERR_MANDATORY_NODE_IN_AUGMENT
+      type int32;
+      mandatory true;
+    }
+  }
+}

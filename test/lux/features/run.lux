@@ -1,0 +1,55 @@
+[doc test features]
+
+[shell test]
+    !yanger -f tree --features f:a f.yang
+    """??
+    module: f
+      +--rw f
+         +--rw a {a}?
+    SH-PROMPT
+    """
+
+    !yanger -f tree --features f:a,c f.yang
+    """??
+    module: f
+      +--rw f
+         +--rw a {a}?
+         +--rw c {c}?
+    SH-PROMPT
+    """
+
+    !yanger -f tree --features f:a --features f:c f.yang
+    """??
+    module: f
+      +--rw f
+         +--rw a {a}?
+         +--rw c {c}?
+    SH-PROMPT
+    """
+
+    !yanger -f tree --features f:a g.yang
+    """??
+    module: g
+      +--rw g
+         +--rw a {a}?
+         +--rw fa {f:a}?
+    SH-PROMPT
+    """
+
+    !yanger -f tree --features f: g.yang
+    """??
+    module: g
+      +--rw g
+         +--rw a {a}?
+    SH-PROMPT
+    """
+
+    !yanger -f tree --features g:a g.yang
+    """??
+    module: g
+      +--rw g
+         +--rw a {a}?
+         +--rw fa {f:a}?
+         +--rw fb {f:b}?
+    SH-PROMPT
+    """

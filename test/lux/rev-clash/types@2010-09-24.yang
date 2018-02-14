@@ -1,0 +1,10 @@
+module types {
+  namespace urn:types;
+  prefix t;
+
+  revision 2010-09-24;
+
+  typedef t {
+    type int32;
+  }
+}

@@ -1,0 +1,11 @@
+module x {
+  namespace urn:x;
+  prefix x;
+
+  typedef foo {
+    type int32;
+  }
+  typedef bar {
+    type string;
+  }
+}

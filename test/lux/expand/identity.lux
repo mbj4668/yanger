@@ -1,0 +1,34 @@
+[doc minimal test, an expanded module should be equal to itself after second expansion]
+
+
+[macro identity MODULE]
+    -
+    !rm -f _tmp_*_${MODULE}
+    ?SH-PROMPT
+    -error:
+    !yanger -f yang -t expand -o _tmp_1_${MODULE} ${MODULE}
+    ?SH-PROMPT
+    !echo ==$$?==
+    ?==0==
+    ?SH-PROMPT
+
+    !yanger -f yang -t expand -o _tmp_2_${MODULE} _tmp_1_${MODULE}
+    ?SH-PROMPT
+    !echo ==$$?==
+    ?==0==
+    ?SH-PROMPT
+
+    !diff -u _tmp_1_${MODULE} _tmp_2_${MODULE}
+    ?SH-PROMPT
+    !echo ==$$?==
+    ?==0==
+    ?SH-PROMPT
+    -
+[endmacro]
+
+
+[shell test]
+    # foo.yang, bar.yang, foo2.yang all fail b/c of bugs w/ expand
+    [invoke identity grp2.yang]
+    [invoke identity q.yang]
+    [invoke identity a.yang]

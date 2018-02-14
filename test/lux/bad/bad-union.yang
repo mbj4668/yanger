@@ -1,0 +1,16 @@
+module bad-union {
+  namespace urn:bad-union;
+  prefix bu;
+
+  container test {
+    leaf mac-address {
+      type union {
+        type yang:mac-address; // LINE: YANG_ERR_PREFIX_NOT_FOUND
+        type enumeration {
+          enum default;
+        }
+      }
+      default default;
+    }
+  }
+}

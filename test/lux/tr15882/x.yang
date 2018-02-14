@@ -1,0 +1,22 @@
+module x {
+  namespace "urn:x";
+  prefix x;
+
+  identity a {
+  }
+
+  identity b {
+    base a;
+  }
+
+  identity C {
+    base b;
+  }
+
+  leaf x {
+    type identityref {
+      base a;
+    }
+    default C;
+  }
+}

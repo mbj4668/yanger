@@ -1,0 +1,20 @@
+module c {
+  namespace urn:c;
+  prefix c;
+
+  import a {
+    prefix a;
+  }
+
+  augment "/a:vlan" {
+    leaf add {
+      type int32;
+    }
+  }
+
+  leaf ports {
+    type leafref {
+      path "/a:vlan/add";
+    }
+  }
+}

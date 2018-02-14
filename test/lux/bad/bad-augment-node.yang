@@ -1,0 +1,43 @@
+module bad-augment-node {
+  namespace urn:bad-augment-node;
+  prefix ban;
+
+  import h {
+    prefix h;
+  }
+
+  // augmenting a leaf
+  augment /h:xx/h:a/h:name {
+    leaf foo { // LINE: YANG_ERR_BAD_AUGMENT_NODE_TYPE2
+      type int32;
+    }
+  }
+
+  // augmenting a leaf-list
+  augment /h:xx/h:a/h:value {
+    leaf bar { // LINE: YANG_ERR_BAD_AUGMENT_NODE_TYPE2
+      type int32;
+    }
+  }
+
+  // augmenting a non-choice with a case
+  augment /h:xx {
+    case baz { // LINE: YANG_ERR_BAD_AUGMENT_NODE_TYPE2
+      leaf baz {
+        type int32;
+      }
+    }
+  }
+
+  // augmenting a "not-yet-found" leaf target ("__tmp_augment__")
+  augment /h:xx/h:a/ban:foobar { // LINE: YANG_ERR_BAD_AUGMENT_NODE_TYPE
+    leaf cc {
+      type int32;
+    }
+  }
+  augment /h:xx/h:a {
+    leaf foobar {
+      type int32;
+    }
+  }
+}

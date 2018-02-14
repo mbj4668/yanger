@@ -1,0 +1,89 @@
+module mksn {
+  namespace "urn:mksn";
+  prefix x;
+
+  // Used together with the plugin mksn.erl to test the
+  // hook callback mk_sn()
+
+  import y {
+    prefix y;
+  }
+
+  augment "/y:c" {
+    container z {
+      leaf g {
+        type int32;
+      }
+    }
+  }
+  augment "/y:o" {
+    container z {
+      leaf g {
+        type int32;
+      }
+    }
+  }
+
+  grouping q {
+    uses w;
+  }
+
+  grouping w {
+    container w;
+  }
+
+  augment "/x:a/x:b/x:c/x:d/x:e" {
+    uses q;
+  }
+
+  augment "/x:a" {
+    container b;
+  }
+
+  augment "/x:a/x:b/x:c/x:d" {
+    container e;
+  }
+
+  augment "/x:a/x:b" {
+    container c {
+      container d;
+    }
+  }
+
+  container a;
+
+  grouping z {
+    container o {
+      container p {
+        container q;
+      }
+    }
+  }
+
+  augment /a {
+    container n {
+      container m;
+    }
+    uses z {
+      refine "x:o/x:p/x:q" {
+        description "FOO";
+      }
+    }
+  }
+
+  rpc foo {
+    input {
+      container z;
+      uses q;
+    }
+  }
+
+  notification bar {
+    container z;
+    uses q;
+  }
+
+}
+
+
+

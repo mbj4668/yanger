@@ -1,0 +1,73 @@
+module new {
+  namespace urn:new;
+  prefix n;
+
+  // make sure that 1.1 construct gives error in 1.1
+  // compare with yang-1.1/new.yang
+
+  feature f;
+  feature g;
+
+  identity id {
+    if-feature f; // LINE: YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD
+  }
+
+  leaf l1 {
+    type enumeration {
+      enum r {
+        if-feature f; // LINE: YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD
+      }
+    }
+  }
+  leaf l2 {
+    type bits {
+      bit b {
+        if-feature f; // LINE: YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD
+      }
+    }
+  }
+  grouping g {
+    container x;
+  }
+  uses g {
+    refine x {
+      if-feature f; // LINE: YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD
+    }
+  }
+  container w {
+    choice c1 {
+      choice c2; // LINE: YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD
+    }
+  }
+
+  rpc r {
+    input {
+      must "g"; // LINE: YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD
+      leaf g {
+        type int32;
+      }
+    }
+    output {
+      must "g"; // LINE: YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD
+      leaf g {
+        type int32;
+      }
+    }
+  }
+  notification n {
+    must "g"; // LINE: YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD
+    leaf g {
+      type int32;
+    }
+  }
+  leaf-list ll {
+    type int32;
+    default 1; // LINE: YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD
+    default 2; // LINE: YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD
+  }
+  container w2 {
+    action a; // LINE: YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD
+    notification n; // LINE: YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD
+    anydata d; // LINE: YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD
+  }
+}

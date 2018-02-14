@@ -1,0 +1,88 @@
+module new2 {
+  namespace urn:new2;
+  prefix n;
+
+  // make sure that 1.1 construct gives error in 1
+  // compare with yang-1.1/new.yang
+
+  // YANGER_EXTRA_FLAGS: --strict
+
+  feature f;
+  feature g;
+
+  grouping g {
+    container x;
+  }
+  container t {
+    must 're-match("hej", "dsop")'; // LINE: YANG_ERR_XPATH
+    must 'deref(.)'; // LINE: YANG_ERR_XPATH
+    must 'derived-from(., "a", "b")'; // LINE: YANG_ERR_XPATH
+    must 'derived-from-or-self(., "a", "b")'; // LINE: YANG_ERR_XPATH
+    must 'enum-value(.)'; // LINE: YANG_ERR_XPATH
+    must 'bit-is-set(., "hej")'; // LINE: YANG_ERR_XPATH
+  }
+  identity id1;
+  identity id2;
+  identity id3 {
+    base id1;
+    base id2; // LINE: YANG_ERR_MULTIPLE_BASES
+  }
+
+  typedef e1 {
+    type enumeration {
+      enum a;
+      enum b;
+      enum c;
+    }
+  }
+  typedef e2 {
+    type e1 {
+      enum a; // LINE: YANG_ERR_BAD_RESTRICTION
+      enum b; // LINE: YANG_ERR_BAD_RESTRICTION
+    }
+  }
+  typedef t2 {
+    type union {
+      type empty; // LINE: YANG_ERR_BAD_TYPE_IN_UNION
+      type string;
+    }
+  }
+  typedef t3 {
+    type union {
+      type string;
+      type leafref { // LINE: YANG_ERR_BAD_TYPE_IN_UNION
+        path /l1;
+      }
+    }
+  }
+  list l3 {
+    config false;
+    key e; // LINE: YANG_ERR_TYPE_EMPTY_IN_KEY
+    leaf e {
+      type empty;
+    }
+  }
+
+  typedef foo {
+    type leafref {
+      path "/x1/y1"; // LINE: YANG_ERR_NODE_NOT_FOUND2
+    }
+  }
+
+  leaf lr {
+    type leafref {
+      path "/idleaf1";
+      require-instance false; // LINE: YANG_ERR_BAD_RESTRICTION
+    }
+  }
+
+  leaf idleaf1 {
+    type identityref {
+      base id2;
+      base id1; // LINE: YANG_ERR_MULTIPLE_BASES
+      base id1;
+    }
+    default id3;
+  }
+
+}

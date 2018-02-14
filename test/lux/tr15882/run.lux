@@ -1,0 +1,9 @@
+[doc Testing of chain of derived identities]
+
+[shell compilation]
+    -internal
+    !yanger x.yang
+    ?SH-PROMPT
+
+    !exit
+    [endshell]

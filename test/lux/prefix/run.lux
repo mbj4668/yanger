@@ -1,0 +1,7 @@
+[doc test prefixes in XPath expressions]
+
+[shell test]
+    -error
+    !yanger a.yang
+    !echo "==$$?=="
+    ?==0==

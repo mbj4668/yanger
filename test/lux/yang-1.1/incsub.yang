@@ -1,0 +1,9 @@
+submodule incsub {
+  belongs-to impinc {
+    prefix ii;
+  }
+
+  leaf y {
+    type int32;
+  }
+}

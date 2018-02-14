@@ -1,0 +1,7 @@
+[doc Test deviation "add unique" of augmenting module using different prefix]
+
+[shell compilation]
+    -[Ee][Rr][Rr][Oo][Rr]
+    !yanger --deviation-module a-aug-dev.yang a-aug.yang
+    !echo ==$$?==
+    ?==0==

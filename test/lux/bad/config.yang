@@ -1,0 +1,234 @@
+module config {
+  namespace 'urn:config';
+  prefix c;
+
+  import h {
+    prefix h;
+  }
+
+  typedef stateref {
+    type leafref {
+      path "/x/stateleaf";
+    }
+  }
+
+  augment /h:xx/h:a {
+    leaf b {
+      type leafref {
+        path "/h:xx/h:no-such-node-here"; // LINE: YANG_ERR_NODE_NOT_FOUND3
+      }
+    }
+    leaf c {
+      type leafref {
+        path "../../h:a/e";
+      }
+    }
+    leaf e {
+      type string;
+    }
+    leaf d {
+      type leafref {
+        path "../e";
+      }
+    }
+    leaf f {
+      type leafref {
+        path "/c:v/c:w"; // ok
+      }
+    }
+    leaf g {
+      type leafref {
+        path "/c:v/c:e"; // LINE: YANG_ERR_NODE_NOT_FOUND3
+      }
+    }
+    leaf h {
+      type leafref {
+        path "../i"; // LINE: YANG_ERR_LEAFREF_BAD_CONFIG
+      }
+    }
+    leaf i {
+      type int32;
+      config false;
+    }
+  }
+
+  augment /c:x/c:y/c:z {
+    case a {
+      leaf a {
+        config true; // LINE: YANG_ERR_INVALID_CONFIG
+        type string;
+      }
+    }
+  }
+
+  augment /c:v/c:b/c:n {
+    choice aa {
+      leaf a {
+        config true; // LINE: YANG_ERR_INVALID_CONFIG
+        type string;
+      }
+    }
+  }
+
+  augment /c:v/c:b {
+    container n;
+  }
+
+  augment /c:v {
+    container b {
+      config false;
+    }
+  }
+
+
+  container v {
+    leaf w {
+      type string;
+    }
+  }
+
+  grouping gg {
+    container h {
+      config false;
+      leaf j {
+        config true; // LINE: YANG_ERR_INVALID_CONFIG
+        type string;
+      }
+    }
+  }
+
+  grouping g {
+    container h {
+      leaf j {
+        config true;
+        type string;
+      }
+    }
+  }
+
+  grouping g2 {
+    container k {
+      leaf l {
+        type string;
+      }
+    }
+  }
+
+  container x2 {
+    leaf badref {
+      type stateref; // LINE: YANG_ERR_LEAFREF_BAD_CONFIG
+    }
+  }
+  container x {
+    config false;
+    leaf stateleaf {
+      type int32;
+    }
+    container y {
+      choice z {
+        case u {
+          container u {
+            leaf w {
+              config true; // LINE: YANG_ERR_INVALID_CONFIG
+              type string;
+            }
+          }
+        }
+      }
+      uses g;  // LINE: YANG_ERR_INVALID_CONFIG
+      uses g2;
+      container q {
+        uses g {
+          refine "c:h/c:j" {
+            config false; // this is now ok
+          }
+        }
+        uses g2 { // LINE: YANG_ERR_INVALID_CONFIG
+          refine "c:k/c:l" {
+            config true;
+          }
+        }
+      }
+    }
+  }
+
+  augment /c:x/c:y/c:z {
+    case t {
+      leaf t {
+        config true; // LINE: YANG_ERR_INVALID_CONFIG
+        type string;
+      }
+    }
+  }
+
+  rpc foo {
+    input {
+      container x {
+        config false;
+        container y {
+          config true; // this is ok in an rpc
+        }
+      }
+    }
+  }
+
+  augment /h:xx {
+    container y {
+      container x {
+        leaf t { // LINE: YANG_ERR_MANDATORY_NODE_IN_AUGMENT
+          mandatory true;
+          type int32;
+        }
+        choice x {
+          mandatory true;
+          container z;
+        }
+      }
+    }
+  }
+  augment /h:xx {
+    container y2 {
+      container x {
+        leaf t {
+          mandatory false;
+          type int32;
+        }
+        choice x { // LINE: YANG_ERR_MANDATORY_NODE_IN_AUGMENT
+          mandatory true;
+          container z;
+        }
+      }
+    }
+  }
+  augment /h:xx {
+    list y2 { // LINE: YANG_ERR_DUPLICATE_SCHEMA_NODE
+      min-elements 0;
+      key a;
+      leaf a {
+        type string;
+      }
+    }
+    list y3 { // LINE: YANG_ERR_MANDATORY_NODE_IN_AUGMENT
+      min-elements 10;
+      key a;
+      leaf a {
+        type string;
+      }
+    }
+  }
+  augment /h:xx {
+    container y4 {
+      container x {
+        presence "as";
+        leaf t {
+          mandatory true;
+          type int32;
+        }
+        choice x {
+          mandatory true;
+          container z;
+        }
+      }
+    }
+  }
+}

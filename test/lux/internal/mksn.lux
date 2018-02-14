@@ -1,0 +1,54 @@
+[config skip=TAILFSKIP_RELEASE]
+
+
+[doc Test mk_sn hook callback]
+
+[shell yanger]
+    !yanger -P . mksn.yang
+    """???
+    yanger -P . mksn.yang
+    mk_sn: "ROOT: /c(container)" final
+    mk_sn: "ROOT: /o(container)" final
+    mk_sn: "NONE: /o(container)" grouping
+    mk_sn: "NONE: /o(container)/p(container)" grouping
+    mk_sn: "NONE: /o(container)/p(container)/q(container)" grouping
+    mk_sn: "NONE: /w(container)" grouping
+    mk_sn: "NONE: /w(container)" grouping mksn.yang:28
+    mk_sn: "ROOT: /a(container)" final
+    mk_sn: "ROOT: /foo(operation)" final
+    mk_sn: "ROOT: /foo(operation)/input(input)" final
+    mk_sn: "ROOT: /foo(operation)/input(input)/z(container)" final
+    mk_sn: "ROOT: /foo(operation)/input(input)/w(container)" final mksn.yang:77
+    mk_sn: "ROOT: /bar(notification)" final
+    mk_sn: "ROOT: /bar(notification)/z(container)" final
+    mk_sn: "ROOT: /bar(notification)/w(container)" final mksn.yang:83
+    mk_sn: "NONE: /z(container)" augment
+    mk_sn: "NONE: /z(container)/g(leaf)" augment
+    mk_sn: "NONE: /z(container)" augment
+    mk_sn: "NONE: /z(container)/g(leaf)" augment
+    mk_sn: "NONE: /w(container)" augment mksn.yang:36
+    mk_sn: "NONE: /b(container)" augment
+    mk_sn: "NONE: /e(container)" augment
+    mk_sn: "NONE: /c(container)" augment
+    mk_sn: "NONE: /c(container)/d(container)" augment
+    mk_sn: "NONE: /n(container)" augment
+    mk_sn: "NONE: /n(container)/m(container)" augment
+    mk_sn: "NONE: /o(container)" augment mksn.yang:67
+    mk_sn: "NONE: /o(container)/p(container)" augment mksn.yang:67
+    mk_sn: "NONE: /o(container)/p(container)/q(container)" augment mksn.yang:67 FOO
+    mk_sn: "ROOT: /a(container)/b(container)" final
+    mk_sn: "ROOT: /a(container)/b(container)/c(container)" final
+    mk_sn: "ROOT: /a(container)/b(container)/c(container)/d(container)" final
+    mk_sn: "ROOT: /a(container)/b(container)/c(container)/d(container)/e(container)" final
+    mk_sn: "ROOT: /a(container)/b(container)/c(container)/d(container)/e(container)/w(container)" final
+    mk_sn: "ROOT: /a(container)/n(container)" final
+    mk_sn: "ROOT: /a(container)/n(container)/m(container)" final
+    mk_sn: "ROOT: /a(container)/o(container)" final
+    mk_sn: "ROOT: /a(container)/o(container)/p(container)" final
+    mk_sn: "ROOT: /a(container)/o(container)/p(container)/q(container)" final FOO
+    mk_sn: "ROOT: /c(container)/mksn:z(container)" final
+    mk_sn: "ROOT: /c(container)/mksn:z(container)/mksn:g(leaf)" final
+    mk_sn: "ROOT: /o(container)/mksn:z(container)" final
+    mk_sn: "ROOT: /o(container)/mksn:z(container)/mksn:g(leaf)" final
+    SH-PROMPT
+    """

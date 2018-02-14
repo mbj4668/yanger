@@ -1,0 +1,8 @@
+module warnings {
+  namespace urn:w;
+  prefix w;
+
+  revision 2001-04-01;
+  revision 2010-04-01;
+
+}

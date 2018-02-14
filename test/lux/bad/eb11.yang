@@ -1,0 +1,87 @@
+module eb11 {
+  yang-version 1.1;
+  namespace urn:eb11;
+  prefix eb11;
+
+  feature foo;
+
+  typedef e1 {
+    type enumeration {
+      enum a {
+        if-feature foo;
+      }
+      enum b;
+      enum c;
+    }
+    /* default b is not valid for typedef e4 */
+    default b; // LINE: YANG_ERR_TYPE_VALUE
+  }
+  typedef e2 {
+    type e1 {
+      enum d; // LINE: YANG_ERR_ENUM_NAME_MISMATCH
+      enum b;
+    }
+  }
+  typedef e3 {
+    type e1 {
+      enum a {
+        value 3; // LINE: YANG_ERR_ENUM_VALUE_MISMATCH
+      }
+      enum b;
+    }
+  }
+  typedef e4 {
+    type e1 {
+      enum a;
+      enum c { value 2; } // ok, same value
+    }
+  }
+  typedef e5 {
+    type e4 {
+      enum a {
+        value 1; // LINE: YANG_ERR_ENUM_VALUE_MISMATCH
+      }
+      enum b; // LINE: YANG_ERR_ENUM_NAME_MISMATCH
+      enum c { value 2; } // ok, same value
+    }
+  }
+
+  typedef b1 {
+    type bits {
+      bit a;
+      bit b;
+      bit c;
+    }
+    /* default b is not valid for typedef b4 */
+    default b; // LINE: YANG_ERR_TYPE_VALUE
+  }
+  typedef b2 {
+    type b1 {
+      bit d; // LINE: YANG_ERR_BIT_NAME_MISMATCH
+      bit b;
+    }
+  }
+  typedef b3 {
+    type b1 {
+      bit a {
+        position 3; // LINE: YANG_ERR_BIT_POSITION_MISMATCH
+      }
+      bit b;
+    }
+  }
+  typedef b4 {
+    type b1 {
+      bit a;
+      bit c { position 2; } // ok, same position
+    }
+  }
+  typedef b5 {
+    type b4 {
+      bit a {
+        position 1; // LINE: YANG_ERR_BIT_POSITION_MISMATCH
+      }
+      bit b; // LINE: YANG_ERR_BIT_NAME_MISMATCH
+      bit c { position 2; } // ok, same position
+    }
+  }
+}

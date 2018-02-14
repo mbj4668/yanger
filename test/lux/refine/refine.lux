@@ -1,0 +1,91 @@
+[doc test refinement statements]
+
+[shell test]
+    # make sure the data the tree plugin works on is properly updated
+    !yanger -f tree ref.yang
+"""??
+module: ref
+  +--rw a!
+     +--rw b?   string
+     +--ro c?   string
+     +--rw d*   string
+"""
+    # make sure the data the expand plugin works on is properly updated
+    ## NOTE: this output will change if the expand plugin handles more
+    ## statements
+    !yanger -t expand -f yang --yang-canonical ref.yang
+"""??
+module ref {
+  namespace "urn:ref";
+  prefix r;
+
+  extension foo;
+
+  container a {
+    presence "x";
+    leaf b {
+      type string;
+      must '../c';
+      must '../d';
+      default "hopp";
+      r:foo;
+    }
+    leaf c {
+      type string;
+      config false;
+      mandatory false;
+    }
+    leaf-list d {
+      type string;
+      min-elements 2;
+      max-elements 10;
+    }
+  }
+}
+"""
+    !yanger -f sn --sn-depth 16 ref.yang
+"""??
+    %% /a/b
+    #sn{
+      name = b
+      kind = leaf
+"""
+"""??
+      default = {{default,<<"hopp">>,{"ref.yang",31},[]},<<"hopp">>}
+"""
+"""??
+      must = [{{relative,[{step,parent,{node_type,node},[]},
+                         {step,child,{name,ref,c},[]}]},
+              [['..',[ref|c]]],
+              {must,<<"../c">>,{"ref.yang",12},[]}},
+             {{relative,[{step,parent,{node_type,node},[]},
+                         {step,child,{name,ref,d},[]}]},
+              [['..',[ref|d]]],
+              {must,<<"../d">>,{"ref.yang",32},[]}}]
+"""
+    ?SH-PROMPT
+
+[shell test]
+    [doc test that validation is done on the refined statements]
+    !yanger --print-error-code bad.yang
+    ??bad.yang:17: (from bad.yang:23): YANG_ERR_INVALID_CONFIG
+    ?bad.yang:22: YANG_ERR_TYPE_VALUE
+    ?bad.yang:24: YANG_ERR_XPATH
+    ?bad.yang:38: YANG_ERR_TYPE_VALUE
+    ?bad.yang:59: YANG_ERR_TYPE_VALUE
+    -bad.yang
+    ?SH-PROMPT
+
+[shell test]
+    [doc test that must in refine uses correct prefix]
+    !yanger -f sn --sn-depth 64 b.yang
+"""??
+                         [{{comp,'=',
+                            {absolute,
+                             [{step,child,{name,a,a},[]},
+                              {step,child,{name,a,b},[]}]},
+                            {literal,"hej"}},
+                           [],
+                           {must,<<"/q:a/q:b = 'hej'">>,{"b.yang",12},[]}}],
+"""
+    ?SH-PROMPT
