@@ -1,0 +1,26 @@
+module choice-def-case {
+  namespace urn:cdc;
+  prefix cdc;
+
+  container foo {
+    leaf one {
+      type string;
+    }
+    choice ch {
+      default ca1;
+      case ca1 {
+        leaf bar {
+          type string;
+        }
+      }
+      case ca2 {
+        leaf baz {
+          type string;
+        }
+      }
+    }
+    leaf two {
+      type string;
+    }
+  }
+}

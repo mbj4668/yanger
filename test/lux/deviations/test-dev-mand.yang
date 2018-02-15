@@ -1,0 +1,30 @@
+module test-dev-mand {
+  namespace "http://test-devm";
+  prefix test-devm;
+
+  import test {
+    prefix t;
+  }
+  import test-a {
+    prefix t-a;
+  }
+
+  // => mandatory augment
+  deviation /t-a:it/t:item/t:name {
+    deviate add {
+      mandatory true;
+    }
+  }
+  // no mandatory augment since p is presence container
+  deviation /t-a:it/t:p/t:name {
+    deviate replace {
+      mandatory true;
+    }
+  }
+  // => mandatory augment
+  deviation /t-a:it/t:l {
+    deviate add {
+      min-elements 1;
+    }
+  }
+}

@@ -1,0 +1,29 @@
+module test {
+  namespace "http://test";
+  prefix t;
+
+  import test-a {
+    prefix t-a;
+  }
+
+  augment /t-a:it {
+    container item {
+      leaf name {
+        type string;
+      }
+    }
+    container p {
+      presence "";
+      leaf name {
+        type string;
+        mandatory false;
+      }
+    }
+    list l {
+      key k;
+      leaf k {
+        type string;
+      }
+    }
+  }
+}

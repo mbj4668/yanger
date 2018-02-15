@@ -25,3 +25,4 @@ dialyzer:
 # checked out next to 'yanger'
 test:
 	(cd test; $(MAKE))
+.PHONY: test

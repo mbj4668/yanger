@@ -41,6 +41,7 @@
          map_iterator/1, map_next/1,
          map_foldl/3, map_foreach/2]).
 -export([topo_sort/1]).
+-export([add_ref/3]).
 
 -ifdef(debugX).
 -export([tst/1, pp_module/1]).
@@ -669,12 +670,12 @@ add_parsed_stmt_tree(Ctx00, [{ModKeyword, ModuleName, Pos, Substmts} = Stmt],
                             'submodule' ->
                                 IncludingModuleRevision
                         end,
-                    PrefixMap = mk_prefix_map(Substmts, Ctx3),
+                    PrefixMap = mk_prefix_map(substmts(Stmt1), Ctx3),
                     M0 = #module{filename = FileName,
                                  kind = ModKeyword,
                                  name = ModuleName,
                                  modulename = ModuleName,
-                                 stmt = Stmt,
+                                 stmt = Stmt1,
                                  prefix_map = PrefixMap,
                                  revision = ModuleRevision,
                                  modulerevision = IncludingModuleRevision1,
@@ -920,7 +921,7 @@ parse_body(Stmts, M0, Ctx0) ->
     %% Apply local augments and augments from the submodules
     {AugmentedChildren, Ctx5} =
         augment_children(SubModuleAugments ++ LocalAugments,
-                         Children, final, [M3], Ctx4),
+                         Children, final, [M3], M3, Ctx4),
     %% Validate that all children have unique names
     Ctx6 = v_unique_names(AugmentedChildren, Ctx5),
     %% Build the deviations list
@@ -1061,7 +1062,7 @@ apply_remote_augments([{TargetModuleName, Augments0} | T], M, Ctx0, Acc) ->
             {AugmentedChildren, Ctx1} =
                 augment_children(Augments1,
                                  TargetM#module.children,
-                                 final, [TargetM], Ctx0),
+                                 final, [TargetM], M, Ctx0),
             %% Update the module in the context
             TargetModRev = {TargetModuleName, TargetM#module.revision},
             TargetM1 = TargetM#module{children = AugmentedChildren},
@@ -2157,7 +2158,7 @@ expand_uses(GroupingChildren, UsesSubstmts, Typedefs, Groupings,
           end, Ctx3, ExpandedChildren),
     %% Apply the augments.
     {_AugmentedChildren, _Ctx7} =
-        augment_children(Augments, ExpandedChildren1, Mode, Ancestors, Ctx6).
+        augment_children(Augments, ExpandedChildren1, Mode, Ancestors, M, Ctx6).
 
 expand_uses2([Sn0 | T], RefTree0, M, Ctx0, Acc) ->
     %% Check if there are any refinements for this node
@@ -2192,13 +2193,13 @@ expand_uses2([], RefTree, _M, Ctx0, Acc) ->
 
 %% Augment 'Children' with the schema nodes from 'Augments'.
 %% Return the augmented 'Children'.
-augment_children(Augments, Children, Mode, Ancestors, Ctx0) ->
+augment_children(Augments, Children, Mode, Ancestors, M, Ctx0) ->
     {AugmentedChildren, UndefAugNodes, Ctx1} =
         lists:foldl(
           fun(Augment, {AccChildren, UndefAugNodes00, Ctx00}) ->
-              augment_children0(Augment#augment.target_node,
-                                AccChildren, [], Mode, Ancestors,
-                                Augment, UndefAugNodes00, Ctx00)
+                  augment_children0(Augment#augment.target_node,
+                                    AccChildren, [], Mode, Ancestors,
+                                    Augment, UndefAugNodes00, M, Ctx00)
           end, {Children, [], Ctx0}, Augments),
     %% Report errors for all undefined augment nodes
     Ctx2 =
@@ -2210,7 +2211,7 @@ augment_children(Augments, Children, Mode, Ancestors, Ctx0) ->
     {AugmentedChildren, Ctx2}.
 
 augment_children0([], Sns, _Acc = [], Mode,
-                  Ancestors, Augment, UndefAugNodes, Ctx) ->
+                  Ancestors, Augment, UndefAugNodes, _M, Ctx) ->
     %% We found the children to augment.
     %% Update the children with the augment's children, while looking for
     %% any tmp #sn{}.
@@ -2222,13 +2223,13 @@ augment_children0([], Sns, _Acc = [], Mode,
 augment_children0([{child, Id} | Ids],
                   [#sn{name = Name, children = Children} = Sn | Sns],
                   Acc, Mode, Ancestors, Augment,
-                  UndefAugNodes, Ctx)
+                  UndefAugNodes, M, Ctx)
   when Id == Name ->
     %% We found a node in the augment path; we must update it
     %% with new children.
     {AugmentedChildren, UndefAugNodes1, Ctx1} =
         augment_children0(Ids, Children, [], Mode,
-                          [Sn | Ancestors], Augment, UndefAugNodes, Ctx),
+                          [Sn | Ancestors], Augment, UndefAugNodes, M, Ctx),
     Sn1 = mk_case_from_shorthand(Sn#sn{children = AugmentedChildren}),
     Sn2 = if Ids == [] ->
                   %% This is the target node
@@ -2238,19 +2239,20 @@ augment_children0([{child, Id} | Ids],
           end,
     {lists:reverse(Acc, [Sn2 | Sns]), UndefAugNodes1, Ctx1};
 augment_children0(Ids, [Sn | Sns], Acc, Mode, Ancestors, Augment,
-                  UndefAugNodes, Ctx) ->
+                  UndefAugNodes, M, Ctx) ->
     augment_children0(Ids, Sns, [Sn | Acc], Mode, Ancestors, Augment,
-                      UndefAugNodes, Ctx);
+                      UndefAugNodes, M, Ctx);
 augment_children0([{child, Id} | Ids], [], Acc, Mode, _Ancestors, Augment,
-                  UndefAugNodes, Ctx0) ->
+                  UndefAugNodes, M, Ctx0) ->
     %% We didn't find the node, create a tmp #sn{}, and keep track of it.
     %% At this point, we don't know the Ancestors
     AugPos = stmt_pos(Augment#augment.stmt),
     UndefAugNodes1 = [{AugPos, Id} | UndefAugNodes],
     {AugmentedChildren, UndefAugNodes2, Ctx1} =
         augment_children0(Ids, [], [], Mode, [],
-                          Augment, UndefAugNodes1, Ctx0),
+                          Augment, UndefAugNodes1, M, Ctx0),
     {lists:reverse(Acc, [#sn{name = Id,
+                             module = M,
                              kind = '__tmp_augment__',
                              stmt = {'__tmp_augment__', undefined, AugPos, []},
                              augmented_by = [Augment],
@@ -2406,7 +2408,8 @@ common_substmts([{'when', Arg, Pos, _} = Stmt | T], Origin, M, Ctx0,
     case yang_xpath:compile(Arg, Pos, M, Ctx0#yctx.strict, Ctx0) of
         {ok, CompiledXPath, Ctx1} ->
             common_substmts(T, Origin, M, Ctx1, FeatureL,
-                            [{CompiledXPath, [], Origin, Stmt} | WhenL],
+                            [{CompiledXPath, make_ref(), [], Origin, Stmt} |
+                             WhenL],
                             MustL, Status);
         {error, Ctx1} ->
             common_substmts(T, Origin, M, Ctx1, FeatureL, WhenL, MustL, Status)
@@ -2418,7 +2421,8 @@ common_substmts([{'must', Arg, Pos, _} = Stmt | T], Origin, M, Ctx0,
     case yang_xpath:compile(Arg, Pos, M, Ctx0#yctx.strict, Ctx0) of
         {ok, CompiledXPath, Ctx1} ->
             common_substmts(T, Origin, M, Ctx1, FeatureL,
-                            WhenL, [{CompiledXPath, [], Stmt} | MustL],
+                            WhenL, [{CompiledXPath, make_ref(), [], Stmt} |
+                                    MustL],
                             Status);
         {error, Ctx1} ->
             common_substmts(T, Origin, M, Ctx1, FeatureL, WhenL, MustL, Status)
@@ -2468,30 +2472,33 @@ pre_mk_sn_xpath(Ctx0, Sn = #sn{must = MustL0, 'when' = WhenL0,
   when MustL0 /= [] orelse WhenL0 /= [] ->
     {MustL1, Ctx1} =
         lists:foldl(
-          fun({Q, _Deps = [], Stmt}, {Acc, Ctx0_0}) ->
+          fun({Q, Ref, _Deps = [], Stmt}, {Acc, Ctx0_0}) ->
                   case
                       yang_xpath:set_default_namespace(Q, M#module.xpath_ns_map)
                   of
                       fail = CompiledXPath ->
                           Ctx0_1 = add_error(Ctx0_0, yang:stmt_pos(Stmt),
                                              'YANG_ERR_XPATH_FAIL', []),
-                          {[{CompiledXPath, [], Stmt} | Acc], Ctx0_1};
+                          Ctx0_2 = add_ref(Ctx0_1, Ref, xpath_fail),
+                          {[{CompiledXPath, Ref, [], Stmt} | Acc], Ctx0_2};
                       CompiledXPath ->
                           Deps = yang_xpath:get_dep_paths(CompiledXPath,
                                                           M#module.modulename),
-                          {[{CompiledXPath, Deps, Stmt} | Acc], Ctx0_0}
+                          {[{CompiledXPath, Ref, Deps, Stmt} | Acc], Ctx0_0}
                   end
           end, {[], Ctx0}, MustL0),
     {WhenL1, Ctx2} =
         lists:foldl(
-          fun({Q, _Deps = [], Origin, Stmt}, {Acc, Ctx1_0}) ->
+          fun({Q, Ref, _Deps = [], Origin, Stmt}, {Acc, Ctx1_0}) ->
                   case
                       yang_xpath:set_default_namespace(Q, M#module.xpath_ns_map)
                   of
                       fail = CompiledXPath ->
                           Ctx1_1 = add_error(Ctx1_0, yang:stmt_pos(Stmt),
                                              'YANG_ERR_XPATH_FAIL', []),
-                          {[{CompiledXPath, [], Origin, Stmt} | Acc], Ctx1_1};
+                          Ctx1_2 = add_ref(Ctx1_1, Ref, xpath_fail),
+                          {[{CompiledXPath, Ref, [], Origin, Stmt} | Acc],
+                           Ctx1_2};
                       CompiledXPath ->
                           Deps0 =
                               yang_xpath:get_dep_paths(CompiledXPath,
@@ -2504,7 +2511,8 @@ pre_mk_sn_xpath(Ctx0, Sn = #sn{must = MustL0, 'when' = WhenL0,
                                  true ->
                                       Deps0
                               end,
-                          {[{CompiledXPath, Deps, Origin, Stmt} | Acc], Ctx1_0}
+                          {[{CompiledXPath, Ref, Deps, Origin, Stmt} | Acc],
+                           Ctx1_0}
                   end
           end, {[], Ctx1}, WhenL0),
     {Ctx2, Sn#sn{must = MustL1, 'when' = WhenL1}};
@@ -3004,7 +3012,8 @@ add_must({'must', Arg, Pos, _} = Stmt, M,
          {#sn{must = MustL} = Sn, Ctx0}) ->
     case yang_xpath:compile(Arg, Pos, M, Ctx0#yctx.strict, Ctx0) of
         {ok, CompiledXPath, Ctx1} ->
-            {Sn#sn{must = [{CompiledXPath, [], Stmt} | MustL]}, Ctx1};
+            {Sn#sn{must = [{CompiledXPath, make_ref(), [], Stmt} | MustL]},
+             Ctx1};
         {error, Ctx1} ->
             {Sn, Ctx1}
     end.
@@ -3616,7 +3625,10 @@ deviate_children0([{child, Id} | _], [], Acc, IgnAcc, _, Deviation, Ctx0) ->
 apply_deviation_sn(Sn0, #deviation{deviates = Deviates}, Ancestors, Ctx0) ->
     {Ctx1, Sn1} =
         lists:foldl(fun apply_deviate/2, {Ctx0, Sn0}, Deviates),
-    run_mk_sn_hooks(Ctx1, Sn1, #hooks.post_mk_sn, final,
+    {Ctx2, Sn2} =
+        run_mk_sn_hooks(Ctx1, Sn1, #hooks.pre_mk_sn, final,
+                        undefined, Ancestors),
+    run_mk_sn_hooks(Ctx2, Sn2, #hooks.post_mk_sn, final,
                     undefined, Ancestors).
 
 apply_deviate({How, Stmts}, Acc0) ->
@@ -3681,7 +3693,7 @@ apply_deviate2(How, {Kwd, Arg, Pos, _} = Stmt,
                     Sn1 = Sn#sn{stmt = SnStmt1},
                     case Kwd of
                         'must' ->
-                            MustL = lists:keydelete(Found, 3, Sn#sn.must),
+                            MustL = lists:keydelete(Found, 4, Sn#sn.must),
                             {Ctx, Sn1#sn{must = MustL}};
                         'default' ->
                             {Ctx, Sn1#sn{default = undefined}};
@@ -3710,7 +3722,8 @@ add_stmt(Stmt, #sn{stmt = SnStmt, must = MustL, module = M} = Sn, Ctx0) ->
             of
                 {ok, CompiledXPath, Ctx1} ->
                     {Ctx1,
-                     Sn1#sn{must = [{CompiledXPath, [], Stmt} | MustL]}};
+                     Sn1#sn{must = [{CompiledXPath, make_ref(), [], Stmt} |
+                                    MustL]}};
                 {error, Ctx1} ->
                     {Ctx1, Sn}
             end;
@@ -3849,13 +3862,13 @@ post_expand_sn_leafref(Ctx, _Sn, _M, _Ancestors) ->
 post_expand_sn_xpath_dep(Ctx, #sn{must = [], 'when' = []}, _M, _Ancestors) ->
     Ctx;
 post_expand_sn_xpath_dep(Ctx, #sn{must = MustL, 'when' = WhenL} = Sn,
-                        M, Ancestors) ->
-    L = [{Deps, Stmt} || {_, Deps, Stmt} <- MustL,
+                         M, Ancestors) ->
+    L = [{Ref, Deps, Stmt} || {_, Ref, Deps, Stmt} <- MustL,
                          is_list(Deps)] ++
-        [{Deps, Stmt} || {_, Deps, _, Stmt} <- WhenL,
+        [{Ref, Deps, Stmt} || {_, Ref, Deps, _, Stmt} <- WhenL,
                          is_list(Deps)],
     lists:foldl(
-      fun({Deps, Stmt}, Ctx0) ->
+      fun({Ref, Deps, Stmt}, Ctx0) ->
               lists:foldl(
                 fun(Dep, Ctx1) ->
                         case
@@ -3866,7 +3879,8 @@ post_expand_sn_xpath_dep(Ctx, #sn{must = MustL, 'when' = WhenL} = Sn,
                                 if Sn#sn.config == true andalso
                                    DepSn#sn.config == false ->
                                         Pos = stmt_pos(Stmt),
-                                        add_xpath_ref_config_error(Ctx1, Pos,
+                                        Ctx2 = add_ref(Ctx1, Ref, bad_config),
+                                        add_xpath_ref_config_error(Ctx2, Pos,
                                                                    DepSn);
                                    true ->
                                         Ctx1
@@ -3877,9 +3891,10 @@ post_expand_sn_xpath_dep(Ctx, #sn{must = MustL, 'when' = WhenL} = Sn,
                                 %% that can never exist, which
                                 %% means the original xpath is
                                 %% wrong.  Warn.
+                                Ctx2 = add_ref(Ctx1, Ref, bad_ref),
                                 lists:foldl(
                                   fun add_xpath_bad_ref/2,
-                                  Ctx1, Errors)
+                                  Ctx2, Errors)
                         end
                 end, Ctx0, Deps)
       end, Ctx, L).
@@ -3897,7 +3912,7 @@ add_leafref_config_error(Ctx, Pos, TargetSn) ->
                yang_error:fmt_pos(stmt_pos(TargetStmt))]).
 
 add_xpath_bad_ref(#yerror{code = Code, args = Args, pos = Pos},
-               #yctx{error_codes = Codes} = Ctx) ->
+                  #yctx{error_codes = Codes} = Ctx) ->
     add_error(Ctx, Pos, 'YANG_ERR_XPATH_BAD_REF',
               [yang_error:fmt_code(Codes, Code, Args)]).
 
@@ -4346,6 +4361,16 @@ chk_any_mandatory([H | T], PruneAugment, PruneConfigFalse) ->
     end;
 chk_any_mandatory([], _, _) ->
     false.
+
+add_ref(#yctx{refmap = Map0} = Ctx, Ref, What) ->
+    case yang:map_lookup(Ref, Map0) of
+        {value, Data0} ->
+            ok;
+        none ->
+            Data0 = []
+    end,
+    Map1 = yang:map_update(Ref, [What | Data0], Map0),
+    Ctx#yctx{refmap = Map1}.
 
 add_error(Ctx, Pos, ErrCode, Args) ->
     yang_error:add_error(Ctx, Pos, ErrCode, Args).

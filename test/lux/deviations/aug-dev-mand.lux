@@ -1,0 +1,32 @@
+[doc Test errors in aug-dev-mand.yang]
+
+[shell yanger]
+  !export PS2=CONT:
+  ?SH-PROMPT:
+  !yanger --smiv2-detect-duplicate-oids  --print-error-code \\
+  ?CONT:
+  !aug-dev-mand.yang 2>&1 | grep aug-dev-mand.yang
+  -SH-PROMPT
+"""?
+aug-dev-mand.yang 2>&1 \| grep aug-dev-mand.yang
+aug-dev-mand.yang:11: (\(.*\): )?YANG_ERR_MANDATORY_NODE_IN_AUGMENT
+aug-dev-mand.yang:22: (\(.*\): )?YANG_ERR_MANDATORY_NODE_IN_AUGMENT
+"""
+  # make sure there are no extra errors reported
+  -aug-dev-mand.yang
+  ?SH-PROMPT:
+
+  # verify that a correctly formatted message is given w/o --print-error-code
+  # (i.e. no crash, and no "unregistered" code)
+  !yanger --smiv2-detect-duplicate-oids  \\
+  ?CONT:
+  !aug-dev-mand.yang 2>&1 | grep aug-dev-mand.yang
+  -SH-PROMPT
+"""?
+aug-dev-mand.yang 2>&1 \| grep aug-dev-mand.yang
+aug-dev-mand.yang:11: (\(.*\): )?(error|warning): \S+.*
+aug-dev-mand.yang:22: (\(.*\): )?(error|warning): \S+.*
+"""
+  # make sure there are no extra errors reported
+  -aug-dev-mand.yang
+  ?SH-PROMPT:

@@ -1,0 +1,33 @@
+[doc Test that augment of mandatory node due to deviation is rejected]
+
+[shell yanger]
+  !export PS2=CONT:
+  ?SH-PROMPT:
+  !yanger --deviation-module test-dev-mand.yang --print-error-code \\
+  ?CONT:
+  !test.yang 2>&1 | grep test.yang
+  -SH-PROMPT
+"""?
+test.yang 2>&1 \| grep test.yang
+test.yang:11: (\(.*\): )?YANG_ERR_MANDATORY_NODE_IN_AUGMENT
+test.yang:22: (\(.*\): )?YANG_ERR_MANDATORY_NODE_IN_AUGMENT
+"""
+  # make sure there are no extra errors reported
+  -test.yang
+  ?SH-PROMPT:
+
+  -
+  # verify that a correctly formatted message is given w/o --print-error-code
+  # (i.e. no crash, and no "unregistered" code)
+  !yanger --deviation-module test-dev-mand.yang \\
+  ?CONT:
+  !test.yang 2>&1 | grep test.yang
+  -SH-PROMPT
+"""?
+test.yang 2>&1 \| grep test.yang
+test.yang:11: (\(.*\): )?(error|warning): \S+.*
+test.yang:22: (\(.*\): )?(error|warning): \S+.*
+"""
+  # make sure there are no extra errors reported
+  -test.yang
+  ?SH-PROMPT:

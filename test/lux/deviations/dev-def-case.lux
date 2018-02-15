@@ -1,0 +1,93 @@
+[doc Test that deviation removing the default case in a choice is rejected]
+
+[shell yanger]
+  !export PS2=CONT:
+  ?SH-PROMPT:
+
+  # 1. remove the default case node
+  # - should give error for the choice 'default' statement
+
+  !yanger --deviation-module choice-def-case-rem.yang --print-error-code \\
+  ?CONT:
+  !choice-def-case.yang 2>&1 | grep choice-def-case.yang
+  -SH-PROMPT
+"""?
+choice-def-case.yang 2>&1 \| grep choice-def-case.yang
+choice-def-case.yang:10: (\(.*\): )?YANG_ERR_DEFAULT_CASE_NOT_FOUND
+"""
+  # make sure there are no extra errors reported
+  -choice-def-case.yang
+  ?SH-PROMPT:
+
+  -
+  # verify that a correctly formatted message is given w/o --print-error-code
+  # (i.e. no crash, and no "unregistered" code)
+  !yanger --deviation-module choice-def-case-rem.yang \\
+  ?CONT:
+  !choice-def-case.yang 2>&1 | grep choice-def-case.yang
+  -SH-PROMPT
+"""?
+choice-def-case.yang 2>&1 \| grep choice-def-case.yang
+choice-def-case.yang:10: (\(.*\): )?(error|warning): \S+.*
+"""
+  # make sure there are no extra errors reported
+  -choice-def-case.yang
+  ?SH-PROMPT:
+
+  # 2. remove the choice 'default' *and* default case node (in that order)
+  # - should be OK
+
+  !yanger --deviation-module choice-def-case-dev.yang --print-error-code \\
+  ?CONT:
+  !choice-def-case.yang 2>&1 | grep choice-def-case.yang
+  -SH-PROMPT
+"""?
+choice-def-case.yang 2>&1 \| grep choice-def-case.yang
+"""
+  # make sure there are no extra errors reported
+  -choice-def-case.yang
+  ?SH-PROMPT:
+
+  -
+  # verify that a correctly formatted message is given w/o --print-error-code
+  # (i.e. no crash, and no "unregistered" code)
+  !yanger --deviation-module choice-def-case-dev.yang \\
+  ?CONT:
+  !choice-def-case.yang 2>&1 | grep choice-def-case.yang
+  -SH-PROMPT
+"""?
+choice-def-case.yang 2>&1 \| grep choice-def-case.yang
+"""
+  # make sure there are no extra errors reported
+  -choice-def-case.yang
+  ?SH-PROMPT:
+
+  # 3. change the choice 'default' to give a non-existent case node
+  # - should give error for the choice 'default' statement _in the deviation_
+
+  !yanger --deviation-module choice-def-case-chg.yang --print-error-code \\
+  ?CONT:
+  !choice-def-case.yang 2>&1 | grep 'choice-def-case.*.yang'
+  -SH-PROMPT
+"""?
+choice-def-case.yang 2>&1 \| grep 'choice-def-case.\*.yang'
+choice-def-case-chg.yang:11: (\(.*\): )?YANG_ERR_DEFAULT_CASE_NOT_FOUND
+"""
+  # make sure there are no extra errors reported
+  -choice-def-case.*.yang
+  ?SH-PROMPT:
+
+  -
+  # verify that a correctly formatted message is given w/o --print-error-code
+  # (i.e. no crash, and no "unregistered" code)
+  !yanger --deviation-module choice-def-case-chg.yang \\
+  ?CONT:
+  !choice-def-case.yang 2>&1 | grep 'choice-def-case.*.yang'
+  -SH-PROMPT
+"""?
+choice-def-case.yang 2>&1 \| grep 'choice-def-case.\*.yang'
+choice-def-case-chg.yang:11: (\(.*\): )?(error|warning): \S+.*
+"""
+  # make sure there are no extra errors reported
+  -choice-def-case.*.yang
+  ?SH-PROMPT:

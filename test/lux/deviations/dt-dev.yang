@@ -1,0 +1,28 @@
+module dt-dev {
+  namespace urn:dummy;
+  prefix dummy;
+
+  // YANGER_EXTRA_FLAGS: dt.yang --deviation-module
+
+  import dt {
+    prefix dt;
+  }
+
+  deviation /dt:foo/dt:baz { // LINE: YANG_ERR_NODE_NOT_FOUND
+    deviate not-supported;
+  }
+  deviation /dt:foo/dt:bar {
+    deviate add {
+      max-elements 3; // LINE: YANG_ERR_BAD_DEVIATION
+      type string; // LINE: YANG_ERR_BAD_DEVIATE_ADD
+    }
+    deviate replace {
+      default 42; // LINE: YANG_ERR_BAD_DEVIATE_REPLACE_NOT_FOUND
+      must ". = 42"; // LINE: YANG_ERR_BAD_DEVIATE_REPLACE
+    }
+    deviate delete {
+      must ". = 42"; // LINE: YANG_ERR_BAD_DEVIATE_DELETE
+      type string; // LINE: YANG_ERR_BAD_DEVIATE_DELETE
+    }
+  }
+}

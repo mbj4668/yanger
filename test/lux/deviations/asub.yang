@@ -1,0 +1,12 @@
+submodule asub {
+  belongs-to a {
+    prefix a;
+  }
+
+  import b {
+    prefix b1;
+  }
+  deviation /b1:x/b1:u {
+    deviate not-supported;
+  }
+}

@@ -248,11 +248,11 @@ deps(Expr, CurPath, CurNs, DepsAcc) ->
         %% specially
         {function_call, xp_current, []} ->
             {['.'], DepsAcc};
-        [{function_call, xp_deref, Args} | _Steps] ->
+        [{function_call, xp_deref, _Args} | _Steps] ->
             %% We can't check the _Steps after deref without following
             %% the deref target itself.  If it is an i-i we can't do it at
             %% all; it is is a leafref we _could_ do it.
-            RecF(Args);
+            throw(false);
         {function_call, _F, Args} ->
             RecF(Args);
         {negative, E} ->

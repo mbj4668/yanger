@@ -1,0 +1,20 @@
+module xpathref {
+  yang-version 1.1;
+  namespace "urn:xpathref";
+  prefix xr;
+
+  container x {
+    leaf foo {
+      type int32;
+      config false;
+    }
+    leaf bar {
+      type int32;
+      must "../foo"; // LINE: YANG_ERR_XPATH_REF_BAD_CONFIG
+    }
+    leaf baz {
+      type int32;
+      when "../foo"; // LINE: YANG_ERR_XPATH_REF_BAD_CONFIG
+    }
+  }
+}

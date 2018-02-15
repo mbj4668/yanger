@@ -1,0 +1,18 @@
+module choice-def-case-dev {
+  namespace urn:dummy;
+  prefix dummy;
+
+  import choice-def-case {
+    prefix cdc;
+  }
+
+  deviation "/cdc:foo/cdc:ch" {
+    deviate delete {
+      default ca1;
+    }
+  }
+
+  deviation "/cdc:foo/cdc:ch/cdc:ca1" {
+    deviate not-supported;
+  }
+}

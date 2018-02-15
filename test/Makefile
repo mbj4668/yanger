@@ -1,4 +1,4 @@
-DIRS = lux common_test
+DIRS = lux
 
 all: test
 

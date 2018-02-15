@@ -1,0 +1,15 @@
+module b {
+  namespace urn:b;
+  prefix b;
+
+  container x {
+    leaf r {
+      type string;
+      mandatory true;
+    }
+    leaf u {
+      type string;
+    }
+  }
+
+}

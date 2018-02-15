@@ -1,0 +1,55 @@
+module a {
+  namespace "urn:a";
+  prefix a;
+
+  import b {
+    prefix b;
+  }
+  include asub;
+
+  container x;
+
+  augment /x {
+    list bar {
+      key foo;
+      leaf foo {
+        type int32;
+      }
+      leaf bar {
+        type int32;
+        mandatory true;
+      }
+      leaf baz {
+        type string;
+      }
+    }
+  }
+
+  deviation /b:x {
+    deviate replace {
+      config false;
+    }
+  }
+  deviation /b:x/b:r {
+    deviate replace {
+      mandatory false;
+      type uint32 {
+        range "0..1";
+      }
+    }
+  }
+
+  deviation /x {
+    deviate replace {
+      config false;
+    }
+  }
+  deviation /x/bar/bar {
+    deviate delete {
+      mandatory true;
+    }
+  }
+  deviation /x/bar/baz {
+    deviate not-supported;
+  }
+}

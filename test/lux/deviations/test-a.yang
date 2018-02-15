@@ -1,0 +1,6 @@
+module test-a {
+  namespace "http://test-a";
+  prefix t-a;
+
+  container it;
+}

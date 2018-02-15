@@ -1,0 +1,22 @@
+module simple {
+  namespace "http://tail-f.com/ns/simple";
+  prefix s1;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  container servers {
+    list server {
+      key name;
+      leaf name { type int16; }
+      leaf ip {
+        type inet:ip-address;
+      }
+      leaf port {
+        type inet:port-number;
+        must ". < 1024";
+      }
+    }
+  }
+}

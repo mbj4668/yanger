@@ -56,10 +56,14 @@ module ref {
 """??
       must = [{{relative,[{step,parent,{node_type,node},[]},
                          {step,child,{name,ref,c},[]}]},
+"""
+"""??
               [['..',[ref|c]]],
               {must,<<"../c">>,{"ref.yang",12},[]}},
              {{relative,[{step,parent,{node_type,node},[]},
                          {step,child,{name,ref,d},[]}]},
+"""
+"""??
               [['..',[ref|d]]],
               {must,<<"../d">>,{"ref.yang",32},[]}}]
 """
@@ -85,7 +89,8 @@ module ref {
                              [{step,child,{name,a,a},[]},
                               {step,child,{name,a,b},[]}]},
                             {literal,"hej"}},
-                           [],
+"""
+"""??
                            {must,<<"/q:a/q:b = 'hej'">>,{"b.yang",12},[]}}],
 """
     ?SH-PROMPT

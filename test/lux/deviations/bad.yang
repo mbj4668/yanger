@@ -1,0 +1,50 @@
+module bad {
+  namespace urn:bad;
+  prefix d;
+
+  import b {
+    prefix b;
+  }
+
+  container x {
+    config true;
+  }
+
+  augment /x {
+    list bar {
+      key foo;
+      leaf foo {
+        type int32;
+      }
+      leaf bar {
+        type int32;
+        mandatory true;
+      }
+    }
+  }
+
+  deviation /x {
+    deviate delete {
+      config false; // error, no such config stmt
+    }
+  }
+  deviation /b:x/b:r {
+    deviate add {
+      default hej; // error, doesn't match the new type
+    }
+    deviate replace {
+      mandatory false;
+      type uint32 {
+        range "-1..1"; // error; bad range
+      }
+    }
+  }
+
+  extension foo;
+  deviation "/x" {
+    deviate "add" {
+      d:foo;
+    }
+  }
+
+}

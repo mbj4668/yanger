@@ -1,0 +1,10 @@
+module dt {
+  namespace urn:dt;
+  prefix dt;
+
+  container foo {
+    leaf bar {
+      type int32;
+    }
+  }
+}

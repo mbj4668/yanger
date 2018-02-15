@@ -129,10 +129,14 @@
           %% 'when' expressions from a 'uses' or 'augment' are propagated
           %% into the child schema nodes.
           'when' = [] :: [{CompiledXPath,
-                           Deps,
+                           reference(),
+                           Deps :: false | [Dep],
                            Origin :: 'uses' | 'augment' | 'local',
                            yang:stmt()}],
-          must = [] :: [{CompiledXPath, Deps, yang:stmt()}],
+          must = [] :: [{CompiledXPath,
+                         reference(),
+                         Deps :: false | [Dep],
+                         yang:stmt()}],
           %% 'if-feature' expressions from a 'uses' or 'augment' are propagated
           %% into the child schema nodes.
           if_feature = [] :: [{#feature{},
@@ -352,6 +356,12 @@
           %% tree, after parsing of the module is completed.
           post_parse_stmt_tree = [] :: [yang:hookfun()],
 
+          %% HookF(#yctx{}, #module{}) -> {#yctx{}, #module{}}.
+          %%
+          %% post_parse_module is called for each module after parsing has
+          %% been completed.
+          post_parse_module = [] :: [yang:hookfun()],
+
           %% HookF(#yctx{}, #sn{}, Mode, UsesPos, Ancestors) ->
           %%   {#yctx{}, #sn{}}.
           %%
@@ -446,12 +456,6 @@
           post_expand_sn = [] :: [yang:hookfun()
                                   | {[Condition::term()] | yang:hookfun()}],
 
-          %% HookF(#yctx{}, #module{}) -> {#yctx{}, #module{}}.
-          %%
-          %% post_parse_module is called for each module after parsing has
-          %% been completed.
-          post_parse_module = [] :: [yang:hookfun()],
-
           %% HookF(#yctx{}) -> #yctx{}.
           %%
           %% post_add_modules is called once after all modules have been
@@ -516,6 +520,8 @@
           unused_imports = [] :: [{ModuleName :: atom(), [yang:import()]}],
           %% Imports that have only been used in deviations
           deviation_imports = [] :: [{ModuleName :: atom(), [yang:import()]}],
+          %% map with data that cannot be stored in the #sn tree
+          refmap = yang:map_new() :: yang:map(reference(), [term()]),
           pmap = yang:map_new() :: yang:map0() % used by plugins
          }).
 

@@ -1,0 +1,14 @@
+module choice-def-case-chg {
+  namespace urn:dummy;
+  prefix dummy;
+
+  import choice-def-case {
+    prefix cdc;
+  }
+
+  deviation "/cdc:foo/cdc:ch" {
+    deviate replace {
+      default ca3;
+    }
+  }
+}
