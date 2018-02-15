@@ -40,8 +40,8 @@
          map_lookup/2, map_get/2, map_is_key/2, map_delete/2, map_to_list/1,
          map_iterator/1, map_next/1,
          map_foldl/3, map_foreach/2]).
--export([topo_sort/1]).
--export([add_ref/3]).
+-export([topo_sort/1, get_schema_node/2]).
+-export([pre_mk_sn_xpath/5, add_ref/3]).
 
 -ifdef(debugX).
 -export([tst/1, pp_module/1]).

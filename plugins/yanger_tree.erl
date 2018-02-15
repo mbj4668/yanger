@@ -118,7 +118,10 @@ emit_tree(Ctx, [Mod|Mods], AllMods, Fd, Depth, Path) ->
                       true ->
                           Acc;
                       false ->
-                          Augments ++ Acc
+                          {value, TargetM} =
+                              yang:get_imported_module(RemoteModuleName,
+                                                       Mod, Ctx),
+                          [{TargetM, A} || A <- Augments] ++ Acc
                   end
           end, [], Mod#module.remote_augments),
 
@@ -131,11 +134,20 @@ emit_tree(Ctx, [Mod|Mods], AllMods, Fd, Depth, Path) ->
     SectionPrinted1 = true, % always print separator after data, even if empty
     maybe_print_separator(SectionPrinted1 andalso Augs /= []),
     lists:foreach(
-      fun(Augment) ->
+      fun({TargetM, Augment}) ->
               io:format(Fd, "  augment ~s:~n",
                         [?stmt_arg(Augment#augment.stmt)]),
-              print_list(Augment#augment.children, Mod, Fd, Path, data,
-                         Depth, "  ")
+              Mode =
+                  case
+                      yang:get_schema_node(Augment#augment.target_node, TargetM)
+                  of
+                      {true, Sn, _} ->
+                          new_mode(Sn, data);
+                      _ ->
+                          data
+                  end,
+              print_children(Augment#augment.children, Mod, Fd, undefined,
+                             "  ", Path, Mode, Depth, 0)
       end, Augs),
     SectionPrinted2 = Augs /= [] orelse SectionPrinted1,
     if Path == [] ->
@@ -222,15 +234,19 @@ print_children(Children, Mod, Fd, PKey, Prefix, Path, Mode, Depth, Width) ->
                   true ->
                       skip;
                   false ->
-                      NewMode =
-                          if Child#sn.kind == 'input' -> input;
-                             Child#sn.kind == 'output' -> output;
-                             true -> Mode
-                          end,
+                      NewMode = new_mode(Child, Mode),
                       print_node(Child, Mod, Fd, PKey,
                                  NewPrefix, Path1, NewMode, Depth, NWidth)
               end
       end, Children1).
+
+new_mode(#sn{kind = Kind}, Mode) ->
+    case Kind of
+        'input' -> input;
+        'output' -> output;
+        'notification' -> notification;
+        _ -> Mode
+    end.
 
 -spec print_node(#sn{}, #module{}, erlang:device(), 'undefined' | [atom()],
                  string(), undefined | [atom()], mode(),
@@ -292,12 +308,16 @@ print_node(Sn, Mod, Fd, PKey, Prefix, Path, Mode, Depth, Width) ->
        true ->
             io:format(Fd, "~s ~s~s", [Flags, mk_str(Name, Width+1), TypeName])
     end,
-    case (KW == list) andalso (?search_one(key, Subs) /= false) of
+    if KW == 'list' ->
+            case ?search_one(key, Subs) of
+                false ->
+                    io:format(Fd, " []", []);
+                St ->
+                    Rep = re:replace(?stmt_arg(St),"\\s+"," ",
+                                     [global,{return,list}]),
+                    io:format(Fd, " [~s]", [Rep])
+            end;
         true ->
-            St  = ?search_one(key, Subs),
-            Rep = re:replace(?stmt_arg(St),"\\s+"," ",[global,{return,list}]),
-            io:format(Fd, " [~s]", [Rep]);
-        _ ->
             skip
     end,
     case Sn#sn.if_feature of

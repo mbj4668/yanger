@@ -22,6 +22,18 @@
 [shell test_yanger_tree]
     [timeout 20]
 
+    # use some test modules
+    [global DIR=.]
+    [invoke tree_compare small2.yang]
+    [invoke tree_compare small3.yang]
+    [invoke tree_compare small4.yang]
+    ## FIXME: grouping expansion must be done differently!
+    ## In order for the #groupings{} to be correct, I think we must
+    ## topo sort all groupings and process them in the correct order.
+    #[invoke tree_compare small5.yang]
+    [invoke tree_compare a.yang]
+    [invoke tree_compare x.yang]
+
     # use pyang test modules
     [global DIR=../../../../../pyang/test/test_good]
     [invoke tree_compare yt2.yang]
@@ -46,15 +58,6 @@
     # and use some yanger modules
     [global DIR=../internal]
     [invoke tree_compare mksn.yang]
-    [global DIR=.]
-    [invoke tree_compare small2.yang]
-    [invoke tree_compare small3.yang]
-    [invoke tree_compare small4.yang]
-    [invoke tree_compare a.yang]
-    ## FIXME: grouping expansion must be done differently!
-    ## In order for the #groupings{} to be correct, I think we must
-    ## topo sort all groupings and process them in the correct order.
-    #[invoke tree_compare small5.yang]
 
     # and the complicated ietf-snmp-cfg module
     [global DIR=ietf-snmp-cfg]
