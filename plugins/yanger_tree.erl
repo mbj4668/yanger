@@ -332,7 +332,7 @@ print_node(Sn, Mod, Fd, PKey, Prefix, Path, Mode, Depth, Width) ->
                    _         -> Depth - 1
                end,
     NewW = case ?in(KW, ['choice', 'case']) of
-               true  -> Width;
+               true  -> Width - 3;
                false -> 0
            end,
     print_children(Sn#sn.children, Mod, Fd, Sn#sn.keys,
@@ -412,11 +412,16 @@ leafref_ptr(#leafref_type_spec{path_stmt = P}, Mod) ->
 
 %% @doc Get the width (amount of chars) of a list of children
 width(W, Sns, Mod) ->
-    lists:foldl(fun(Sn, AggW) ->
-                        Nlen = string:len(name(Sn, Mod)),
-                        case ?in(Sn#sn.kind, ['choice', 'case']) of
-                            true -> width(AggW, Sn#sn.children, Mod);
-                            false when Nlen > AggW -> Nlen;
-                            false -> AggW
-                        end
-                end, W, Sns).
+    lists:foldl(
+      fun(Sn, AggW) ->
+              Nlen =
+                  case ?in(Sn#sn.kind, ['choice', 'case']) of
+                      true ->
+                          3 + width(0, Sn#sn.children, Mod);
+                      false ->
+                          string:len(name(Sn, Mod))
+                  end,
+              if Nlen > AggW -> Nlen;
+                 true -> AggW
+              end
+      end, W, Sns).

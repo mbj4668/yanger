@@ -8,6 +8,13 @@ module a {
       leaf bar {
         type int32;
       }
+      choice a-pretty-long-name {
+        case another-long-name {
+          leaf baz {
+            type int32;
+          }
+        }
+      }
     }
   }
 }
