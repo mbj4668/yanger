@@ -129,12 +129,10 @@
           %% 'when' expressions from a 'uses' or 'augment' are propagated
           %% into the child schema nodes.
           'when' = [] :: [{CompiledXPath,
-                           reference(),
                            Deps :: false | [Dep],
                            Origin :: 'uses' | 'augment' | 'local',
                            yang:stmt()}],
           must = [] :: [{CompiledXPath,
-                         reference(),
                          Deps :: false | [Dep],
                          yang:stmt()}],
           %% 'if-feature' expressions from a 'uses' or 'augment' are propagated
@@ -520,8 +518,6 @@
           unused_imports = [] :: [{ModuleName :: atom(), [yang:import()]}],
           %% Imports that have only been used in deviations
           deviation_imports = [] :: [{ModuleName :: atom(), [yang:import()]}],
-          %% map with data that cannot be stored in the #sn tree
-          refmap = yang:map_new() :: yang:map(reference(), [term()]),
           pmap = yang:map_new() :: yang:map0() % used by plugins
          }).
 

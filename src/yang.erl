@@ -41,7 +41,7 @@
          map_iterator/1, map_next/1,
          map_foldl/3, map_foreach/2]).
 -export([topo_sort/1, get_schema_node/2]).
--export([pre_mk_sn_xpath/5, add_ref/3]).
+-export([pre_mk_sn_xpath/5]).
 
 -ifdef(debugX).
 -export([tst/1, pp_module/1]).
@@ -2408,7 +2408,7 @@ common_substmts([{'when', Arg, Pos, _} = Stmt | T], Origin, M, Ctx0,
     case yang_xpath:compile(Arg, Pos, M, Ctx0#yctx.strict, Ctx0) of
         {ok, CompiledXPath, Ctx1} ->
             common_substmts(T, Origin, M, Ctx1, FeatureL,
-                            [{CompiledXPath, make_ref(), [], Origin, Stmt} |
+                            [{CompiledXPath, [], Origin, Stmt} |
                              WhenL],
                             MustL, Status);
         {error, Ctx1} ->
@@ -2421,7 +2421,7 @@ common_substmts([{'must', Arg, Pos, _} = Stmt | T], Origin, M, Ctx0,
     case yang_xpath:compile(Arg, Pos, M, Ctx0#yctx.strict, Ctx0) of
         {ok, CompiledXPath, Ctx1} ->
             common_substmts(T, Origin, M, Ctx1, FeatureL,
-                            WhenL, [{CompiledXPath, make_ref(), [], Stmt} |
+                            WhenL, [{CompiledXPath, [], Stmt} |
                                     MustL],
                             Status);
         {error, Ctx1} ->
@@ -2472,33 +2472,31 @@ pre_mk_sn_xpath(Ctx0, Sn = #sn{must = MustL0, 'when' = WhenL0,
   when MustL0 /= [] orelse WhenL0 /= [] ->
     {MustL1, Ctx1} =
         lists:foldl(
-          fun({Q, Ref, _Deps = [], Stmt}, {Acc, Ctx0_0}) ->
+          fun({Q, _Deps = [], Stmt}, {Acc, Ctx0_0}) ->
                   case
                       yang_xpath:set_default_namespace(Q, M#module.xpath_ns_map)
                   of
                       fail = CompiledXPath ->
                           Ctx0_1 = add_error(Ctx0_0, yang:stmt_pos(Stmt),
                                              'YANG_ERR_XPATH_FAIL', []),
-                          Ctx0_2 = add_ref(Ctx0_1, Ref, xpath_fail),
-                          {[{CompiledXPath, Ref, [], Stmt} | Acc], Ctx0_2};
+                          {[{CompiledXPath, [], Stmt} | Acc], Ctx0_1};
                       CompiledXPath ->
                           Deps = yang_xpath:get_dep_paths(CompiledXPath,
                                                           M#module.modulename),
-                          {[{CompiledXPath, Ref, Deps, Stmt} | Acc], Ctx0_0}
+                          {[{CompiledXPath, Deps, Stmt} | Acc], Ctx0_0}
                   end
           end, {[], Ctx0}, MustL0),
     {WhenL1, Ctx2} =
         lists:foldl(
-          fun({Q, Ref, _Deps = [], Origin, Stmt}, {Acc, Ctx1_0}) ->
+          fun({Q, _Deps = [], Origin, Stmt}, {Acc, Ctx1_0}) ->
                   case
                       yang_xpath:set_default_namespace(Q, M#module.xpath_ns_map)
                   of
                       fail = CompiledXPath ->
                           Ctx1_1 = add_error(Ctx1_0, yang:stmt_pos(Stmt),
                                              'YANG_ERR_XPATH_FAIL', []),
-                          Ctx1_2 = add_ref(Ctx1_1, Ref, xpath_fail),
-                          {[{CompiledXPath, Ref, [], Origin, Stmt} | Acc],
-                           Ctx1_2};
+                          {[{CompiledXPath, [], Origin, Stmt} | Acc],
+                           Ctx1_1};
                       CompiledXPath ->
                           Deps0 =
                               yang_xpath:get_dep_paths(CompiledXPath,
@@ -2511,8 +2509,7 @@ pre_mk_sn_xpath(Ctx0, Sn = #sn{must = MustL0, 'when' = WhenL0,
                                  true ->
                                       Deps0
                               end,
-                          {[{CompiledXPath, Ref, Deps, Origin, Stmt} | Acc],
-                           Ctx1_0}
+                          {[{CompiledXPath, Deps, Origin, Stmt} | Acc], Ctx1_0}
                   end
           end, {[], Ctx1}, WhenL0),
     {Ctx2, Sn#sn{must = MustL1, 'when' = WhenL1}};
@@ -3012,7 +3009,7 @@ add_must({'must', Arg, Pos, _} = Stmt, M,
          {#sn{must = MustL} = Sn, Ctx0}) ->
     case yang_xpath:compile(Arg, Pos, M, Ctx0#yctx.strict, Ctx0) of
         {ok, CompiledXPath, Ctx1} ->
-            {Sn#sn{must = [{CompiledXPath, make_ref(), [], Stmt} | MustL]},
+            {Sn#sn{must = [{CompiledXPath, [], Stmt} | MustL]},
              Ctx1};
         {error, Ctx1} ->
             {Sn, Ctx1}
@@ -3722,8 +3719,7 @@ add_stmt(Stmt, #sn{stmt = SnStmt, must = MustL, module = M} = Sn, Ctx0) ->
             of
                 {ok, CompiledXPath, Ctx1} ->
                     {Ctx1,
-                     Sn1#sn{must = [{CompiledXPath, make_ref(), [], Stmt} |
-                                    MustL]}};
+                     Sn1#sn{must = [{CompiledXPath, [], Stmt} | MustL]}};
                 {error, Ctx1} ->
                     {Ctx1, Sn}
             end;
@@ -3863,12 +3859,12 @@ post_expand_sn_xpath_dep(Ctx, #sn{must = [], 'when' = []}, _M, _Ancestors) ->
     Ctx;
 post_expand_sn_xpath_dep(Ctx, #sn{must = MustL, 'when' = WhenL} = Sn,
                          M, Ancestors) ->
-    L = [{Ref, Deps, Stmt} || {_, Ref, Deps, Stmt} <- MustL,
+    L = [{Deps, Stmt} || {_, Deps, Stmt} <- MustL,
                          is_list(Deps)] ++
-        [{Ref, Deps, Stmt} || {_, Ref, Deps, _, Stmt} <- WhenL,
+        [{Deps, Stmt} || {_, Deps, _, Stmt} <- WhenL,
                          is_list(Deps)],
     lists:foldl(
-      fun({Ref, Deps, Stmt}, Ctx0) ->
+      fun({Deps, Stmt}, Ctx0) ->
               lists:foldl(
                 fun(Dep, Ctx1) ->
                         case
@@ -3879,8 +3875,7 @@ post_expand_sn_xpath_dep(Ctx, #sn{must = MustL, 'when' = WhenL} = Sn,
                                 if Sn#sn.config == true andalso
                                    DepSn#sn.config == false ->
                                         Pos = stmt_pos(Stmt),
-                                        Ctx2 = add_ref(Ctx1, Ref, bad_config),
-                                        add_xpath_ref_config_error(Ctx2, Pos,
+                                        add_xpath_ref_config_error(Ctx1, Pos,
                                                                    DepSn);
                                    true ->
                                         Ctx1
@@ -3891,10 +3886,9 @@ post_expand_sn_xpath_dep(Ctx, #sn{must = MustL, 'when' = WhenL} = Sn,
                                 %% that can never exist, which
                                 %% means the original xpath is
                                 %% wrong.  Warn.
-                                Ctx2 = add_ref(Ctx1, Ref, bad_ref),
                                 lists:foldl(
                                   fun add_xpath_bad_ref/2,
-                                  Ctx2, Errors)
+                                  Ctx1, Errors)
                         end
                 end, Ctx0, Deps)
       end, Ctx, L).
@@ -4361,16 +4355,6 @@ chk_any_mandatory([H | T], PruneAugment, PruneConfigFalse) ->
     end;
 chk_any_mandatory([], _, _) ->
     false.
-
-add_ref(#yctx{refmap = Map0} = Ctx, Ref, What) ->
-    case yang:map_lookup(Ref, Map0) of
-        {value, Data0} ->
-            ok;
-        none ->
-            Data0 = []
-    end,
-    Map1 = yang:map_update(Ref, [What | Data0], Map0),
-    Ctx#yctx{refmap = Map1}.
 
 add_error(Ctx, Pos, ErrCode, Args) ->
     yang_error:add_error(Ctx, Pos, ErrCode, Args).
