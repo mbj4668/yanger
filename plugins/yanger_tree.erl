@@ -105,10 +105,11 @@ emit(Ctx, Mods, Fd) ->
 %%      other sub emit functions appropriately.
 emit_tree(_,   [],         _,       _,  _,     _   ) -> ok;
 emit_tree(Ctx, [Mod|Mods], AllMods, Fd, Depth, Path) ->
-    Chs    = [C || C <- Mod#module.children, is_data_def(C#sn.kind, Ctx)],
-    Rpcs   = [C || C <- Mod#module.children, C#sn.kind == 'operation'],
-    Notifs = [C || C <- Mod#module.children, C#sn.kind == 'notification'],
-    YangDatas = [C || C <- Mod#module.children,
+    ExistingChildren = existing_children(Mod#module.children),
+    Chs    = [C || C <- ExistingChildren, is_data_def(C#sn.kind, Ctx)],
+    Rpcs   = [C || C <- ExistingChildren, C#sn.kind == 'operation'],
+    Notifs = [C || C <- ExistingChildren, C#sn.kind == 'notification'],
+    YangDatas = [C || C <- ExistingChildren,
                       ?stmt_kw(C#sn.stmt) == {'ietf-restconf', 'yang-data'}],
     AllModuleNames = [Mx#module.name|| Mx <- AllMods],
     Augs =
@@ -146,7 +147,8 @@ emit_tree(Ctx, [Mod|Mods], AllMods, Fd, Depth, Path) ->
                       _ ->
                           data
                   end,
-              print_children(Augment#augment.children, Mod, Fd, undefined,
+              print_children(existing_children(Augment#augment.children),
+                             Mod, Fd, undefined,
                              "  ", Path, Mode, Depth, 0)
       end, Augs),
     SectionPrinted2 = Augs /= [] orelse SectionPrinted1,
@@ -177,6 +179,9 @@ emit_tree(Ctx, [Mod|Mods], AllMods, Fd, Depth, Path) ->
             io:format("\n", []),
             emit_tree(Ctx, Mods, AllMods, Fd, Depth, Path)
     end.
+
+existing_children(Chs) ->
+    [C || #sn{if_feature_result = true} = C <- Chs].
 
 maybe_print_separator(true) ->
     io:format("\n", []);
@@ -251,9 +256,6 @@ new_mode(#sn{kind = Kind}, Mode) ->
 -spec print_node(#sn{}, #module{}, erlang:device(), 'undefined' | [atom()],
                  string(), undefined | [atom()], mode(),
                  integer(), integer()) -> ok.
-print_node(#sn{if_feature_result = false},
-           _Mod, _Fd, _PKey, _Prefix, _Path, _Mode, _Depth, _Width) ->
-    skip;
 print_node(Sn, Mod, Fd, PKey, Prefix, Path, Mode, Depth, Width) ->
     {KW, StmtArg, _, Subs} = Sn#sn.stmt,
     TypeName = typename(Sn#sn.type, Mod),
@@ -335,7 +337,7 @@ print_node(Sn, Mod, Fd, PKey, Prefix, Path, Mode, Depth, Width) ->
                true  -> Width - 3;
                false -> 0
            end,
-    print_children(Sn#sn.children, Mod, Fd, Sn#sn.keys,
+    print_children(existing_children(Sn#sn.children), Mod, Fd, Sn#sn.keys,
                    Prefix, Path, Mode, NewDepth, NewW).
 
 -spec is_data_def(atom(), #yctx{}) -> boolean().
