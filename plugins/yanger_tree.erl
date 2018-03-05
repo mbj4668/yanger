@@ -88,7 +88,7 @@ post_init_ctx(Ctx) ->
     end,
     Ctx.
 
--spec emit(#yctx{}, [#module{}], erlang:device()) -> ok.
+-spec emit(#yctx{}, [#module{}], erlang:device()) -> [].
 emit(Ctx, Mods, Fd) ->
     Dep  = proplists:get_value(tree_depth, Ctx#yctx.options),
     PathStr = proplists:get_value(tree_path, Ctx#yctx.options, ""),

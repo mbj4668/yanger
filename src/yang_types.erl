@@ -27,7 +27,7 @@
 
 -type type_spec_fun() ::
         fun(({derive, yang:stmt()} | {parse, binary(), yang:pos()},
-             #type{}, #module{}, #yctx{}) ->
+             #type{}, #module{} | undefined, #yctx{}) ->
                    {type_spec(), #yctx{}}                 % derive
                        | {'ok', term()}                   % parse ok
                        | {'error', iodata()}              % parse error
@@ -120,8 +120,11 @@ mk_default(Stmt, Type, M, Ctx) ->
             {{Stmt, Value}, Ctx1}
     end.
 
--spec parse_value(yang:stmt(), #type{}, #module{}, #yctx{}) ->
+-spec parse_value(yang:stmt(), #type{}, #module{} | 'undefined', #yctx{}) ->
                          {undefined | term(), #yctx{}}.
+%% Module may be given as 'undefined' if the type is known to neither
+%% directly nor via union(s) require the use of the current #module{}.
+%% Currently only identityref and leafref require the current #module{}.
 parse_value(Stmt, #type{type_spec_fun = TypeSpecF} = Type, M, Ctx) ->
     {_, String, Pos, _} = Stmt,
     case TypeSpecF({parse, String, Pos}, Type, M, Ctx) of

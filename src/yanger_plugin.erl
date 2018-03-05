@@ -183,7 +183,9 @@ register_hook(Ctx, HookField, Fun) ->
 -spec register_conditional_hook(
         #yctx{},
         HookField :: integer(),
-        Conditions :: [primary | {imports, ModuleName :: atom()}],
+        Conditions :: [primary |
+                       {imports, ModuleName :: atom()} |
+                       {imports_any, [ModuleName :: atom()]}],
         yang:hookfun()) -> #yctx{}.
 %% @doc Register a conditional hook function.
 %% The following hooks can be registered with this function:
