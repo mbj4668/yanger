@@ -108,7 +108,8 @@
 -type modrev() :: {ModuleName :: atom(), Revision :: revision()}.
 
 -type import() ::
-        {ModuleName :: atom(), Revision :: revision(), Prefix :: atom()}.
+        {ModuleName :: atom(), Revision :: revision(),
+         Prefix :: atom(), RequestedRevision :: revision()}.
 
 -type builtin_type_name() ::
         'binary'
@@ -761,7 +762,7 @@ parse_linkage([{Kwd, Arg, Pos, Substmts} = _H | T] = Stmts, M, Ctx) ->
                     parse_linkage(T, M1, Ctx2);
                 {true, Ctx1, ImpM} ->
                     {_, Prefix, _, _} = search_one_stmt('prefix', Substmts),
-                    {M1, Ctx2} = v_import(M, Pos, ImpM, Prefix, Ctx1),
+                    {M1, Ctx2} = v_import(M, Pos, ImpM, Prefix, Revision, Ctx1),
                     parse_linkage(T, M1, Ctx2);
                 {false, Ctx1} ->
                     parse_linkage(T, M, Ctx1)
@@ -812,9 +813,10 @@ parse_meta([{Kwd, _Arg, _Pos, _Substmts} = _H | T] = Stmts, M, Ctx) ->
 parse_meta([], M, Ctx) ->
     parse_revision([], M, Ctx).
 
-v_import(M, Pos, ImpM, Prefix, Ctx) ->
+v_import(M, Pos, ImpM, Prefix, Revision, Ctx) ->
     if ImpM#module.kind == 'module' ->
-            NewImport = {ImpM#module.name, ImpM#module.revision, Prefix},
+            NewImport =
+                {ImpM#module.name, ImpM#module.revision, Prefix, Revision},
             {M#module{imports = [NewImport | M#module.imports]}, Ctx};
        true ->
             {_, _, ModPos, _} = ImpM#module.stmt,
@@ -986,7 +988,7 @@ parse_body(Stmts, M0, Ctx0) ->
         {value, #module{}} | none.
 get_imported_module(ModuleName, #module{imports = Imports}, Ctx) ->
     case lists:keyfind(ModuleName, 1, Imports) of
-        {_ModuleName, Revision, _Prefix} ->
+        {_ModuleName, Revision, _Prefix, _RequestedRevision} ->
             map_lookup({ModuleName, Revision}, Ctx#yctx.modrevs);
         false ->
             none
@@ -3433,7 +3435,7 @@ combine_prefix_maps(#module{modulename = TName,
                           '$self' ->
                               %% SPrefix is src module's prefix for itself
                               %% - should be "normal" import in target
-                              {SName, [{SName, SRev, SPrefix}]};
+                              {SName, [{SName, SRev, SPrefix, undefined}]};
                           TName ->
                               %% SPrefix is (a) src module prefix for target
                               %% - should be '$self'-entry w/o import in target
