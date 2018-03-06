@@ -24,17 +24,19 @@
 %% the module, parse it, and use its namespace.  Using the modulename also
 %% removes one level of indirection.
 mk_ns_map(#module{prefix_map = PrefixMap, modulename = Ns} = M) ->
-    NsList = mk_ns_list(yang:map_to_list(PrefixMap), M),
-    make_prefix_map(NsList, Ns).
+    NsMap = mk_ns_map(yang:map_to_list(PrefixMap), M, maps:new()),
+    make_prefix_map(NsMap, Ns).
 
-mk_ns_list([{Prefix, '$self'} | T], M) ->
-    [{?a2l(Prefix), ?a2l(M#module.modulename)} | mk_ns_list(T, M)];
-mk_ns_list([{Prefix, ModuleName} | T], M) ->
-    [{?a2l(Prefix), ?a2l(ModuleName)} | mk_ns_list(T, M)];
-mk_ns_list([], _) ->
-    [].
+mk_ns_map([{Prefix, '$self'} | T], M, Map0) ->
+    Map = maps:put(?a2l(Prefix), M#module.modulename, Map0),
+    mk_ns_map(T, M, Map);
+mk_ns_map([{Prefix, ModuleName} | T], M, Map0) ->
+    Map = maps:put(?a2l(Prefix), ModuleName, Map0),
+    mk_ns_map(T, M, Map);
+mk_ns_map([], _M, Map) ->
+    Map.
 
--spec make_prefix_map(PrefixNsList :: [{Prefix :: atom(), Ns :: atom()}],
+-spec make_prefix_map(NsMap0 :: #{Prefix :: string() => Ns :: atom()},
                       DefaultNs :: atom()) ->
         PrefixNsMap :: any().
 %% Called once per module.  Build some structure for
@@ -50,10 +52,9 @@ make_prefix_map(PrefixNsList, DefaultNs) ->
         {ok, Expr :: any()}
       | {error, ErrStr :: list()}.
 %% Called when an XPath expression is first defined.  Should detect
-%% unknown prefixes, and when unknown functions are
-%% called.
+%% unknown prefixes, and when unknown functions are called.
 %% This function must not bind un-prefixed names to the default namespace.
-compile(Str, {PrefixNsMap, _}) ->
+compile(Str, {PrefixNsMap, _DefaultNs}) ->
     case xpath_compile(?b2l(Str), PrefixNsMap) of
         {ok, CompiledXPath} ->
             {ok, CompiledXPath};
@@ -69,7 +70,7 @@ compile(Str, {PrefixNsMap, _}) ->
 %% unknown prefixes, and when unknown functions are called.
 %% This function must not bind un-prefixed names to the default namespace.
 compile(Str, Pos, M, Strict, Ctx0) ->
-    #module{name = Name, xpath_ns_map = {PrefixNsMap, _},
+    #module{name = Name, xpath_ns_map = {PrefixNsMap, _DefaultNs},
             yang_version = YangVersion} = M,
     case xpath_compile0(?b2l(Str)) of
         {ok, Q} ->
