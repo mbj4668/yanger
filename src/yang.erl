@@ -2474,7 +2474,9 @@ pre_mk_sn_xpath(Ctx0, Sn = #sn{must = MustL0, 'when' = WhenL0,
   when MustL0 /= [] orelse WhenL0 /= [] ->
     {MustL1, Ctx1} =
         lists:foldl(
-          fun({Q, _Deps = [], Stmt}, {Acc, Ctx0_0}) ->
+          fun({Q, _Deps, Stmt}, {Acc, Ctx0_0}) ->
+                  %% _Deps is [] initially, but may be /= [] if we're doing
+                  %% a deviation.
                   case
                       yang_xpath:set_default_namespace(Q, M#module.xpath_ns_map)
                   of
@@ -2490,7 +2492,9 @@ pre_mk_sn_xpath(Ctx0, Sn = #sn{must = MustL0, 'when' = WhenL0,
           end, {[], Ctx0}, MustL0),
     {WhenL1, Ctx2} =
         lists:foldl(
-          fun({Q, _Deps = [], Origin, Stmt}, {Acc, Ctx1_0}) ->
+          fun({Q, _Deps, Origin, Stmt}, {Acc, Ctx1_0}) ->
+                  %% _Deps is [] initially, but may be /= [] if we're doing
+                  %% a deviation.
                   case
                       yang_xpath:set_default_namespace(Q, M#module.xpath_ns_map)
                   of

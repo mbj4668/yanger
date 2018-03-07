@@ -1,0 +1,6 @@
+[doc Test deviation that re-checks Xpath]
+
+[shell yanger]
+    -error
+    !yanger --deviation-module dev-type-xpath.yang simple.yang
+    ?SH-PROMPT

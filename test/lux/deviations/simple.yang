@@ -16,6 +16,7 @@ module simple {
       leaf port {
         type inet:port-number;
         must ". < 1024";
+        when "../name";
       }
     }
   }

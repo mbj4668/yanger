@@ -1,0 +1,12 @@
+module dev-type-xpath {
+  namespace "urn:dummy";
+  prefix dummy;
+
+  import simple { prefix s1; }
+
+  deviation "/s1:servers/s1:server/s1:port" {
+    deviate replace {
+      type uint16;
+    }
+  }
+}
