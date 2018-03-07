@@ -661,28 +661,15 @@ isop_path([Step|Steps], Pred) ->
 prefix_to_namespace(Prefix, NS_map0) ->
     case NS_map0 of
         {make_atoms, NS_map} ->
-            Make = true;
+            ok;
         NS_map ->
-            Make = false
+            ok
     end,
     {NS_prefixes, _Dflt} = NS_map,
-    case lists:keysearch(Prefix, 1, NS_prefixes) of
-        {value, {_, NS_lst}} ->
-            case maybe_list_to_atom(NS_lst, Make) of
-                NS when is_atom(NS) ->
-%                   case lists:member(NS, cs_server:get_exported_namespaces(
-%                                           netconf)) of
-%                       true ->
-%                           NS;
-%                       false ->
-%                           ?xp_exit(invalid_namespace, NS)
-%                   end;
-%% FIXME: is this correct??
-                    NS;
-                _ ->
-                    ?xp_exit(invalid_namespace, NS_lst)
-            end;
-        _ ->
+    case maps:find(Prefix, NS_prefixes) of
+        {ok, NS} ->
+            NS;
+        error ->
             ?xp_exit(invalid_namespace_prefix, Prefix)
     end.
 
