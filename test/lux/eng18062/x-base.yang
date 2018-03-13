@@ -1,0 +1,12 @@
+submodule x-base {
+  yang-version 1.1;
+  belongs-to x {
+    prefix x;
+  }
+
+  container base {
+    container prof {
+    }
+  }
+
+}

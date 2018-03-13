@@ -1,0 +1,23 @@
+submodule x-prof {
+  yang-version 1.1;
+  belongs-to x {
+    prefix x;
+  }
+
+  include x-base;
+
+  typedef prof-ref {
+    type leafref {
+      path '/x:base/x:prof/x:foo-prof/x:name';
+    }
+  }
+
+  augment '/x:base/x:prof' {
+    list foo-prof {
+      key "name";
+      leaf name {
+        type string;
+      }
+    }
+  }
+}

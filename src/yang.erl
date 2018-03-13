@@ -433,9 +433,14 @@ post_add_modules(Ctx0) ->
     %% invocations, but post_expand_module hooks will see them.
     Ctx1 = map_foldl(
              fun (_ModRev, M, #yctx{hooks = OrigHooks} = Ctx_0) ->
-                     Ctx_1 = update_conditional_hooks(Ctx_0, M),
-                     Ctx_2 = post_expand_module(M, Ctx_1),
-                     Ctx_2#yctx{hooks = OrigHooks}
+                     IsModule = stmt_keyword(M#module.stmt) == 'module',
+                     if M#module.yang_version == '1' orelse IsModule ->
+                             Ctx_1 = update_conditional_hooks(Ctx_0, M),
+                             Ctx_2 = post_expand_module(M, Ctx_1),
+                             Ctx_2#yctx{hooks = OrigHooks};
+                        true -> % submodule, version >= 1.1, don't check here
+                             Ctx_0
+                     end
              end, Ctx0, Ctx0#yctx.modrevs),
     Ctx2 = v_unique_namespaces(Ctx1),
     run_hooks(#hooks.post_add_modules, Ctx2).
@@ -3922,9 +3927,15 @@ post_expand_typedefs(#typedefs{same_as_parent = false, map = Map},
                      Ancestors, M, Ctx) ->
     map_foldl(
       fun(_, #typedef{type = #type{type_spec = TypeSpec, base = Base},
+                      moduleref = {ModuleName, _},
                       status = Status, stmt = Stmt,
                       default = Default}, Ctx0)
-            when is_record(TypeSpec, leafref_type_spec) ->
+            when is_record(TypeSpec, leafref_type_spec),
+                 (Ancestors == [] andalso M#module.name == ModuleName) orelse
+                 Ancestors /= [] ->
+              %% If this is a top-level typedef (Ancestors == []), we do this
+              %% only if the typedef is defined in the (sub)module we're
+              %% validating.
               validate_leafref_path_and_default(Base, Default, TypeSpec,
                                                 _Sn = undefined,
                                                 Status, Stmt,
