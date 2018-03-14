@@ -163,9 +163,7 @@ match_rule(struct yang_statement *stmt,
             }
         } else if (stmt->prefix != NULL) {
             /* allow extension statements mixed in */
-            int tmp = i + 1;
-            return match_rule(stmt, rules, &tmp, nrules, found,
-                              false, ectx);
+            canonical = false;
         } else if (rules[i].keyword == am_sp_cut) {
             /* any non-optional statements left are errors */
             int j;
