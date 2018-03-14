@@ -1,0 +1,52 @@
+module no-feat-ref-ext {
+  namespace urn:no-feat-ref-ext;
+  prefix nfre;
+
+  // YANGER_EXTRA_FLAGS: -F no-feat-ref:bar
+
+  import no-feat-ref {
+    prefix nfr;
+  }
+
+  leaf ref1 {
+    type leafref {
+      path /nfr:rootleaf; // LINE: YANG_ERR_NODE_NOT_FOUND2
+    }
+  }
+  leaf ref2 {
+    type leafref {
+      path /nfr:rootlist/nfr:id; // LINE: YANG_ERR_NODE_NOT_FOUND2
+    }
+  }
+  leaf ref3 {
+    type leafref {
+      path /nfr:rootcont/nfr:xxx; // LINE: YANG_ERR_NODE_NOT_FOUND3
+    }
+  }
+
+  leaf must1 {
+    type int16;
+    must ". > /nfr:rootleaf"; // LINE: YANG_ERR_XPATH_BAD_REF
+  }
+  leaf must2 {
+    type int16;
+    must ". > /nfr:rootlist/nfr:id"; // LINE: YANG_ERR_XPATH_BAD_REF
+  }
+  leaf must3 {
+    type int16;
+    must ". > /nfr:rootcont/nfr:xxx"; // LINE: YANG_ERR_XPATH_BAD_REF
+  }
+
+  leaf when1 {
+    when "../must1 > /nfr:rootleaf"; // LINE: YANG_ERR_XPATH_BAD_REF
+    type int16;
+  }
+  leaf when2 {
+    when "../must1 > /nfr:rootlist/nfr:id"; // LINE: YANG_ERR_XPATH_BAD_REF
+    type int16;
+  }
+  leaf when3 {
+    when "../must1 > /nfr:rootcont/nfr:xxx"; // LINE: YANG_ERR_XPATH_BAD_REF
+    type int16;
+  }
+}

@@ -2442,6 +2442,9 @@ common_substmts([_ | T], Origin, M, Ctx, FeatureL, WhenL, MustL, Status) ->
 common_substmts([], _Origin, _M, Ctx, FeatureL, WhenL, MustL, Status) ->
     {FeatureL, WhenL, MustL, Status, Ctx}.
 
+run_mk_sn_hooks_rec(Ctx, #sn{if_feature_result = false} = Sn,
+                    _Mode, _UsesPos, _Ancestors) ->
+    {Ctx, Sn};
 run_mk_sn_hooks_rec(Ctx0, Sn0, Mode, UsesPos, Ancestors0)
   when Sn0#sn.kind /= '__tmp_augment__' ->
     {Ctx1, Sn1} =
@@ -2461,6 +2464,9 @@ run_mk_sn_hooks_rec(Ctx, Sn, _Mode, _UsesPos, _Ancestors) ->
 
 %run_mk_sn_hooks(Ctx, Sn, _HookField, _Mode = augment, _, _) ->
 %    {Ctx, Sn};
+run_mk_sn_hooks(Ctx, #sn{if_feature_result = false} = Sn, _HookField,
+                _Mode, _UsesPos, _Ancestors) ->
+    {Ctx, Sn};
 run_mk_sn_hooks(#yctx{hooks = Hooks} = Ctx0, Sn0, HookField,
                 Mode, UsesPos, Ancestors) ->
     %% NOTE: foldr is important here in order to run the built-in hooks
@@ -3795,6 +3801,8 @@ post_expand_module(#module{children = Children0, typedefs = Typedefs} = M,
 post_expand_module(_M, Ctx) ->
     Ctx.
 
+post_expand_child(#sn{if_feature_result = false}, _Ancestors, _M, Ctx) ->
+    Ctx;
 post_expand_child(#sn{module = #module{modulename = ModName,
                                        modulerevision = ModRev},
                       kind = Kind,
@@ -4568,6 +4576,9 @@ cursor_set_sn(#sn{module = SnMod} = Sn, #cursor{module = CurM} = C, Ctx) ->
 find_child(Sns, Id) ->
     find_child(Sns, Id, schema, '$undefined', undefined).
 
+find_child([#sn{if_feature_result = false} | T],
+            Id, Type, InitMod, LastSkipped) ->
+    find_child(T, Id, Type, InitMod, LastSkipped);
 find_child([#sn{kind = Kind, children = Chs} = H | T] = Sns,
            Id, Type, InitMod, LastSkipped) ->
     %% If we're in the data tree, we may need to check non-data nodes'

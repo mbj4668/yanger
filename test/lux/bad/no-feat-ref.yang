@@ -1,0 +1,233 @@
+module no-feat-ref {
+  namespace urn:no-feat-ref;
+  prefix nfr;
+
+  // YANGER_EXTRA_FLAGS: -F no-feat-ref:bar
+
+  feature foo;
+  feature bar;
+
+  leaf rootleaf {
+    if-feature foo;
+    type int32;
+  }
+
+  list rootlist {
+    if-feature foo;
+    key id;
+    leaf id {
+      type uint32;
+    }
+  }
+
+  container rootcont {
+    leaf xxx {
+      if-feature foo;
+      type uint32;
+    }
+    choice ch1 {
+      if-feature foo;
+      leaf ca {
+        type int32;
+      }
+    }
+    choice ch2 {
+      case ca1 {
+        if-feature foo;
+        leaf ca1 {
+          type int32;
+        }
+      }
+    }
+    // these should give errors/warnings if foo is not defined
+    leaf ref {
+      type leafref {
+        path ../xxx; // LINE: YANG_ERR_NODE_NOT_FOUND3
+      }
+    }
+    leaf must {
+      type int16;
+      must ". > ../xxx"; // LINE: YANG_ERR_XPATH_BAD_REF
+    }
+    leaf when {
+      when "../must > ../xxx"; // LINE: YANG_ERR_XPATH_BAD_REF
+      type int16;
+    }
+    leaf chref {
+      type leafref {
+        path ../ca; // LINE: YANG_ERR_NODE_NOT_FOUND3
+      }
+    }
+    leaf camust {
+      type int16;
+      must ". > ../ca1"; // LINE: YANG_ERR_XPATH_BAD_REF
+    }
+    // these should *not* give errors/warnings if foo is not defined
+    leaf good-ref {
+      if-feature foo;
+      type leafref {
+        path ../xxx;
+      }
+    }
+    leaf good-must {
+      if-feature foo;
+      type int16;
+      must ". > ../xxx";
+    }
+    leaf good-when {
+      if-feature foo;
+      when "../must > ../xxx";
+      type int16;
+    }
+    container good {
+      if-feature foo;
+      leaf ref {
+        type leafref {
+          path ../../xxx;
+        }
+      }
+      leaf must {
+        type int16;
+        must ". > ../../xxx";
+      }
+      leaf when {
+        when "../../must > ../../xxx";
+        type int16;
+      }
+    }
+    choice ch3 {
+      if-feature foo;
+      leaf chcaref {
+        type leafref {
+          path ../xxx;
+        }
+      }
+    }
+    choice ch4 {
+      case ca1 {
+        if-feature foo;
+        leaf chca1when {
+          when "../must > ../xxx";
+          type int16;
+        }
+      }
+    }
+  }
+
+  // these should give errors/warnings if foo is not defined
+  leaf ref1 {
+    type leafref {
+      path /rootleaf; // LINE: YANG_ERR_NODE_NOT_FOUND2
+    }
+  }
+  leaf ref2 {
+    type leafref {
+      path /rootlist/id; // LINE: YANG_ERR_NODE_NOT_FOUND2
+    }
+  }
+  leaf ref3 {
+    type leafref {
+      path /rootcont/xxx; // LINE: YANG_ERR_NODE_NOT_FOUND3
+    }
+  }
+  leaf ref4 {
+    type leafref {
+      path ../rootleaf; // LINE: YANG_ERR_NODE_NOT_FOUND2
+    }
+  }
+  leaf ref5 {
+    type leafref {
+      path ../rootcont/xxx; // LINE: YANG_ERR_NODE_NOT_FOUND3
+    }
+  }
+  // these should *not* give errors/warnings if foo is not defined
+  leaf good-ref {
+    if-feature foo;
+    type leafref {
+      path /rootleaf;
+    }
+  }
+  list good1 {
+    if-feature foo;
+    key ref2;
+    leaf ref2 {
+      type leafref {
+        path /rootlist/id;
+      }
+    }
+  }
+
+  // these should give errors/warnings if foo is not defined
+  leaf must1 {
+    type int16;
+    must ". > /rootleaf"; // LINE: YANG_ERR_XPATH_BAD_REF
+  }
+  leaf must2 {
+    type int16;
+    must ". > /rootlist/id"; // LINE: YANG_ERR_XPATH_BAD_REF
+  }
+  leaf must3 {
+    type int16;
+    must ". > /rootcont/xxx"; // LINE: YANG_ERR_XPATH_BAD_REF
+  }
+  leaf must4 {
+    type int16;
+    must ". > ../rootleaf"; // LINE: YANG_ERR_XPATH_BAD_REF
+  }
+  leaf must5 {
+    type int16;
+    must ". > ../rootcont/xxx"; // LINE: YANG_ERR_XPATH_BAD_REF
+  }
+  // these should *not* give errors/warnings if foo is not defined
+  leaf good-must {
+    if-feature foo;
+    type int16;
+    must ". > ../rootleaf";
+  }
+  container good2 {
+    if-feature foo;
+    leaf must5 {
+      type int16;
+      must ". > ../../rootcont/xxx";
+    }
+  }
+
+  // these should give errors/warnings if foo is not defined
+  leaf when1 {
+    when "../must1 > /rootleaf"; // LINE: YANG_ERR_XPATH_BAD_REF
+    type int16;
+  }
+  leaf when2 {
+    when "../must1 > /rootlist/id"; // LINE: YANG_ERR_XPATH_BAD_REF
+    type int16;
+  }
+  leaf when3 {
+    when "../must1 > /rootcont/xxx"; // LINE: YANG_ERR_XPATH_BAD_REF
+    type int16;
+  }
+  leaf when4 {
+    when "../must1 > ../rootleaf"; // LINE: YANG_ERR_XPATH_BAD_REF
+    type int16;
+  }
+  leaf when5 {
+    when "../must1 > ../rootcont/xxx"; // LINE: YANG_ERR_XPATH_BAD_REF
+    type int16;
+  }
+  // these should *not* give errors/warnings if foo is not defined
+  leaf good-when {
+    if-feature foo;
+    when "../must1 > /rootcont/xxx";
+    type int16;
+  }
+  list good3 {
+    key k;
+    leaf k {
+      type string;
+    }
+    leaf when4 {
+      if-feature foo;
+      when "../../must1 > ../../rootleaf";
+      type int16;
+    }
+  }
+}
