@@ -3,7 +3,7 @@
 set -e
 
 # pick up any extra flags to yanger needed for this module
-YF=`cat $1 | awk -F: '/YANGER_EXTRA_FLAGS/ { print $2 }'`
+YF=`sed -n 's/^[^:]*YANGER_EXTRA_FLAGS:\(.*\)$/\1/p' $1`
 CMD0="yanger --smiv2-detect-duplicate-oids $YF"
 CMD="$CMD0 --print-error-code"
 
