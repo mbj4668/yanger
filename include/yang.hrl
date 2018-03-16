@@ -95,8 +95,7 @@
 
 %% schema node
 -record(sn, {
-          name :: atom()                          % local nodes
-                | {ModuleName :: atom(), atom()}, % augmented nodes
+          name :: yang:sn_name(),
           kind :: 'undefined' | yang:kind(),
           %% pointer to our module.  NOTE: the module record is not
           %% yet complete; specifically its .children is [].
@@ -140,6 +139,14 @@
           if_feature = [] :: [{#feature{},
                                Origin :: 'uses' | 'augment' | 'local',
                                yang:stmt()}],
+          %% Nodes for which 'if-feature' evaluation resulted in 'false' are
+          %% retained in the schema tree.
+          %% This makes it possible to ignore 'augment' and 'deviate' (and
+          %% extensions with similar semantics) when the target node should
+          %% be removed due to 'if-feature' evaluation, instead of requiring
+          %% exactly matching 'if-feature' substatements for those statements.
+          %% Plugins based on the schema tree will thus typically need to
+          %% filter out nodes that have if_feature_result == false.
           if_feature_result = true :: boolean(),
           augmented_by = [] :: [yang:augment_rec()],
           is_augment_top_node = false :: boolean(),
@@ -368,7 +375,8 @@
           %% Ancestors :: [#sn{} | #module{}]}
           %%
           %% *_mk_sn is called for each schema node when it is created,
-          %% and when it is expanded from a "uses" statement.
+          %% and when it is expanded from a "uses" statement, but it is
+          %% not called for nodes that have if_feature_result == false.
           %%
           %% pre_mk_sn is called before the node's children have been
           %% expanded.  All fields in #sn except children have been
@@ -437,12 +445,13 @@
           %% HookF(#yctx{}, #sn{}, #module{}, Ancestors :: [#sn{}]) ->
           %%   #yctx{}.
           %%
-          %% post_expand_sn is called for each #sn{} after expansion of
-          %% the entire module. Augments and deviations from other modules
-          %% have been applied when the function is called, but it is
-          %% not called for #sn{}'s resulting from augments from other
-          %% modules - it *is* called for those after expansion of the
-          %% *augmenting* module.
+          %% post_expand_sn is called for each #sn after expansion of
+          %% the entire module, but it is not called for nodes that
+          %% have if_feature_result == false.
+          %% Augments and deviations from other modules have been applied
+          %% when the function is called, but it is not called for #sn{}'s
+          %% resulting from augments from other modules - it *is* called
+          %% for those after expansion of the *augmenting* module.
           %% This function is called for all children in a submodule when
           %% the submodule is defined, but also when the submodule is
           %% included in some other submodule or the module.
@@ -536,7 +545,7 @@
           cur :: 'undefined' | {'top', ModuleName :: atom()} | #sn{},
           ancestors = [] :: [#sn{}],
           %% internal; keep track of last parent skipped
-          last_skipped :: 'undefined' | 'input' | 'output'
+          last_skipped :: yang:cursor_skipped()
          }).
 
 -define(is_stmt(S), tuple_size(S) == 4).

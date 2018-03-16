@@ -135,10 +135,18 @@
 -type cursor_type() ::
         'schema'
       | 'data'.
+-type cursor_skipped() ::
+        'undefined'
+      | 'input'
+      | 'output'.
 -type cursor_path() :: [cursor_path_element()].
 -type cursor_path_element() ::
         'parent'
       | {'child', yang:yang_identifier()}.
+
+-type sn_name() ::
+        atom()                          % local nodes
+      | {ModuleName :: atom(), atom()}. % augmented nodes
 
 %% atom() can be used by plugins.
 -type kind() ::
@@ -2462,8 +2470,6 @@ run_mk_sn_hooks_rec(Ctx0, Sn0, Mode, UsesPos, Ancestors0)
 run_mk_sn_hooks_rec(Ctx, Sn, _Mode, _UsesPos, _Ancestors) ->
     {Ctx, Sn}.
 
-%run_mk_sn_hooks(Ctx, Sn, _HookField, _Mode = augment, _, _) ->
-%    {Ctx, Sn};
 run_mk_sn_hooks(Ctx, #sn{if_feature_result = false} = Sn, _HookField,
                 _Mode, _UsesPos, _Ancestors) ->
     {Ctx, Sn};
@@ -3583,6 +3589,10 @@ deviate_children(Deviations, Children, Ignored0, Ancestors, Ctx0) ->
           end, {Children,Ignored0, Ctx0}, Deviations),
     {DeviatedChildren, Ignored2, Ctx1}.
 
+%% Nodes with if_feature_result == false are considered to *exist*,
+%% in order to not give an error when deviating such nodes.
+%% It *might* be possible to optimize by not actually doing the
+%% deviation in that case, but probably not worth the effort.
 deviate_children0([{child, Name}],
                   [#sn{name = Name} = Sn | Sns],
                   Acc, IgnAcc, Ancestors, Deviation,
@@ -4040,6 +4050,13 @@ post_parse_module(Ctx = #yctx{hooks = #hooks{post_parse_module = HookFs}},
               end
       end, {Ctx, Module}, HookFs).
 
+-spec get_schema_node(cursor_path(), #module{}) ->
+                             {true, #sn{}, Ancestors :: [#sn{}]} | false.
+%% Nodes with if_feature_result == false are considered to *exist*,
+%% in order to not give an error when such a node is the target node of
+%% 'augment' (or an extension with similar semantics).
+%% We still need to actually apply the augment, to get the same effect
+%% for augments of augments.
 get_schema_node(SchemaNodeId, #module{children = Children}) ->
     get_schema_node(SchemaNodeId, Children, []).
 
@@ -4424,6 +4441,8 @@ cursor_reset(Sn, Cursor) ->
 -spec cursor_follow_path(cursor_path(), #cursor{}, #yctx{}) ->
           {true, #cursor{}}
         | {false, #yctx{}}.
+%% Nodes with with if_feature_result == false are
+%% considered to *not* exist, see find_child/5.
 cursor_follow_path([H | T], Cursor0, Ctx) ->
     case cursor_move(H, Cursor0, Ctx) of
         {true, Cursor1} ->
@@ -4438,6 +4457,8 @@ cursor_follow_path([], Cursor, _Ctx) ->
           {true, #cursor{}}
         | {false, #yctx{}}.
 %% Moves up or down in the module trees using a cursor.
+%% Nodes with with if_feature_result == false are
+%% considered to *not* exist, see find_child/5.
 cursor_move(parent, #cursor{ancestors = [#sn{kind = Kind} = Parent | T],
                             type = Type} = C, Ctx) ->
     NewC = C#cursor{cur = Parent, ancestors = T},
@@ -4573,9 +4594,19 @@ cursor_set_sn(#sn{module = SnMod} = Sn, #cursor{module = CurM} = C, Ctx) ->
     end,
     C#cursor{cur = Sn, module = M}.
 
+-spec find_child([#sn{}], sn_name()) ->
+                        {value, #sn{}} | {skipped, [#sn{}], #sn{}} | false.
+%% Nodes with with if_feature_result == false are
+%% considered to *not* exist, see find_child/5.
 find_child(Sns, Id) ->
     find_child(Sns, Id, schema, '$undefined', undefined).
 
+-spec find_child([#sn{}], sn_name(), cursor_type(), atom(), cursor_skipped()) ->
+                        {value, #sn{}} | {skipped, [#sn{}], #sn{}} | false.
+%% Nodes with with if_feature_result == false are considered to *not* exist,
+%% to make it possible to give an error/warning when 'leafref'-path, 'must',
+%% 'when', or 'unique' (or extensions with similar semantics) reference such
+%% nodes from nodes with if_feature_result == true.
 find_child([#sn{if_feature_result = false} | T],
             Id, Type, InitMod, LastSkipped) ->
     find_child(T, Id, Type, InitMod, LastSkipped);
