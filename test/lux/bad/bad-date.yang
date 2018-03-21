@@ -1,0 +1,11 @@
+module bad-date {
+
+  namespace "http://example.com/test";
+
+  prefix "t";
+
+  revision 2018-02-29 { // LINE: YANG_ERR_GRAMMAR_BAD_ARGUMENT
+      description
+        "This is a out-of-bounds date.";
+  }
+}

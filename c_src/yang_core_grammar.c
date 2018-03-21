@@ -610,6 +610,35 @@ chk_identifier(char *arg, void *opaque, char yang_version, char *errbuf, int sz)
     return false;
 }
 
+static bool
+chk_date(char *arg, void *opaque, char yang_version, char *errbuf, int sz)
+{
+    xmlRegexpPtr xreg = (xmlRegexpPtr)opaque;
+    int y,m,d;
+    int days = 31;
+    if (xmlRegexpExec(xreg, (xmlChar *)arg) != 1) {
+        return false;
+    }
+    sscanf(arg, "%d-%d-%d", &y, &m, &d);
+
+    if (m < 1 || m > 12 || d < 1) {
+        return false;
+    }
+    if (m == 2) {
+        days = 28;
+        if (y % 400 == 0 || (y % 4 == 0 && y % 100 != 0)) {
+            days = 29;
+        }
+    } else if (m == 4 || m == 6 || m == 9 || m == 11) {
+        days = 30;
+    }
+
+    if (d > days) {
+        return false;
+    }
+    return true;
+}
+
 
 /*
   We limit to int64_t and uint64_t here,
@@ -852,9 +881,12 @@ yang_init_core_stmt_grammar(void)
     i++;
 
     types[i].name = yang_make_atom("date");
-    types[i].syntax.xsd_regexp =
-        (char *)"[1-2][0-9]{3}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])";
-    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    types[i].syntax.cb.opaque =
+        (void *)xmlRegexpCompile(
+            (xmlChar *)
+            "[1-2][0-9]{3}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])");
+    types[i].syntax.cb.validate = &chk_date;
+    types[i].flags = F_ARG_TYPE_SYNTAX_CB;
     i++;
 
     types[i].name = yang_make_atom("ordered-by-arg");
