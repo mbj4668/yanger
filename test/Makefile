@@ -8,7 +8,6 @@ build:
 	done
 
 test:
-	@cd lux && $(MAKE) test --no-print-directory
 	@error="" ; \
 	for d in $(DIRS);  do \
 		( cd $$d && $(MAKE) test;  \
