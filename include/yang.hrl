@@ -229,10 +229,12 @@
           %% from the module and all submodules
           children = [] :: [#sn{}],
           ignored = [] :: [#sn{}],
+          conformance = 'implement' :: yang:conformance(),
           %% from the module and all submodules
           remote_augments = [] :: [{ModuleName :: atom(), [#augment{}]}],
           local_augments  = [] :: [#augment{}],
           local_deviations  = [] :: [#deviation{}],
+          remote_deviations  = [] :: [#deviation{}],
           deviated_by = [] :: [yang:modrev()],
           stmt :: yang:stmt(), %% pointer to raw statement
           add_cause :: 'primary' | 'import' | 'include' | 'deviation' |
@@ -494,6 +496,8 @@
           features :: 'undefined'
                     | 'none' % 'none' means compile for no features at all
                     | yang:map(ModName :: atom(), [FeatureName :: atom()]),
+          conformances = [] :: [yang:conformance() |
+                                {ModName :: atom(), yang:conformance()}],
           typemap :: yang:map(yang:builtin_type_name()
                               | {ModuleName :: atom(), TypeName :: atom()},
                               #type{}),

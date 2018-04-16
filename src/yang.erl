@@ -89,7 +89,7 @@
               revision/0, stmt/0,
               grouping_rec/0, typedef_rec/0, augment_rec/0,
               validate_status/0, yang_identifier/0, yang_status/0,
-              import/0, yang_version/0, modrev/0]).
+              import/0, yang_version/0, modrev/0, conformance/0]).
 
 -type yang_version() :: '1' | '1.1'.
 
@@ -160,6 +160,7 @@
 
 -type yang_status() :: 'current' | 'deprecated' | 'obsolete'.
 
+-type conformance() :: 'implement' | 'import'.
 
 -type map(Key, Val) :: gb_trees:tree(Key, Val).
 -type map0() :: map(term(), term()).
@@ -923,7 +924,9 @@ parse_body(Stmts, M0, Ctx0) ->
                     _Mode = final, _Ancestors = [M2],
                     _Acc = SubChildren, []),
     {ModKW, ModArg, ModPos, ModSubs} = M2#module.stmt,
-    M3 = M2#module{stmt = {ModKW, ModArg, ModPos, ModSubs ++ XAcc}},
+    Conformance = get_conformance(M2#module.modulename, Ctx3),
+    M3 = M2#module{stmt = {ModKW, ModArg, ModPos, ModSubs ++ XAcc},
+                   conformance = Conformance},
     %% Build the augments list.
     {Augments, Ctx4} =
         mk_augments(Stmts, M3#module.typedefs, M2#module.groupings, M3, Ctx3,
@@ -957,45 +960,69 @@ parse_body(Stmts, M0, Ctx0) ->
     {DeviatedChildren, Ignored, Ctx9} =
         deviate_children(SubModuleDeviations ++ LocalDeviations,
                          AugmentedChildren, [], [M3], Ctx8),
-    M4 = if Ctx9#yctx.apply_deviations ->
-                 M3#module{children = DeviatedChildren,
+    M4 = M3#module{local_deviations = LocalDeviations,
+                   remote_deviations = RemoteDeviations},
+    M5 = if Conformance == import ->
+                 M4#module{children = [],
+                           ignored = Ignored ++ DeviatedChildren,
+                           local_augments = []};
+            Ctx9#yctx.apply_deviations ->
+                 M4#module{children = DeviatedChildren,
                            ignored = Ignored,
-                           local_augments = LocalAugments,
-                           local_deviations = LocalDeviations};
+                           local_augments = LocalAugments};
             true ->
-                 M3#module{children = AugmentedChildren,
-                           local_augments = LocalAugments,
-                           local_deviations = LocalDeviations}
+                 M4#module{children = AugmentedChildren,
+                           local_augments = LocalAugments}
          end,
     %% Apply all remote augments
-    {Ctx10, RemoteAugments1} =
-        apply_remote_augments(RemoteAugments0, M4, Ctx9, []),
-    RemoteAugments2 =
-        lists:usort(RemoteAugments1 ++
-                    lists:append([SM#module.remote_augments ||
-                                     {SM, _Pos} <- M4#module.submodules])),
-    M5 = M4#module{remote_augments = RemoteAugments2},
+    {Ctx11, M6} =
+        if Conformance == import ->
+                {Ctx9, M5#module{remote_augments = []}};
+           true ->
+                {Ctx10, RemoteAugments1} =
+                    apply_remote_augments(RemoteAugments0, M5, Ctx9, []),
+                RemoteAugments2 =
+                    lists:usort(
+                      RemoteAugments1 ++
+                          lists:append(
+                            [SM#module.remote_augments ||
+                                {SM, _Pos} <- M5#module.submodules])),
+                {Ctx10, M5#module{remote_augments = RemoteAugments2}}
+         end,
     %% Update the module in the context before applying remote deviations,
     %% to allow the deviations to reference definitions from this module
-    ModRevs = map_update({M5#module.name, M5#module.revision}, M5,
-                          Ctx10#yctx.modrevs),
-    Ctx11 = Ctx10#yctx{modrevs = ModRevs},
+    ModRevs = map_update({M6#module.name, M6#module.revision}, M6,
+                          Ctx11#yctx.modrevs),
+    Ctx12 = Ctx11#yctx{modrevs = ModRevs},
     %% Apply all remote deviations - after remote augments
-    Ctx12 = apply_remote_deviations(RemoteDeviations, M5, Ctx11),
+    Ctx13 = apply_remote_deviations(RemoteDeviations, M6, Ctx12),
     %% Imports that are in #yctx.unused_imports but not in
     %% PostDeviationsUnused have been used only for deviations
     {_, MyPostDeviationsUnused} =
-        lists:keyfind(M5#module.name, 1, PostDeviationsUnused),
+        lists:keyfind(M6#module.name, 1, PostDeviationsUnused),
     {value, {ModuleName, MyUnused}, RemUnused} =
-        lists:keytake(M5#module.name, 1, Ctx12#yctx.unused_imports),
+        lists:keytake(M6#module.name, 1, Ctx13#yctx.unused_imports),
     MyDeviationsOnly = MyUnused -- MyPostDeviationsUnused,
     Unused = [{ModuleName, MyUnused -- MyDeviationsOnly} | RemUnused],
     DeviationImports =
-        [{ModuleName, MyDeviationsOnly} | Ctx12#yctx.deviation_imports],
-    Ctx13 = Ctx12#yctx{unused_imports = Unused,
+        [{ModuleName, MyDeviationsOnly} | Ctx13#yctx.deviation_imports],
+    Ctx14 = Ctx13#yctx{unused_imports = Unused,
                        deviation_imports = DeviationImports,
                        hooks = OrigHooks},
-    {Ctx13, M5}.
+    {Ctx14, M6}.
+
+get_conformance(ModName, #yctx{conformances = ConfL}) ->
+    case lists:keyfind(ModName, 1, ConfL) of
+        {_ModName, Conformance} ->
+            Conformance;
+        _ ->
+            case lists:member(import, ConfL) of
+                true ->
+                    import;
+                false ->
+                    implement
+            end
+    end.
 
 -spec get_imported_module(ModuleName :: atom(), #module{}, #yctx{}) ->
         {value, #module{}} | none.

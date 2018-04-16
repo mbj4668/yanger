@@ -1,0 +1,11 @@
+module a {
+  namespace urn:a;
+  prefix a;
+
+  container a;
+
+  augment /a {
+    container x;
+  }
+
+}

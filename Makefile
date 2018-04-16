@@ -22,7 +22,7 @@ dialyzer:
 
 # requires 'lux' in the PATH (https://github.com/hawk/lux)
 # the tree test requires 'pyang' (https://github.com/mbj4668/pyang)
-# checked out next to 'yanger'
+# checked out next to 'yanger' and in the PATH
 test:
 	(cd test; $(MAKE))
 .PHONY: test

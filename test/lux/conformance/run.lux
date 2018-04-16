@@ -1,0 +1,35 @@
+[doc Test --conformance flag]
+
+[shell compilation]
+    -internal|module
+    !yanger -f tree -C a:import -C b:import a.yang b.yang
+    ?SH-PROMPT
+    !yanger -f tree -C import a.yang b.yang
+    ?SH-PROMPT
+    -internal
+    !yanger -f tree -C implement a.yang b.yang
+    """??
+    module: a
+      +--rw a
+         +--rw x
+         +--rw b:b
+    SH-PROMPT
+    """
+    -internal|b:b
+    !yanger -f tree -C a:implement -C b:import a.yang b.yang
+    """??
+    module: a
+      +--rw a
+         +--rw x
+    SH-PROMPT
+    """
+    !yanger -f tree -C b:import a.yang b.yang
+    """??
+    module: a
+      +--rw a
+         +--rw x
+    SH-PROMPT
+    """
+    -internal
+    !yanger --print-error-code -C a:import a.yang b.yang
+    ?YANG_ERR_NODE_NOT_FOUND

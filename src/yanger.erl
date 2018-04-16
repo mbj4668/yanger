@@ -26,6 +26,7 @@
           transform = [] :: [yanger_plugin:transform_fun()],
           deviations = [],
           features = [],
+          conformances = [],
           outfile,
           no_deviation_apply = false,
           debug_print = false
@@ -130,6 +131,7 @@ convert_options(Ctx1, Options) ->
                                  Opts#opts.errors}},
     Ctx4 = Ctx3#yctx{canonical = Opts#opts.canonical,
                      strict = Opts#opts.strict,
+                     conformances = Opts#opts.conformances,
                      apply_deviations = not Opts#opts.no_deviation_apply},
     Ctx5 = yang:init_ctx(Ctx4, Opts#opts.path),
     FeaturesMap =
@@ -195,6 +197,9 @@ option_specs(Ctx) ->
      {features,         $F, "features", string,
       "Features to support, default all."
       " Format: <modname>:[<feature>,]*"},
+     {conformance,      $C, "conformance", string,
+      "Conformance, default implement."
+      " Format: [<modname>:]implement|import"},
      {outfile,          $o, "output", string,
       "Write the output to OUTFILE instead of stdout."},
      {no_deviation_apply, undefined, "no-deviation-apply", undefined,
@@ -273,6 +278,27 @@ opts(Options, Ctx) ->
                                                     Opts#opts.features]};
                           _ ->
                               throw({error, {bad_features, FStr}})
+                      end;
+                  {conformance, CStr} ->
+                      case string:tokens(CStr, ":") of
+                          ["import"] ->
+                              Opts#opts{conformances =
+                                            [import |
+                                             Opts#opts.conformances]};
+                          ["implement"] ->
+                              Opts#opts{conformances =
+                                            [implement |
+                                             Opts#opts.conformances]};
+                          [ModName, "import"] ->
+                              Opts#opts{conformances =
+                                            [{?l2a(ModName), import} |
+                                             Opts#opts.conformances]};
+                          [ModName, "implement"] ->
+                              Opts#opts{conformances =
+                                            [{?l2a(ModName), implement} |
+                                             Opts#opts.conformances]};
+                          _ ->
+                              throw({error, {bad_conformance, CStr}})
                       end;
                   {outfile, F} ->
                       Opts#opts{outfile = F};
