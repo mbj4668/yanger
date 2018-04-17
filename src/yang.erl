@@ -83,10 +83,11 @@
 
 -include("yang_llerror.hrl").
 
--export_type([builtin_type_name/0, cursor_path/0, cursor_type/0,
+-export_type([builtin_type_name/0,
+              cursor_path/0, cursor_type/0, cursor_skipped/0,
               hookfun/0, keyword/0, kind/0,
               map/2, map0/0, module_rec/0, pos/0, prefix_map/0,
-              revision/0, stmt/0,
+              revision/0, stmt/0, sn_name/0,
               grouping_rec/0, typedef_rec/0, augment_rec/0,
               validate_status/0, yang_identifier/0, yang_status/0,
               import/0, yang_version/0, modrev/0, conformance/0]).

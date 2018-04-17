@@ -232,9 +232,9 @@
           conformance = 'implement' :: yang:conformance(),
           %% from the module and all submodules
           remote_augments = [] :: [{ModuleName :: atom(), [#augment{}]}],
-          local_augments  = [] :: [#augment{}],
-          local_deviations  = [] :: [#deviation{}],
-          remote_deviations  = [] :: [#deviation{}],
+          local_augments = [] :: [#augment{}],
+          local_deviations = [] :: [#deviation{}],
+          remote_deviations = [] :: [{ModuleName :: atom(), [#deviation{}]}],
           deviated_by = [] :: [yang:modrev()],
           stmt :: yang:stmt(), %% pointer to raw statement
           add_cause :: 'primary' | 'import' | 'include' | 'deviation' |

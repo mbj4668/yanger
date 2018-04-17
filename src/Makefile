@@ -37,6 +37,21 @@ yang_llerror.hrl: ../c_src/yang_error.h
 	$(ERLC) $<
 
 clean:
-	rm -f ../ebin/*.*
+	rm -f ../ebin/*.* .*.erl.d
 	rm -f yang_llerror.erl yang_parse.erl
 
+ERL_DEPS = $(ERL_SOURCES:%.erl=.%.erl.d)
+
+.%.erl.d: %.erl
+	$(ERLC) -M -MG -I ../.. -o ../ebin -pa ../ebin $< > $@
+
+.PHONY: depend
+
+# forcefully re-generate dependency files
+depend:
+	rm -f .*.erl.d
+	$(MAKE) $(ERL_DEPS)
+
+ifneq ($(MAKECMDGOALS),clean)
+-include $(ERL_DEPS)
+endif
