@@ -2,6 +2,8 @@ module x {
   namespace "urn:x";
   prefix x;
 
+  include x-sub;
+
   import y {
     prefix y;
   }

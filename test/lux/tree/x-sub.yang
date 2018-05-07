@@ -1,0 +1,13 @@
+submodule x-sub {
+  belongs-to x {
+    prefix x;
+  }
+
+  import a {
+    prefix a;
+  }
+
+  augment /a:x {
+    container foo;
+  }
+}
