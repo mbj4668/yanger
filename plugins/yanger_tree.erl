@@ -88,7 +88,7 @@ post_init_ctx(Ctx) ->
     end,
     Ctx.
 
--spec emit(#yctx{}, [#module{}], erlang:device()) -> [].
+-spec emit(#yctx{}, [#module{}], io:device()) -> [].
 emit(Ctx, Mods, Fd) ->
     Dep  = proplists:get_value(tree_depth, Ctx#yctx.options),
     PathStr = proplists:get_value(tree_path, Ctx#yctx.options, ""),
@@ -99,7 +99,7 @@ emit(Ctx, Mods, Fd) ->
     Errors = [],
     Errors.
 
--spec emit_tree(#yctx{}, [#module{}], [#module{}], erlang:device(),
+-spec emit_tree(#yctx{}, [#module{}], [#module{}], io:device(),
                 integer(), [atom()]) -> ok.
 %% @doc Main emit function. Works through a list of modules and calls
 %%      other sub emit functions appropriately.
@@ -202,7 +202,7 @@ print_header(Module, Fd) ->
            end,
     io:format(Fd,"~s: ~s~s~n",[Kw, ModArg, Bstr]).
 
--spec print_children([#sn{}], #module{}, erlang:device(),
+-spec print_children([#sn{}], #module{}, io:device(),
                      'undefined' | [atom()], string(), [atom()],
                      mode(), integer(), integer()) -> ok.
 %% @doc Print a list of children, delegates to print_node.
@@ -252,7 +252,7 @@ new_mode(#sn{kind = Kind}, Mode) ->
         _ -> Mode
     end.
 
--spec print_node(#sn{}, #module{}, erlang:device(), 'undefined' | [atom()],
+-spec print_node(#sn{}, #module{}, io:device(), 'undefined' | [atom()],
                  string(), undefined | [atom()], mode(),
                  integer(), integer()) -> ok.
 print_node(Sn, Mod, Fd, PKey, Prefix, Path, Mode, Depth, Width) ->
