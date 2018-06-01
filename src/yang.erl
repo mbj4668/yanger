@@ -22,7 +22,7 @@
 -export([get_module/3, get_imported_module/3]).
 -export([get_grouping/3, get_typedef/3]).
 -export([find_typedef_raw/4]).
--export([is_builtin_type/1]).
+-export([is_builtin_type/1, get_filename/1]).
 -export([mark_import_as_used/3]).
 -export([parse_idref/3, resolve_raw_idref/4]).
 -export([get_identity/5,
@@ -428,6 +428,9 @@ add_file(Ctx, FileName, AddCause) ->
                                   {_X, erlang:get_stacktrace()}})
             end
     end.
+
+get_filename(#module{stmt = {_, _, Pos, _}}) ->
+    element(1, Pos).
 
 post_add_modules(Ctx0) ->
     %% Running post_expand_module here instead of at the end of
