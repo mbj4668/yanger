@@ -132,7 +132,7 @@ emit_tree(Ctx, [Mod|Mods], AllMods, Fd, Depth, Path) ->
     end,
     print_list(Chs, Mod, Fd, Path, data, Depth, ""),
     SectionPrinted1 = true, % always print separator after data, even if empty
-    maybe_print_separator(Fd, SectionPrinted1 andalso Augs /= []),
+    maybe_print_separator(SectionPrinted1 andalso Augs /= []),
     lists:foreach(
       fun({TargetM, Augment}) ->
               io:format(Fd, "  augment ~s:~n",
@@ -152,15 +152,15 @@ emit_tree(Ctx, [Mod|Mods], AllMods, Fd, Depth, Path) ->
       end, Augs),
     SectionPrinted2 = Augs /= [] orelse SectionPrinted1,
     if Path == [] ->
-            maybe_print_separator(Fd, SectionPrinted2 andalso Rpcs /= []),
+            maybe_print_separator(SectionPrinted2 andalso Rpcs /= []),
             print_list(Rpcs, Mod, Fd, Path, rpc, Depth, "  "),
             SectionPrinted3 = Rpcs /= [] orelse SectionPrinted2,
 
-            maybe_print_separator(Fd, SectionPrinted3 andalso Notifs /= []),
+            maybe_print_separator(SectionPrinted3 andalso Notifs /= []),
             print_list(Notifs, Mod, Fd, Path, notification, Depth, "  "),
             SectionPrinted4 = Notifs /= [] orelse SectionPrinted3,
 
-            maybe_print_separator(Fd, SectionPrinted4 andalso YangDatas /= []),
+            maybe_print_separator(SectionPrinted4 andalso YangDatas /= []),
             lists:foreach(
               fun(YD) ->
                       io:format(Fd, "  yang-data ~s:~n",
@@ -175,22 +175,22 @@ emit_tree(Ctx, [Mod|Mods], AllMods, Fd, Depth, Path) ->
         [] ->
             ok;
         _ ->
-            io:format(Fd, "~n", []),
+            io:format("\n", []),
             emit_tree(Ctx, Mods, AllMods, Fd, Depth, Path)
     end.
 
 existing_children(Chs) ->
     [C || #sn{if_feature_result = true} = C <- Chs].
 
-maybe_print_separator(Fd, true) ->
-    io:format(Fd, "~n", []);
-maybe_print_separator(_Fd, false) ->
+maybe_print_separator(true) ->
+    io:format("\n", []);
+maybe_print_separator(false) ->
     ok.
 
 print_list(Chs, Mod, Fd, Path, Mode, Depth, Prefix) ->
     case (Chs == []) orelse (Mode == data) of
             true  -> skip;
-            false -> io:format(Fd, "  ~ss:~n", [Mode])
+            false -> io:format("  ~ss:~n", [Mode])
     end,
     print_children(Chs, Mod, Fd, undefined, Prefix, Path, Mode, Depth, 0).
 
@@ -200,7 +200,7 @@ print_header(Module, Fd) ->
                false       -> "";
                {_,Arg,_,_} -> " (belongs-to " ++ ?a2l(Arg) ++ ")"
            end,
-    io:format(Fd, "~s: ~s~s~n", [Kw, ModArg, Bstr]).
+    io:format(Fd,"~s: ~s~s~n",[Kw, ModArg, Bstr]).
 
 -spec print_children([#sn{}], #module{}, io:device(),
                      'undefined' | [atom()], string(), [atom()],
@@ -327,7 +327,7 @@ print_node(Sn, Mod, Fd, PKey, Prefix, Path, Mode, Depth, Width) ->
                                 ",")],
               io:format(Fd, " {~s}?", Ls)
     end,
-    io:format(Fd, "~n", []),
+    io:format("~n"),
     NewDepth = case Depth of
                    undefined -> Depth;
                    _         -> Depth - 1
