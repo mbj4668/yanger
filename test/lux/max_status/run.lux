@@ -1,0 +1,34 @@
+[doc test max-status]
+
+[shell test]
+    -foo|bar
+    !yanger --print --max-status current a.yang
+    ?SH-PROMPT
+
+    -bar
+    !yanger --print --max-status deprecated a.yang
+    ?identities
+    ?foo
+    ?children
+    ?foo
+    ?SH-PROMPT
+
+    -
+    !yanger --print --max-status obsolete a.yang
+    ?identities
+    ?bar
+    ?foo
+    ?children
+    ?foo
+    ?bar
+    ?SH-PROMPT
+
+    -
+    !yanger --print a.yang
+    ?identities
+    ?bar
+    ?foo
+    ?children
+    ?foo
+    ?bar
+    ?SH-PROMPT

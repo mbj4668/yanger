@@ -1267,7 +1267,8 @@ mk_module_maps([{Kwd, Arg, _, Substmts} = S | Stmts],
                 add_to_definitions_map(Arg, G, #grouping.stmt, Gs, Ctx0),
             mk_module_maps(Stmts, Ts, Gs1, Is, Fs, Es, M, Ctx1);
         'identity' ->
-            I = #identity{name = Arg, stmt = S, moduleref = MRef},
+            I = #identity{name = Arg, stmt = S, status = Status,
+                          moduleref = MRef},
             {Is1, Ctx1} =
                 add_to_definitions_map(Arg, I, #identity.stmt, Is, Ctx0),
             mk_module_maps(Stmts, Ts, Gs, Is1, Fs, Es, M, Ctx1);

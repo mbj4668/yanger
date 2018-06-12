@@ -50,6 +50,7 @@
           %% moduleref is the name and revision where this item is defined
           moduleref :: yang:modrev(),
           bases = [] :: [#identity{}],
+          status :: 'undefined' | yang:yang_status(),
           v_status :: yang:validate_status(),
           stmt :: yang:stmt(),
           pmap = yang:map_new() :: yang:map0() % used by plugins

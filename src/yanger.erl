@@ -29,6 +29,7 @@
           conformances = [],
           outfile,
           no_deviation_apply = false,
+          max_status :: 'undefined' | yang:yang_status(),
           debug_print = false
          }).
 
@@ -190,6 +191,9 @@ option_specs(Ctx) ->
       "Run transformation TRANSFORM (more than one is allowed). "
       "Available transformations: " ++
           string:join([?a2l(N) || {N, _M} <- Ctx#yctx.transforms], ",") ++ "."},
+     {max_status,       undefined, "max-status", atom,
+      "Prune all nodes with status less than the given max status.  One of: "
+      "current, deprecated, obsolete"},
      {deviation_module, undefined, "deviation-module", string,
       "Apply deviations from MODULE"},
      %% NOTE: If deviations and/or features are specified, the parsed tree
@@ -264,6 +268,18 @@ opts(Options, Ctx) ->
                           false ->
                               throw({error, {bad_transform, T}})
                       end;
+                  {max_status, MaxStatus} ->
+                      %% implemented as a built-in transform which is run first
+                      case MaxStatus of
+                          current -> ok;
+                          deprecated -> ok;
+                          obsolete -> ok;
+                          _ -> throw({error, {bad_status, MaxStatus}})
+                      end,
+                      Opts#opts{transform =
+                                    [fun(Ctx1, M) ->
+                                             t_max_status(Ctx1, M, MaxStatus)
+                                     end | Opts#opts.transform]};
                   {deviation_module, Dev} ->
                       Opts#opts{deviations = [Dev | Opts#opts.deviations]};
                   {features, FStr} ->
@@ -344,8 +360,8 @@ run(Ctx0, Opts, Files) ->
                    ModRev <- ModRevs],
     Modules =
         lists:foldl(
-          fun (TransformFun, M) ->
-                  TransformFun(Ctx3, M)
+          fun (TransformFun, Modules1) ->
+                  TransformFun(Ctx3, Modules1)
           end, Modules0, Opts#opts.transform),
     if Opts#opts.emit == undefined ->
             case Opts#opts.debug_print of
@@ -433,6 +449,47 @@ run(Ctx0, Opts, Files) ->
             throw({error, format_no_modules})
     end.
 
+t_max_status(Ctx, [#module{children = Chs, identities = Ids} = M | T],
+             MaxStatus) ->
+    MaxStatusN = n(MaxStatus),
+    [M#module{children = prune_sn_status(Chs, MaxStatusN),
+              identities = prune_identities_status(Ids, MaxStatusN)} |
+     t_max_status(Ctx, T, MaxStatus)];
+t_max_status(_Ctx, [], _) ->
+    [].
+
+n(undefined) -> 0;
+n(current) -> 1;
+n(deprecated) -> 2;
+n(obsolete) -> 3.
+
+prune_sn_status([#sn{status = Status, children = Chs} = H | T], MaxStatusN) ->
+    case n(Status) =< MaxStatusN of
+        true ->
+            [H#sn{children = prune_sn_status(Chs, MaxStatusN)} |
+             prune_sn_status(T, MaxStatusN)];
+        false ->
+             prune_sn_status(T, MaxStatusN)
+    end;
+prune_sn_status([], _) ->
+    [].
+
+prune_identities_status(Ids, MaxStatusN) ->
+    Deletes =
+        yang:map_foldl(
+          fun(Key, #identity{status = Status}, Acc) ->
+                  case n(Status) =< MaxStatusN of
+                      true ->
+                          Acc;
+                      false ->
+                          [Key | Acc]
+                  end
+          end, [], Ids),
+    lists:foldl(
+      fun(Key, Map) ->
+              yang:map_delete(Key, Map)
+      end, Ids, Deletes).
+
 print_version(Name) ->
     io:format("~s ~s\n", [Name, vsn()]).
 
@@ -449,6 +506,8 @@ print_error(Error) ->
             io:format(standard_error, "Unknown format '~s'\n", [F]);
         {bad_transform, T} ->
             io:format(standard_error, "Unknown transform '~s'\n", [T]);
+        {bad_status, Status} ->
+            io:format(standard_error, "Bad status '~w'\n", [Status]);
         {bad_features, FStr} ->
             io:format(standard_error, "Bad features spec '~s'\n", [FStr]);
         errors_printed ->
@@ -556,6 +615,8 @@ pp_module(M, Fd) ->
     io:format(Fd, "module: ~p\n", [M#module.name]),
     io:format(Fd, "typedefs:\n", []),
     pp_typedefs(yang:map_to_list((M#module.typedefs)#typedefs.map), Fd, "  "),
+    io:format(Fd, "identities:\n", []),
+    pp_identites(yang:map_to_list(M#module.identities), Fd, "  "),
     io:format(Fd, "children:\n", []),
     pp_children(M#module.children, Fd, "  ").
 
@@ -580,6 +641,12 @@ pp_typedefs([{_, H} | T], Fd, Indent) ->
     io:format(Fd, "~s~s\n", [Indent, ?frec(H, typedef)]),
     pp_typedefs(T, Fd, Indent);
 pp_typedefs([], _Fd, _Indent) ->
+    ok.
+
+pp_identites([{_, H} | T], Fd, Indent) ->
+    io:format(Fd, "~s~s\n", [Indent, ?frec(H, identity)]),
+    pp_identites(T, Fd, Indent);
+pp_identites([], _Fd, _Indent) ->
     ok.
 
 
