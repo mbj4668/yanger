@@ -7,7 +7,8 @@
          mk_default/4,
          parse_value/4,
          parse_range/6,
-         is_in_range/2
+         is_in_range/2,
+         is_identity_derived/2, is_identity_derived_or_same/2
         ]).
 
 -export([validate_leafref_path/5,
