@@ -566,6 +566,11 @@ print_internal_error(YANGERROR, Reason, StackTrace) ->
                       "internal error: ~p\n~p\n",
                       [prune_reason(Reason),
                        prune_stacktrace(StackTrace)]);
+        "super-pruned" ->
+            io:format(standard_error,
+                      "internal error: ~p\n~p\n",
+                      [prune_reason(Reason),
+                       superprune_stacktrace(StackTrace)]);
         DepthStr ->
             case (catch ?l2i(DepthStr)) of
                 {'EXIT', _} ->
@@ -581,6 +586,9 @@ prune_reason(T) when is_tuple(T) ->
     element(1, T);
 prune_reason(_) ->
     [].
+
+superprune_stacktrace([{M,F,A,L}|_]) ->
+    [{M,F,prune_args(A),L}].
 
 prune_stacktrace(Trace) ->
     [{M,F,prune_args(A),L} || {M,F,A,L} <- Trace].

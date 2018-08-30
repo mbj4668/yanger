@@ -1065,6 +1065,7 @@ reject_invalid_union_types(Typestmts, TypeSpec, Ctx0) ->
 temp_handle_union_types(Typestmts, TypeSpec, Ctx0) ->
     #union_type_spec{types = Types0} = TypeSpec,
     {RemTypes, Ctx1} =
+        %% foldr to preserve order
         lists:foldr(fun ({{_, _, TPos, _},
                           #type{type_spec = #empty_type_spec{}} = Type},
                          {Types, Ctx}) ->
