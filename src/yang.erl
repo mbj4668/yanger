@@ -3632,16 +3632,28 @@ deviate_children0([{child, Name}],
     %% This is the node to deviate
     case lists:member(not_supported, Deviation#deviation.deviates) of
         true ->
-            %% Give error if we remove the default case in a choice
-            %% Not 100% perfect - it should be OK to remove the default
-            %% case if we remove/modify the choice 'default' stmt too
-            %% - and it is, but only if the latter deviation is done *first*
             Ctx1 =
                 case Ancestors of
                     [#sn{kind = 'choice', default = {DefaultStmt, Name}} | _] ->
+                        %% Give error if we remove the default case in a choice
+                        %% Not 100% perfect - it should be OK to remove the
+                        %% default case if we remove/modify the choice
+                        %% 'default' stmt too - and it is, but only if the
+                        %% latter deviation is done *first*
                         add_error(Ctx, stmt_pos(DefaultStmt),
                                   'YANG_ERR_DEFAULT_CASE_NOT_FOUND',
                                   [stmt_arg(DefaultStmt)]);
+                    [#sn{kind = 'list', keys = Keys, stmt = ListStmt} | _] ->
+                        %% Give error if we remove a key leaf
+                        case lists:member(Name, Keys) of
+                            true ->
+                                %% key stmt must exist since Keys /= []
+                                KeyStmt = search_one_substmt('key', ListStmt),
+                                add_error(Ctx, stmt_pos(KeyStmt),
+                                          'YANG_ERR_BAD_KEY', [Name]);
+                            false ->
+                                Ctx
+                        end;
                     _ ->
                         Ctx
                 end,

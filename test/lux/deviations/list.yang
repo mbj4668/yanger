@@ -1,0 +1,17 @@
+module list {
+  namespace urn:list;
+  prefix list;
+
+  list foo {
+    key "bar baz";
+    leaf bar {
+      type string;
+    }
+    leaf baz {
+      type string;
+    }
+    leaf foobar {
+      type string;
+    }
+  }
+}

@@ -1,0 +1,35 @@
+[doc Verify that deviation removing a list key is rejected]
+
+[shell yanger]
+  !export PS2=CONT:
+  ?SH-PROMPT:
+
+  # remove the key leaf
+  # - should give error for the list 'key' statement
+
+  !yanger --deviation-module list-dev.yang --print-error-code \\
+  ?CONT:
+  !list.yang 2>&1 | grep list.yang
+  -SH-PROMPT
+"""?
+list.yang 2>&1 \| grep list.yang
+list.yang:6: (\(.*\): )?YANG_ERR_BAD_KEY
+"""
+  # make sure there are no extra errors reported
+  -list.yang
+  ?SH-PROMPT:
+
+  -
+  # verify that a correctly formatted message is given w/o --print-error-code
+  # (i.e. no crash, and no "unregistered" code)
+  !yanger --deviation-module list-dev.yang \\
+  ?CONT:
+  !list.yang 2>&1 | grep list.yang
+  -SH-PROMPT
+"""?
+list.yang 2>&1 \| grep list.yang
+list.yang:6: (\(.*\): )?(error|warning): \S+.*
+"""
+  # make sure there are no extra errors reported
+  -list.yang
+  ?SH-PROMPT:

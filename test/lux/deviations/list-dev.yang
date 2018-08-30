@@ -1,0 +1,12 @@
+module list-dev {
+  namespace urn:dev;
+  prefix dev;
+
+  import list {
+    prefix list;
+  }
+
+  deviation /list:foo/list:baz {
+    deviate not-supported;
+  }
+}
