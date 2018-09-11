@@ -1,0 +1,625 @@
+module example-jukebox-extended {
+  yang-version "1.1";
+
+  namespace "http://example.com/ns/example-jukebox";
+  prefix "jbox";
+
+  import simple {
+    prefix simple;
+  }
+
+  import types {
+    prefix types;
+  }
+
+  import types-1.1 {
+    prefix types-1-1;
+  }
+
+  import new {
+    prefix new;
+  }
+
+  organization "Example, Inc.";
+  contact "support at example.com";
+  description "Example Jukebox Data Model Module ...
+       ... with unicode chars ö Ὗ and \" \\ x\n \t escapes
+       line 2 with escape \" å.
+line 3";
+
+  revision "2016-08-15" {
+    description "Initial version.";
+    reference "example.com document 1-4673";
+  }
+
+  identity genre {
+    description "Base for all genre types";
+  }
+
+  // abbreviated list of genre classifications
+  identity alternative {
+    base genre;
+    description "Alternative music";
+  }
+  identity blues {
+    base genre;
+    description "Blues music";
+  }
+  identity country {
+    base genre;
+    description "Country music";
+  }
+  identity jazz {
+    base genre;
+    description "Jazz music";
+  }
+  identity pop {
+    base genre;
+    description "Pop music";
+  }
+  identity rock {
+    base genre;
+    description "Rock music";
+  }
+
+  typedef top-typedef-enumeration {
+    type enumeration {
+      enum white {
+        value 1;
+      }
+      enum yellow {
+        value 2;
+      }
+      enum red {
+        value 3;
+      }
+    }
+  }
+
+  feature FEATURE-1 {
+    description "feature 1";
+  }
+  feature FEATURE-2 {
+    description "feature 2";
+  }
+
+  grouping endpoint {
+    description "A reusable endpoint group.";
+    leaf ip {
+      type string;
+    }
+    leaf port {
+      type string;
+    }
+  }
+
+  augment "/simple:top/simple:ids/simple:between" {
+    case cliff {
+      container view {
+        leaf drop {
+          type string;
+        }
+      }
+    }
+  }
+
+  augment "/simple:top/simple:ids/simple:between/simple:rock/simple:stone" {
+    container river {
+      leaf deep {
+        type string;
+      }
+    }
+  }
+
+  container a {
+    list b {
+      key foo;
+      leaf foo {
+        type string;
+      }
+    }
+  }
+  augment "/a" {
+    leaf bar {
+      type string;
+    }
+  }
+
+  container types-test {
+    leaf time-of-day {
+      type string;
+      units 24-hour-clock;
+      default "01.00";
+    }
+
+    leaf type-binary {
+      type binary;
+      description "a binary leaf";
+    }
+
+    leaf type-boolean {
+      type boolean;
+      //mandatory true;
+      default false;
+    }
+
+    leaf type-decimal64 {
+      type decimal64 {
+        fraction-digits 1;
+        range "0.0 .. 2.0";
+      }
+    }
+
+    leaf type-empty {
+      type empty;
+    }
+
+    leaf type-enumeration {
+      type enumeration {
+        enum zero;
+        enum one;
+        enum seven {
+          value 7;
+        }
+      }
+      default one;
+    }
+
+    leaf type-identityref {
+      type identityref {
+        base genre;
+      }
+    }
+
+    leaf type-instance-identifier {
+      type instance-identifier;
+    }
+
+    leaf type-int8 {
+      type int8;
+    }
+
+    leaf type-int16 {
+      type int16;
+    }
+
+    leaf type-leafref {
+      type leafref {
+        path "../type-int16";
+      }
+    }
+
+    leaf type-string {
+      type string;
+    }
+
+    leaf type-uint8 {
+      type uint8;
+    }
+
+    leaf type-uint16 {
+      type uint16;
+    }
+
+    leaf type-uint32 {
+      type uint32;
+    }
+
+    leaf type-uint64 {
+      type uint64;
+    }
+
+    leaf type-union {
+      type union {
+        type int32;
+        type string;
+        type enumeration {
+          enum "unbounded";
+        }
+      }
+    }
+
+    typedef typedef-enumeration {
+      type enumeration {
+        enum white {
+          value 1;
+        }
+        enum yellow {
+          value 2;
+        }
+        enum red {
+          value 3;
+        }
+      }
+    }
+    leaf myenum {
+      type typedef-enumeration;
+    }
+
+    typedef typedef-bits {
+      type bits {
+        bit disable-nagle {
+          position 0;
+        }
+        bit auto-sense-speed {
+          position 1;
+        }
+        bit ten-mb-only {
+          position 2;
+        }
+      }
+    }
+    leaf mybits {
+      type typedef-bits;
+      default "auto-sense-speed";
+    }
+
+    container group-container {
+      uses endpoint {
+        refine port {
+          default 80;
+        }
+      }
+    }
+
+    list type-interface {
+      key "name";
+      unique "admin-status";
+      config true;
+      ordered-by user;
+
+      leaf name {
+        type string;
+      }
+      leaf admin-status {
+        type string;
+      }
+      list address {
+        key "ip";
+        leaf ip {
+          type string;
+        }
+        anyxml html-info;
+      }
+      anydata data;
+    }
+    leaf mgmt-interface {
+      type leafref {
+        path "../type-interface/name";
+      }
+    }
+
+    container feature1 {
+      if-feature jbox:FEATURE-1;
+    }
+    container feature2 {
+      if-feature jbox:FEATURE-2;
+    }
+  }
+
+  container system {
+    leaf enable-jukebox-streaming {
+      type boolean;
+      default false;
+    }
+
+    leaf-list allow-user {
+      type string;
+      ordered-by system;
+      min-elements 0;
+      max-elements 5;
+      description
+        "A list of user name patterns to allow.";
+    }
+
+    choice interface-type-1 {
+      //mandatory true;
+      default ethernet-1;
+      container ethernet-1 {
+        leaf-list ifs-1 {
+          type string;
+          description
+            "leaf-list of ethernet interfaces";
+        }
+        leaf e1-leaf {
+          type boolean;
+        }
+      }
+    }
+
+    choice interface-type-2 {
+      default ethernet-2a;
+
+      case ethernet-2a {
+        container ethernet-2a {
+          leaf-list ifs-2a {
+            type string;
+            description
+              "leaf-list of ethernet interfaces";
+          }
+          leaf l2a-inner {
+            type binary;
+          }
+        }
+        leaf l2a {
+          type string;
+        }
+      }
+      case ethernet-2b {
+        container ethernet-2b {
+          leaf-list ifs-2b {
+            type string;
+            description
+              "leaf-list of ethernet interfaces";
+          }
+        }
+        leaf l2b {
+          type string;
+        }
+      }
+    }
+
+    container must_c {
+      must "../enable-jukebox-streaming" {
+        error-message "a must error message";
+      }
+    }
+  }
+
+  container jukebox {
+        presence
+          "An empty container indicates that the jukebox
+           service is available";
+
+        description
+          "Represents a jukebox resource, with a library, playlists,
+           and a play operation.";
+
+        container library {
+
+          description "Represents the jukebox library resource.";
+
+          list artist {
+            key name;
+            description
+              "Represents one artist resource within the
+               jukebox library resource.";
+
+            leaf name {
+              type string {
+                length "1 .. max";
+              }
+              description "The name of the artist.";
+            }
+
+            list album {
+              key "name year";
+              // key "name";
+
+              description
+                "Represents one album resource within one
+                 artist resource, within the jukebox library.";
+
+              leaf name {
+                type string {
+                  length "1 .. max";
+                }
+                description "The name of the album.";
+              }
+
+              leaf genre {
+                type identityref { base genre; }
+                description
+                  "The genre identifying the type of music on
+                   the album.";
+              }
+
+              leaf year {
+                type uint16 {
+                  range "1900 .. max";
+                }
+                description "The year the album was released";
+              }
+
+              container admin {
+                description
+                  "Administrative information for the album.";
+
+                leaf label {
+                  type string;
+                  description "The label that released the album.";
+                }
+                leaf catalogue-number {
+                  type string;
+                  description "The album's catalogue number.";
+                }
+              }
+
+              list song {
+                key name;
+
+                description
+                  "Represents one song resource within one
+                   album resource, within the jukebox library.";
+
+                leaf name {
+                  type string {
+                    length "1 .. max";
+                  }
+                  description "The name of the song";
+                }
+                leaf location {
+                  type string;
+                  default "loc1";
+                  description
+                   "The file location string of the
+                    media file for the song";
+                }
+                leaf format {
+                  type string;
+                  description
+                    "An identifier string for the media type
+                     for the file associated with the
+                     'location' leaf for this entry.";
+                }
+                leaf length {
+                  type uint32;
+                  units "seconds";
+                  description
+                    "The duration of this song in seconds.";
+                }
+              }   // end list 'song'
+            }   // end list 'album'
+          }  // end list 'artist'
+
+          leaf artist-count {
+            type uint32;
+            units "songs";
+            config false;
+            description "Number of artists in the library";
+          }
+          leaf album-count {
+            type uint32;
+            units "albums";
+            config false;
+            description "Number of albums in the library";
+          }
+          leaf song-count {
+            type uint32;
+            units "songs";
+            config false;
+            description "Number of songs in the library";
+          }
+        }  // end library
+
+        list playlist {
+          key name;
+
+          description
+            "Example configuration data resource";
+
+          leaf name {
+            type string;
+            description
+              "The name of the playlist.";
+          }
+          leaf description {
+            type string;
+            description
+              "A comment describing the playlist.";
+          }
+          list song {
+            key index;
+            ordered-by user;
+
+            description
+              "Example nested configuration data resource";
+
+            leaf index {    // not really needed
+              type uint32;
+              description
+                "An arbitrary integer index for this playlist song.";
+            }
+            leaf id {
+              type leafref {
+                path "/jbox:jukebox/jbox:library/jbox:artist/" +
+                  "jbox:album/jbox:song/jbox:name";
+              }
+              mandatory true;
+              description
+                "Song identifier. Must identify an instance of
+                 /jukebox/library/artist/album/song/name.";
+            }
+          }
+        }
+
+        container player {
+          description
+            "Represents the jukebox player resource.";
+
+          leaf gap {
+            type decimal64 {
+              fraction-digits 1;
+              range "0.0 .. 2.0";
+            }
+            units "tenths of seconds";
+            description "Time gap between each song";
+          }
+        }
+  }
+
+  rpc play {
+    description "Control function for the jukebox player";
+    input {
+      leaf playlist {
+        type string;
+        mandatory true;
+        description "playlist name";
+      }
+      leaf song-number {
+        type uint32;
+        mandatory true;
+        description "Song number in playlist to play";
+      }
+    }
+    output {
+      leaf timer {
+        type string;
+        mandatory true;
+        description "playlist timer";
+      }
+    }
+  }
+
+  list server_action {
+    key name_action;
+    leaf name_action {
+      type string;
+    }
+    action reset {
+      input {
+        leaf reset-input {
+          type string;
+          mandatory true;
+        }
+      }
+      output {
+        leaf reset-output {
+          type string;
+          mandatory true;
+        }
+      }
+    }
+  }
+
+  notification exevent {
+    description "Example notification event.";
+    leaf event-class {
+      type string;
+      description "Event class identifier.";
+    }
+    container reporting-entity {
+      description "Event specific information.";
+      leaf card {
+        type string;
+        description "Line card identifier.";
+      }
+    }
+    leaf severity {
+      type string;
+      description "Event severity description.";
+    }
+  }
+
+  container gen-event {
+    description
+      "Subscription point.
+       Any change of the 'severity' will cause a new event to be emitted";
+
+    leaf severity {
+      type string;
+      description "Event severity description.";
+    }
+  }
+
+}

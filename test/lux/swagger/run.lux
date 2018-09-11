@@ -1,0 +1,204 @@
+[doc Test Swagger compilation]
+
+# NOTE: external deps to:
+#   o  swagger-cli
+#   o  python
+
+[global SWAGGER_CLI_CMD=swagger-cli]
+
+########################################################################
+### M A C R O S
+########################################################################
+
+[macro compile yangfile]
+    [progress \ngenerate swagger from: $yangfile ...\n]
+
+    # this will generate (json) swagger definition file and validate the json
+    # the swagger file will be as complete as possible
+    !yanger -p . -t expand -f swagger $yangfile --swagger-host 127.0.0.1:8008 --swagger-basepath /restconf --swagger-version "my swagger version 1.0.0.1" --swagger-tag-mode all --swagger-terms "http://my-terms.example.com" --swagger-contact-name "my contact name" --swagger-contact-url "http://my-contact-url.example.com" --swagger-contact-email "my-contact-email@example.com" --swagger-license-name "my license name" --swagger-license-url "http://my-license-url.example.com" --swagger-top-resource all --swagger-omit-query-params false --swagger-omit-body-params false --swagger-omit-form-params false --swagger-omit-header-params false --swagger-omit-path-params false --swagger-omit-standard-statuses false --swagger-methods "post, get, patch, put, delete, head, options" | python -m json.tool > $yangfile.swagger.json
+
+    !echo ==$$?==
+    ?==0==
+
+[endmacro]
+
+[macro compile_path yangfile pathfilter]
+    [progress \ngenerate swagger from: $yangfile ...]
+    [progress with path filter $pathfilter ...\n]
+
+    # this will generate (json) swagger definition file and validate the json
+    # using a path filter
+    !yanger -p . -t expand -f swagger $yangfile --swagger-host 127.0.0.1:8008 --swagger-basepath /restconf --swagger-version "my swagger version 1.0.0.1" --swagger-tag-mode all --swagger-terms "http://my-terms.example.com" --swagger-contact-name "my contact name" --swagger-contact-url "http://my-contact-url.example.com" --swagger-contact-email "my-contact-email@example.com" --swagger-license-name "my license name" --swagger-license-url "http://my-license-url.example.com" --swagger-top-resource all --swagger-omit-query-params false --swagger-omit-body-params false --swagger-omit-form-params false --swagger-omit-header-params false --swagger-omit-path-params false --swagger-omit-standard-statuses false --swagger-methods "post, get, patch, put, delete, head, options" --swagger-path-filter $pathfilter | python -m json.tool > $yangfile.path.swagger.json
+
+    !echo ==$$?==
+    ?==0==
+
+[endmacro]
+
+[macro compile_path_top yangfile pathfilter topresource]
+    [progress \ngenerate swagger from: $yangfile ...]
+    [progress with path filter $pathfilter ...]
+    [progress and top resource $topresource ...\n]
+
+    # this will generate (json) swagger definition file and validate the json
+    # using a path filter and a specific top resource
+    !yanger -p . -t expand -f swagger $yangfile --swagger-host 127.0.0.1:8008 --swagger-basepath /restconf --swagger-version "my swagger version 1.0.0.1" --swagger-tag-mode all --swagger-terms "http://my-terms.example.com" --swagger-contact-name "my contact name" --swagger-contact-url "http://my-contact-url.example.com" --swagger-contact-email "my-contact-email@example.com" --swagger-license-name "my license name" --swagger-license-url "http://my-license-url.example.com" --swagger-top-resource $topresource --swagger-omit-query-params false --swagger-omit-body-params false --swagger-omit-form-params false --swagger-omit-header-params false --swagger-omit-path-params false --swagger-omit-standard-statuses false --swagger-methods "post, get, patch, put, delete" --swagger-path-filter $pathfilter | python -m json.tool > $yangfile.top.swagger.json
+
+    !echo ==$$?==
+    ?==0==
+
+[endmacro]
+
+[macro validate_swagger_20 swaggerfile]
+    [progress \nvalidate Swagger 2.0 in: $swaggerfile ...\n]
+
+    # this will validate the Swagger 2.0 swagger definition
+    !$SWAGGER_CLI_CMD validate $swaggerfile
+
+    !echo ==$$?==
+    ?==0==
+
+[endmacro]
+
+
+########################################################################
+### M A I N
+########################################################################
+[shell compilation]
+    -[Ee][Rr][Rr][Oo][Rr]
+
+    # verify the swagger-cli version
+    #!$SWAGGER_CLI_CMD --version
+    #?\s*2.0.0
+
+    #
+    # as complete generation as possible
+    #
+
+    # standard RESTCONF RFC example-jukebox.yang
+    [invoke compile example-jukebox.yang]
+    [invoke validate_swagger_20 example-jukebox.yang.swagger.json]
+
+    # extended example-jukebox.yang
+    [invoke compile example-jukebox-extended.yang]
+    [invoke validate_swagger_20 example-jukebox-extended.yang.swagger.json]
+
+    # new.yang
+    [invoke compile new.yang]
+    [invoke validate_swagger_20 new.yang.swagger.json]
+
+    # simple.yang
+    [invoke compile simple.yang]
+    [invoke validate_swagger_20 simple.yang.swagger.json]
+
+    # types.yang
+    [invoke compile types.yang]
+    [invoke validate_swagger_20 types.yang.swagger.json]
+
+    # types-1.1.yang
+    [invoke compile types-1.1.yang]
+    [invoke validate_swagger_20 types-1.1.yang.swagger.json]
+
+    # escape.yang
+    [invoke compile escape.yang]
+    [invoke validate_swagger_20 escape.yang.swagger.json]
+
+    #
+    # generation with path filter
+    #
+
+    # standard RESTCONF RFC example-jukebox.yang
+    [invoke compile_path example-jukebox.yang \"example-jukebox:jukebox/library\"]
+    [invoke validate_swagger_20 example-jukebox.yang.path.swagger.json]
+
+    # extended example-jukebox.yang
+    [invoke compile_path example-jukebox-extended.yang \"types-test\"]
+    [invoke validate_swagger_20 example-jukebox-extended.yang.path.swagger.json]
+
+    # new.yang
+    [invoke compile_path new.yang \"/data/example-jukebox:l1\"]
+    [invoke validate_swagger_20 new.yang.path.swagger.json]
+
+    # simple.yang
+    [invoke compile_path simple.yang \"top/ids\"]
+    [invoke validate_swagger_20 simple.yang.path.swagger.json]
+
+    # types.yang
+    [invoke compile_path types.yang \"e2\"]
+    [invoke validate_swagger_20 types.yang.path.swagger.json]
+
+    # types-1.1.yang
+    [invoke compile_path types-1.1.yang \"types/l6\"]
+    [invoke validate_swagger_20 types-1.1.yang.path.swagger.json]
+
+    # escape.yang
+    [invoke compile_path escape.yang \"rpc1\"]
+    [invoke validate_swagger_20 escape.yang.path.swagger.json]
+
+    #
+    # generation with path filter and specific top resource
+    #
+
+    # standard RESTCONF RFC example-jukebox.yang
+    [invoke compile_path_top example-jukebox.yang \"example-jukebox:jukebox/library\" root]
+    [invoke validate_swagger_20 example-jukebox.yang.top.swagger.json]
+
+    [invoke compile_path_top example-jukebox.yang \"example-jukebox:jukebox/library\" data]
+    [invoke validate_swagger_20 example-jukebox.yang.top.swagger.json]
+
+    # extended example-jukebox.yang (root)
+    [invoke compile_path_top example-jukebox-extended.yang \"types-test\" root]
+    [invoke validate_swagger_20 example-jukebox-extended.yang.top.swagger.json]
+
+    # extended example-jukebox.yang (data)
+    [invoke compile_path_top example-jukebox-extended.yang \"types-test\" data]
+    [invoke validate_swagger_20 example-jukebox-extended.yang.top.swagger.json]
+
+    # new.yang (operations)
+    [invoke compile_path_top new.yang \"/data/example-jukebox:l1\" operations]
+    [invoke validate_swagger_20 new.yang.top.swagger.json]
+
+    # new.yang (data)
+    [invoke compile_path_top new.yang \"/data/example-jukebox:l1\" data]
+    [invoke validate_swagger_20 new.yang.top.swagger.json]
+
+    # simple.yang (root)
+    [invoke compile_path_top simple.yang \"top/ids\" root]
+    [invoke validate_swagger_20 simple.yang.top.swagger.json]
+
+    # simple.yang (data)
+    [invoke compile_path_top simple.yang \"top/ids\" data]
+    [invoke validate_swagger_20 simple.yang.top.swagger.json]
+
+    # types.yang
+    [invoke compile_path_top types.yang \"e2\" data]
+    [invoke validate_swagger_20 types.yang.top.swagger.json]
+
+    # types-1.1.yang
+    [invoke compile_path_top types-1.1.yang \"types/l6\" data]
+    [invoke validate_swagger_20 types-1.1.yang.top.swagger.json]
+
+    # escape.yang
+    [invoke compile_path_top escape.yang \"rpc1\" data]
+    [invoke validate_swagger_20 escape.yang.top.swagger.json]
+
+    #
+    # more path filter tests
+    #
+    [invoke compile_path_top example-jukebox.yang \"song-name\" all]
+    [invoke validate_swagger_20 example-jukebox.yang.top.swagger.json]
+
+    [invoke compile_path_top example-jukebox.yang \"juke\" all]
+    [invoke validate_swagger_20 example-jukebox.yang.top.swagger.json]
+
+    [invoke compile_path_top example-jukebox.yang \"\" all]
+    [invoke validate_swagger_20 example-jukebox.yang.top.swagger.json]
+
+    !yanger -p . -t expand -f swagger example-jukebox.yang --swagger-host 127.0.0.1:8008 --swagger-basepath /restconf --swagger-top-resource data --swagger-tag-mode resources --swagger-version "my swagger version 1.0.0.1" --swagger-terms "http://my-terms.example.com" --swagger-contact-name "my contact name" --swagger-contact-url "http://my-contact-url.example.com" --swagger-contact-email "my-contact-email@example.com" --swagger-license-name "my license name" --swagger-license-url "http://my-license-url.example.com" --swagger-omit-query-params true --swagger-methods "get, post, put, patch" --swagger-path-filter "jukebox/library" | python -m json.tool > example-jukebox.swagger.json
+    [invoke validate_swagger_20 example-jukebox.swagger.json]
+
+    !yanger -p . -t expand -f swagger example-jukebox.yang --swagger-host 127.0.0.1:8008 --swagger-basepath /restconf --swagger-top-resource data --swagger-tag-mode resources --swagger-version "my swagger version 1.0.0.1" --swagger-terms "http://my-terms.example.com" --swagger-contact-name "my contact name" --swagger-contact-url "http://my-contact-url.example.com" --swagger-contact-email "my-contact-email@example.com" --swagger-license-name "my license name" --swagger-license-url "http://my-license-url.example.com" --swagger-omit-query-params true --swagger-methods "post" --swagger-path-filter "jukebox/library" | python -m json.tool > example-jukebox.swagger.json
+    [invoke validate_swagger_20 example-jukebox.swagger.json]
+
+    !yanger -p . -t expand -f swagger example-jukebox.yang --swagger-host 127.0.0.1:8008 --swagger-basepath /restconf --swagger-version "my swagger version 1.0.0.1" --swagger-tag-mode all --swagger-terms "http://my-terms.example.com" --swagger-contact-name "my contact name" --swagger-contact-url "http://my-contact-url.example.com" --swagger-contact-email "my-contact-email@example.com" --swagger-license-name "my license name" --swagger-license-url "http://my-license-url.example.com" --swagger-top-resource all --swagger-omit-query-params false --swagger-omit-body-params false --swagger-omit-form-params false --swagger-omit-header-params false --swagger-omit-path-params false --swagger-omit-standard-statuses false --swagger-methods "post, get, patch, put, delete" --swagger-path-filter "name" | python -m json.tool > example-jukebox.swagger.json
+    [invoke validate_swagger_20 example-jukebox.swagger.json]
