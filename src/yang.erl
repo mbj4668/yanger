@@ -1,5 +1,7 @@
 -module(yang).
 
+-compile({no_auto_import,[map_get/2]}).
+
 -export([load_plugins/1, new_ctx/1, init_ctx/2,
          add_file/2, add_file/3, post_add_modules/1]).
 -export([add_llerrors/2]).
@@ -415,17 +417,15 @@ add_file(Ctx, FileName, AddCause) ->
     try
         add_file0(Ctx, FileName, AddCause)
     catch
-        error:_X ->
+        ?CATCH_STACKTRACE(error, _X, Stacktrace)
             %% since we keep the entire data structure on the heap,
             %% our crashes can be huge.  mask the error.
             %% FIXME: use another mechanism than env var?
             case os:getenv("YANGERROR") of
                 false ->
-                    erlang:error({yang_internal_error,
-                                  erlang:get_stacktrace()});
+                    erlang:error({yang_internal_error, Stacktrace});
                 _ ->
-                    erlang:error({yang_internal_error,
-                                  {_X, erlang:get_stacktrace()}})
+                    erlang:error({yang_internal_error, {_X, Stacktrace}})
             end
     end.
 

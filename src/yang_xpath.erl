@@ -216,9 +216,9 @@ get_dep_paths(XPathExpr, CurNs) ->
     catch
         throw:false ->
             false;
-        _:Error ->
+        ?CATCH_STACKTRACE(_Class, Error, Stacktrace)
             %% FIXME: report if verbose?
-            ?liof("internal error: ~p\n~p\n", [Error, erlang:get_stacktrace()]),
+            ?liof("internal error: ~p\n~p\n", [Error, Stacktrace]),
             false
     end.
 
