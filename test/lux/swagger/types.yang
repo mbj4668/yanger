@@ -1,0 +1,204 @@
+module types {
+  namespace urn:types;
+  prefix t;
+  yang-version 1.1;
+
+  import tailf-common {
+    prefix tailf;
+  }
+
+  feature foo;
+  feature bar;
+
+  typedef e1 {
+    type enumeration {
+      enum one {
+        tailf:info "original one";
+      }
+      enum two {
+        value 4;
+        tailf:code-name enum_two;
+        description "original two";
+      }
+      enum three {
+        tailf:info "original three";
+        if-feature foo;
+      }
+    }
+  }
+  typedef e2 {
+    type e1 {
+      enum one {
+        tailf:info "derived one";
+        if-feature bar;
+      }
+      enum two;
+    }
+    default two;
+  }
+
+  typedef b1 {
+    type bits {
+      bit one {
+        tailf:info "original one";
+      }
+      bit two {
+        position 4;
+        tailf:code-name bit_two;
+        description "original two";
+      }
+      bit three {
+        tailf:info "original three";
+        if-feature foo;
+      }
+    }
+  }
+  typedef b2 {
+    type b1 {
+      bit one {
+        tailf:info "derived one";
+        if-feature bar;
+      }
+      bit two;
+    }
+    default two;
+  }
+
+  typedef l1 {
+    type leafref {
+      path /t:types/t:e3;
+      require-instance false;
+    }
+  }
+  typedef l2 {
+    type l1 {
+      require-instance true;
+    }
+  }
+
+  /* FIXME: test leafref-in-union workaround
+     - remove in full 1.1, add new test case */
+  typedef u1 {
+    type union {
+      type string;
+      // type leafref {
+      //   path /t:types/t:e3;
+      // }
+      type int32;
+    }
+  }
+  typedef u2 {
+    type union {
+      // type l2;
+      type string;
+    }
+  }
+  /* FIXME end */
+
+  container types {
+    leaf e2 {
+      type enumeration {
+        enum one {
+          tailf:info "inline one";
+        }
+        enum two {
+          tailf:info "inline two";
+          tailf:code-name inline_two;
+          if-feature foo;
+        }
+      }
+    }
+    leaf e3 {
+      type e1 {
+        enum two {
+          description "derived two";
+        }
+        enum three {
+          value 5;
+        }
+      }
+    }
+    leaf e4 {
+      type e2 {
+        enum one {
+          value 0;
+        }
+        enum two;
+      }
+    }
+
+    leaf b2 {
+      type bits {
+        bit one {
+          tailf:info "inline one";
+        }
+        bit two {
+          tailf:info "inline two";
+          if-feature foo;
+        }
+      }
+    }
+    leaf b3 {
+      type b1 {
+        bit two {
+          description "derived two";
+        }
+        bit three {
+          description "derived three";
+          position 5;
+        }
+      }
+    }
+    leaf b4 {
+      type b2 {
+        bit one {
+          position 0;
+        }
+        bit two;
+      }
+    }
+
+    leaf l2 {
+      type leafref {
+        path /t:types/t:e3;
+        require-instance false;
+      }
+    }
+    leaf l3 {
+      type l1;
+    }
+    leaf l4 {
+      type l2;
+    }
+    leaf l5 {
+      type l1 {
+        require-instance true;
+      }
+    }
+    leaf l6 {
+      type l2 {
+        require-instance false;
+      }
+    }
+
+    // conflict avoided by tailf:code-name
+    leaf two {
+      type string;
+    }
+
+    /* FIXME: test leafref-in-union workaround
+       - remove in full 1.1, add new test case */
+    leaf u1 {
+      type union {
+        // type leafref {
+        //   path /t:types/t:e3;
+        // }
+        type int32;
+      }
+    }
+    leaf u2 {
+      type u2;
+    }
+    /* FIXME end */
+  }
+}

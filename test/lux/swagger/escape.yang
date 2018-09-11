@@ -1,0 +1,15 @@
+module escape {
+  namespace urn:escape;
+  prefix escape;
+
+  description
+    "string with unicode chars ö Ὗ and \" \\ x\n \t escapes
+       line 2 with escape \" å.
+line 3";
+
+  rpc rpc1 {
+    input {
+      container x;
+    }
+  }
+}

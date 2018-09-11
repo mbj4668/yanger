@@ -1,0 +1,9 @@
+Dependencies:
+=============
+
+o  python: required to validate generated json
+
+o  swagger-cli: required to validate swagger 2.0
+   (https://github.com/bigstickcarpet/swagger-cli.git)
+
+   installation: npm install swagger-cli

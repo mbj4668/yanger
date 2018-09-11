@@ -1,0 +1,92 @@
+module simple {
+  namespace "urn:simple";
+  prefix "simple";
+
+  container top {
+    container pink {
+      leaf wish {
+        type string;
+      }
+
+      container p-pink-inner {
+        presence "";
+        leaf wish-inner {
+          type string;
+        }
+      }
+
+      container np-pink-inner {
+        leaf wish-inner2 {
+          type string;
+        }
+      }
+    }
+
+    container floyd {
+      presence "";
+      leaf xxx {
+        type string;
+      }
+      container np-floyd-inner {
+        leaf xxx-inner1 {
+          type string;
+        }
+      }
+      container p-floyd-inner {
+        presence "";
+        leaf xxx-inner2 {
+          type string;
+        }
+      }
+    }
+
+    list ids {
+      key id;
+
+      leaf id {
+        type uint32;
+      }
+
+      leaf name {
+        type string;
+      }
+
+      choice card-type {
+        case sre {
+          container sre {
+          }
+        }
+      }
+
+      choice between {
+        default rock;
+
+        case rock {
+          container stone {
+            leaf mountain {
+              type string;
+            }
+          }
+        }
+        case hard-place {
+          container soft {
+            leaf spot {
+              type string;
+            }
+          }
+        }
+      }
+
+      container zork {
+        leaf foo {
+          type string;
+        }
+      }
+    }
+
+    choice cross {
+      case bohemian {
+      }
+    }
+  }
+}
