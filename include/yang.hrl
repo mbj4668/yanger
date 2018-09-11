@@ -11,11 +11,12 @@
 -define(iof(X, Y), io:format(X, Y)).
 -define(liof(Fmt, Args), io:format("~w:~w " ++ Fmt,[?MODULE,?LINE|Args])).
 -define(iof_bt(Fmt, Args), io:format("~s ~p\n",
-                                     [io_lib:format(Fmt, Args), ?stack()])).
+                                     [io_lib:format(Fmt, Args),
+                                      ?stacktrace()])).
 -define(liof_bt(Fmt, Args), io:format("~w:~w ~s ~p\n",
                                       [?MODULE, ?LINE,
-                                       io_lib:format(Fmt, Args), ?stack()])).
--define(stack(), try throw(1) catch _:_ -> erlang:get_stacktrace() end).
+                                       io_lib:format(Fmt, Args),
+                                       ?stacktrace()])).
 -endif.
 
 -record(type, {
@@ -558,3 +559,27 @@
 -define(STMT_ARG, 2).
 -define(STMT_POS, 3).
 -define(STMT_SUBSTMTS, 4).
+
+%% with OTP-21 erlang:get_stacktrace/0 is depricated
+%% NOTE: heavily inspired by solution in hawk/lux
+-ifdef(OTP_RELEASE).
+    -define(stacktrace(),
+            fun() -> try throw(1) catch _:_:StAcK -> StAcK end end()).
+    -define(CATCH_STACKTRACE(Class, Reason, Stacktrace),
+            Class:Reason:Stacktrace ->
+           ).
+    -define(CATCH_STACKTRACE_WHEN(Class, Reason, Stacktrace, When),
+            Class:Reason:Stacktrace when (When) ->
+           ).
+-else.
+    -define(stacktrace(),
+            try throw(1) catch _:_ -> erlang:get_stacktrace() end).
+    -define(CATCH_STACKTRACE(Class, Reason, Stacktrace),
+            Class:Reason ->
+                Stacktrace = erlang:get_stacktrace(),
+           ).
+    -define(CATCH_STACKTRACE_WHEN(Class, Reason, Stacktrace, When),
+            Class:Reason when (When) ->
+                Stacktrace = erlang:get_stacktrace(),
+           ).
+-endif.

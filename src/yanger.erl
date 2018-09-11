@@ -410,16 +410,17 @@ run(Ctx0, Opts, Files) ->
                 try
                     EmitFun(Ctx3, Modules, OutFd)
                 catch
-                    Class:Reason when OutFd /= standard_io ->
+                    ?CATCH_STACKTRACE_WHEN(Class, Reason, Stacktrace,
+                                           OutFd /= standard_io)
                         %% don't leave the file behind on error/throw
                         file:delete(Opts#opts.outfile),
-                        erlang:raise(Class, Reason, erlang:get_stacktrace());
-                    _Class:Reason ->
+                        erlang:raise(Class, Reason, Stacktrace);
+                    ?CATCH_STACKTRACE(_Class, Reason, Stacktrace)
                         EmitError = {emit_crash,
                                      Ctx3,
                                      Opts,
                                      Reason,
-                                     erlang:get_stacktrace()},
+                                     Stacktrace},
                         throw({error, EmitError})
                 end,
             Ctx4 = Ctx3#yctx{errors = Ctx3#yctx.errors ++ FormatWarningsErrors},
@@ -551,7 +552,7 @@ print_crash(X) ->
                 {yang_internal_error, {Reason, StackTrace}} ->
                     print_internal_error(YANGERROR, Reason, StackTrace);
                 _ ->
-                    print_internal_error(YANGERROR, X, erlang:get_stacktrace())
+                    print_internal_error(YANGERROR, X, ?stacktrace())
             end
     end.
 
