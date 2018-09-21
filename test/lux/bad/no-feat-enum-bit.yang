@@ -1,0 +1,139 @@
+module no-feat-enum-bit {
+  yang-version 1.1;
+  namespace urn:no-feat-enum-bit;
+  prefix nfeb;
+
+  // YANGER_EXTRA_FLAGS: -F no-feat-enum-bit:baz
+
+  feature foo;
+  feature bar;
+  feature baz;
+
+  typedef enum0 {
+    type enumeration { // LINE: YANG_ERR_MISSING_TYPE_SPEC
+      enum foo {
+        if-feature foo;
+      }
+      enum bar {
+        if-feature bar;
+      }
+    }
+  }
+
+  typedef enum1 {
+    type enumeration {
+      enum foo {
+        if-feature foo;
+      }
+      enum bar;
+    }
+  }
+
+  typedef enum2 {
+    type enum1 { // LINE: YANG_ERR_MISSING_TYPE_SPEC
+      enum foo;
+      enum bar {
+        if-feature bar;
+      }
+    }
+  }
+
+  typedef enum3 {
+    type enumeration { // LINE: YANG_ERR_MISSING_TYPE_SPEC
+    }
+  }
+
+  typedef bit0 {
+    type bits { // LINE: YANG_ERR_MISSING_TYPE_SPEC
+      bit foo {
+        if-feature foo;
+      }
+      bit bar {
+        if-feature bar;
+      }
+    }
+  }
+
+  typedef bit1 {
+    type bits {
+      bit foo {
+        if-feature foo;
+      }
+      bit bar;
+    }
+  }
+
+  typedef bit2 {
+    type bit1 { // LINE: YANG_ERR_MISSING_TYPE_SPEC
+      bit foo;
+      bit bar {
+        if-feature bar;
+      }
+    }
+  }
+
+  typedef bit3 {
+    type bits { // LINE: YANG_ERR_MISSING_TYPE_SPEC
+    }
+  }
+
+
+  leaf enum0 {
+    type enumeration { // LINE: YANG_ERR_MISSING_TYPE_SPEC
+      enum foo {
+        if-feature foo;
+      }
+      enum bar {
+        if-feature bar;
+      }
+    }
+  }
+
+  leaf enum1 {
+    type enum1 { // LINE: YANG_ERR_MISSING_TYPE_SPEC
+      enum foo;
+      enum bar {
+          if-feature bar;
+      }
+    }
+  }
+
+  leaf enum2 {
+    type enum2;
+  }
+
+  leaf enum3 {
+    type enumeration { // LINE: YANG_ERR_MISSING_TYPE_SPEC
+    }
+  }
+
+  leaf bit0 {
+    type bits { // LINE: YANG_ERR_MISSING_TYPE_SPEC
+      bit foo {
+        if-feature foo;
+      }
+      bit bar {
+        if-feature bar;
+      }
+    }
+  }
+
+  leaf bit1 {
+    type bit1 { // LINE: YANG_ERR_MISSING_TYPE_SPEC
+      bit foo;
+      bit bar {
+          if-feature bar;
+      }
+    }
+  }
+
+  leaf bit2 {
+    type bit2;
+  }
+
+  leaf bit3 {
+    type bits { // LINE: YANG_ERR_MISSING_TYPE_SPEC
+    }
+  }
+}
+

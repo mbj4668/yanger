@@ -672,24 +672,14 @@ boolean_type_spec_fun({parse, _Val, _Pos}, _Type, _M, _Ctx) ->
 
 
 %% enumeration
+enumeration_type_spec_fun({derive, TypeS}, #type{base = builtin}, M, Ctx0) ->
+    {Enumstmts, Ctx1} = get_substmts(['enum'], TypeS, Ctx0),
+    parse_enums(Enumstmts, stmt_pos(TypeS), M, Ctx1, undefined);
 enumeration_type_spec_fun({derive, TypeS},
-                          #type{base = builtin, type_spec = TypeSpec},
-                          M, Ctx0) ->
-    case get_substmts(['enum'], TypeS, Ctx0) of
-        {[], Ctx1} ->
-            {_, _, Pos, _} = TypeS,
-            {TypeSpec, add_error(Ctx1, Pos, 'YANG_ERR_MISSING_TYPE_SPEC',
-                                 ["enumeration", "enum"])};
-        {Enumstmts, Ctx1} ->
-            {Enums, Stmts, AllEnums, AllStmts, Ctx2} =
-                parse_enums(Enumstmts, M, Ctx1, undefined),
-            {#enumeration_type_spec{enums = Enums,
-                                    enum_stmts = Stmts,
-                                    all_enums = AllEnums,
-                                    all_enum_stmts = AllStmts},
-             Ctx2}
-    end;
-enumeration_type_spec_fun({derive, TypeS}, #type{type_spec = TypeSpec},
+                          #type{type_spec = #enumeration_type_spec{
+                                  enums = BaseEnums,
+                                  all_enums = AllBaseEnums,
+                                  all_enum_stmts = AllBaseStmts} = TypeSpec},
                           M, Ctx0) ->
     %% only identity derivation is possible in YANG 1
     Kwds =
@@ -703,13 +693,8 @@ enumeration_type_spec_fun({derive, TypeS}, #type{type_spec = TypeSpec},
             %% identity derivation
             {TypeSpec, Ctx1};
         {Enumstmts, Ctx1} ->
-            {Enums, Stmts, AllEnums, AllStmts, Ctx2} =
-                parse_enums(Enumstmts, M, Ctx1, TypeSpec),
-            {#enumeration_type_spec{enums = Enums,
-                                    enum_stmts = Stmts,
-                                    all_enums = AllEnums,
-                                    all_enum_stmts = AllStmts},
-             Ctx2}
+            parse_enums(Enumstmts, stmt_pos(TypeS), M, Ctx1,
+                        {BaseEnums, AllBaseEnums, AllBaseStmts})
     end;
 enumeration_type_spec_fun({parse, _Val, _Pos},
                           #type{type_spec = #enumeration_type_spec{enums = []}},
@@ -729,20 +714,24 @@ enumeration_type_spec_fun({parse, Val, _Pos},
              stmt_pos(Type#type.stmt)}
     end.
 
-parse_enums(Enumstmts, M, Ctx, undefined) ->
-    parse_enums(Enumstmts, M, Ctx, -1, undefined);
-parse_enums(Enumstmts, M, Ctx,
-            #enumeration_type_spec{enums = BaseEnums,
-                                   all_enums = AllBaseEnums,
-                                   all_enum_stmts = AllBaseStmts}) ->
-    parse_enums(Enumstmts, M, Ctx, -1, {BaseEnums, AllBaseEnums, AllBaseStmts}).
-
-parse_enums(Enumstmts, M, Ctx, PrevV, BaseEnumsAndStmts) ->
-    parse_names_and_values(
-      Enumstmts, M, Ctx, PrevV, BaseEnumsAndStmts, 'value',
-      'YANG_ERR_ENUM_NAME_MISMATCH', 'YANG_ERR_ENUM_VALUE_MISMATCH',
-      'YANG_ERR_DUPLICATE_ENUM_NAME', 'YANG_ERR_DUPLICATE_ENUM_VALUE',
-      ?INT32_MIN, ?INT32_MAX, 'YANG_ERR_ENUM_VALUE', []).
+parse_enums(Enumstmts, Pos, M, Ctx0, BaseEnumsAndStmts) ->
+    {Enums, Stmts, AllEnums, AllStmts, Ctx1} =
+        parse_names_and_values(
+          Enumstmts, M, Ctx0, -1, BaseEnumsAndStmts, 'value',
+          'YANG_ERR_ENUM_NAME_MISMATCH', 'YANG_ERR_ENUM_VALUE_MISMATCH',
+          'YANG_ERR_DUPLICATE_ENUM_NAME', 'YANG_ERR_DUPLICATE_ENUM_VALUE',
+          ?INT32_MIN, ?INT32_MAX, 'YANG_ERR_ENUM_VALUE', []),
+    Ctx2 = if Enums == [] ->
+                   add_error(Ctx1, Pos, 'YANG_ERR_MISSING_TYPE_SPEC',
+                             ["enumeration", "enum"]);
+              true ->
+                   Ctx1
+           end,
+    {#enumeration_type_spec{enums = Enums,
+                            enum_stmts = Stmts,
+                            all_enums = AllEnums,
+                            all_enum_stmts = AllStmts},
+     Ctx2}.
 
 -spec parse_names_and_values([yang:stmt()], #module{}, #yctx{}, integer(),
                              {[name_and_value()], [name_and_value()],
@@ -903,23 +892,15 @@ chk_if_features(Substmts, M, Ctx0) ->
 
 
 %% bits
+bits_type_spec_fun({derive, TypeS}, #type{base = builtin}, M, Ctx0) ->
+    {Bitstmts, Ctx1} = get_substmts(['bit'], TypeS, Ctx0),
+    parse_bits(Bitstmts, stmt_pos(TypeS), M, Ctx1, undefined);
 bits_type_spec_fun({derive, TypeS},
-                   #type{base = builtin, type_spec = TypeSpec}, M, Ctx0) ->
-    case get_substmts(['bit'], TypeS, Ctx0) of
-        {[], Ctx1} ->
-            {_, _, Pos, _} = TypeS,
-            {TypeSpec, add_error(Ctx1, Pos, 'YANG_ERR_MISSING_TYPE_SPEC',
-                                 ["bits", "bit"])};
-        {Bitstmts, Ctx1} ->
-            {Bits, Stmts, AllBits, AllStmts, Ctx2} =
-                parse_bits(Bitstmts, M, Ctx1, undefined),
-            {#bits_type_spec{bits = Bits,
-                             bit_stmts = Stmts,
-                             all_bits = AllBits,
-                             all_bit_stmts = AllStmts},
-             Ctx2}
-    end;
-bits_type_spec_fun({derive, TypeS}, #type{type_spec = TypeSpec}, M, Ctx0) ->
+                   #type{type_spec = #bits_type_spec{
+                           bits = BaseBits,
+                           all_bits = AllBaseBits,
+                           all_bit_stmts = AllBaseStmts} = TypeSpec},
+                   M, Ctx0) ->
     %% only identity derivation is possible in YANG 1
     Kwds =
         if M#module.yang_version == '1' ->
@@ -932,13 +913,8 @@ bits_type_spec_fun({derive, TypeS}, #type{type_spec = TypeSpec}, M, Ctx0) ->
             %% identity derivation
             {TypeSpec, Ctx1};
         {Bitstmts, Ctx1} ->
-            {Bits, Stmts, AllBits, AllStmts, Ctx2} =
-                parse_bits(Bitstmts, M, Ctx1, TypeSpec),
-            {#bits_type_spec{bits = Bits,
-                             bit_stmts = Stmts,
-                             all_bits = AllBits,
-                             all_bit_stmts = AllStmts},
-             Ctx2}
+            parse_bits(Bitstmts, stmt_pos(TypeS), M, Ctx1,
+                       {BaseBits, AllBaseBits, AllBaseStmts})
     end;
 bits_type_spec_fun({parse, _Val, _Pos},
                    #type{type_spec = #bits_type_spec{bits = []}},
@@ -963,21 +939,24 @@ bits_type_spec_fun({parse, Val, _Pos},
     end.
 
 
-parse_bits(Bitstmts, M, Ctx, undefined) ->
-    parse_bits(Bitstmts, M, Ctx, -1, undefined);
-parse_bits(Bitstmts, M, Ctx,
-           #bits_type_spec{bits = BaseBits,
-                           all_bits = AllBaseBits,
-                           all_bit_stmts = AllBaseStmts}) ->
-    parse_bits(Bitstmts, M, Ctx, -1, {BaseBits, AllBaseBits, AllBaseStmts}).
-
-parse_bits(Bitstmts, M, Ctx, PrevV, BaseBitsAndStmts) ->
-    parse_names_and_values(
-      Bitstmts, M, Ctx, PrevV, BaseBitsAndStmts, 'position',
-      'YANG_ERR_BIT_NAME_MISMATCH', 'YANG_ERR_BIT_POSITION_MISMATCH',
-      'YANG_ERR_DUPLICATE_BIT_NAME', 'YANG_ERR_DUPLICATE_BIT_POSITION',
-      0, ?UINT32_MAX, 'YANG_ERR_BIT_POSITION', []).
-
+parse_bits(Bitstmts, Pos, M, Ctx0, BaseBitsAndStmts) ->
+    {Bits, Stmts, AllBits, AllStmts, Ctx1} =
+        parse_names_and_values(
+          Bitstmts, M, Ctx0, -1, BaseBitsAndStmts, 'position',
+          'YANG_ERR_BIT_NAME_MISMATCH', 'YANG_ERR_BIT_POSITION_MISMATCH',
+          'YANG_ERR_DUPLICATE_BIT_NAME', 'YANG_ERR_DUPLICATE_BIT_POSITION',
+          0, ?UINT32_MAX, 'YANG_ERR_BIT_POSITION', []),
+    Ctx2 = if Bits == [] ->
+                   add_error(Ctx1, Pos, 'YANG_ERR_MISSING_TYPE_SPEC',
+                             ["bits", "bit"]);
+              true ->
+                   Ctx1
+           end,
+    {#bits_type_spec{bits = Bits,
+                     bit_stmts = Stmts,
+                     all_bits = AllBits,
+                     all_bit_stmts = AllStmts},
+     Ctx2}.
 
 %% union
 union_type_spec_fun({derive, TypeS},
