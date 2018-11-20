@@ -3,10 +3,6 @@ module new {
   namespace urn:new;
   prefix n;
 
-  import tailf-common {
-    prefix tailf;
-  }
-
   // make sure that 1.1 constructs are ok
   // compare with test_bad/new.yang
 
@@ -81,7 +77,6 @@ module new {
   container t {
     must 're-match("hejsan", ".*ej.*")'; // new 1.1 syntax
     must 'not(deref(.))' { // new 1.1 syntax
-      tailf:dependency ".";
     }
     must 'not(derived-from(., "n:id1"))'; // new 1.1 syntax
     must 'not(derived-from-or-self(., "id2"))'; // new 1.1 syntax

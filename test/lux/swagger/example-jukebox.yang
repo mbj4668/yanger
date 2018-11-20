@@ -3,10 +3,6 @@ module example-jukebox {
   namespace "http://example.com/ns/example-jukebox";
   prefix "jbox";
 
-  import tailf-common {
-    prefix tailf;
-  }
-
   organization "Example, Inc.";
   contact "support at example.com";
   description "Example Jukebox Data Model Module";
@@ -233,7 +229,6 @@ module example-jukebox {
   }
 
   rpc play {
-    tailf:exec "./scripts/play-jukebox";
     description "Control function for the jukebox player";
     input {
       leaf playlist {

@@ -16,17 +16,26 @@
         #yctx{}.
 %% @doc Report an error or warning to the context.
 add_error(Ctx, Pos, ErrCode, Args) ->
+    ExpectedLevel =
+        case lists:keyfind(ErrCode, 1, Ctx#yctx.error_codes) of
+            {_ErrCode, warning, _Fmt} ->
+                warning;
+            _ ->
+                error
+        end,
+    add_error(ExpectedLevel, Ctx, Pos, ErrCode, Args).
+
+add_error(ExpectedLevel, Ctx, Pos, ErrCode, Args) ->
     {WarningsAsErrors, NoPrintWarnings,
      TreatAsNone, TreatAsWarning, TreatAsError} =
         Ctx#yctx.warnings,
     DoTreatAsNone = lists:member(ErrCode, TreatAsNone),
     Level =
-        case lists:keyfind(ErrCode, 1, Ctx#yctx.error_codes) of
-            {_ErrCode, warning, _Fmt}
-              when NoPrintWarnings % -W none
-                   orelse DoTreatAsNone -> % -w <ErrCode>
+        case ExpectedLevel of
+            warning when NoPrintWarnings % -W none
+                         orelse DoTreatAsNone -> % -w <ErrCode>
                 none;
-            {ErrCode, warning, _Fmt} when WarningsAsErrors ->
+            warning when WarningsAsErrors ->
                 %% it's a warning, but treat all warnings as errors
                 %% except if they are explicitly mentioned.
                 case lists:member(ErrCode, TreatAsWarning) of
@@ -35,7 +44,7 @@ add_error(Ctx, Pos, ErrCode, Args) ->
                     false ->
                         error
                 end;
-            {ErrCode, warning, _Fmt} ->
+            warning ->
                 %% it's a warning, but treat it as an error if it is
                 %% explicitly mentioned.
                 case lists:member(ErrCode, TreatAsError) of
@@ -45,13 +54,13 @@ add_error(Ctx, Pos, ErrCode, Args) ->
                         warning
                 end;
             _ ->
-                error
+                ExpectedLevel
         end,
-    add_error(Level, Ctx, Pos, ErrCode, Args).
+    add_error2(Level, Ctx, Pos, ErrCode, Args).
 
-add_error(none, Ctx, _ErrPos, _ErrCode, _Args) ->
+add_error2(none, Ctx, _ErrPos, _ErrCode, _Args) ->
     Ctx;
-add_error(Level, Ctx, ErrPos, ErrCode, Args) ->
+add_error2(Level, Ctx, ErrPos, ErrCode, Args) ->
     Err = #yerror{level = Level,
                   pos = ErrPos,
                   code = ErrCode,
