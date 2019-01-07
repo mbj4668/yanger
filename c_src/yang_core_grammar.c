@@ -344,7 +344,6 @@ static const char *stmts[] = {
         "1",     "when",             "?",
         "1",     "if-feature",       "*",
         "1",     "default",          "?",
-        "1",     "must",             "*",
         "1",     "config",           "?",
         "1",     "mandatory",        "?",
         "1",     "status",           "?",
