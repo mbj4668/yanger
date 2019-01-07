@@ -38,7 +38,7 @@
          find_child/2, find_child/5]).
 -export([has_mandatory_descendant/1]).
 
--export([map_new/0, map_insert/3, map_update/3, map_keys/1,
+-export([map_new/0, map_is_empty/1, map_insert/3, map_update/3, map_keys/1,
          map_lookup/2, map_get/2, map_is_key/2, map_delete/2, map_to_list/1,
          map_iterator/1, map_next/1,
          map_foldl/3, map_foreach/2]).
