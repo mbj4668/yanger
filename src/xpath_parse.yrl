@@ -41,58 +41,58 @@
 %% <other types?>
 
 Nonterminals
-	'LocationPath'
-	'AbsoluteLocationPath'
-	'RelativeLocationPath'
-	'Step'
+        'LocationPath'
+        'AbsoluteLocationPath'
+        'RelativeLocationPath'
+        'Step'
 %%	'AxisSpecifier'
-	'NodeTest'
-	'Predicate'
-	'PredicateExpr'
-	'AbbreviatedAbsoluteLocationPath'
-	'AbbreviatedRelativeLocationPath'
-	'AbbreviatedStep'
+        'NodeTest'
+        'Predicate'
+        'PredicateExpr'
+        'AbbreviatedAbsoluteLocationPath'
+        'AbbreviatedRelativeLocationPath'
+        'AbbreviatedStep'
 %%	'AbbreviatedAxisSpecifier'
-	'Expr'
-	'PrimaryExpr'
-	'FunctionCall'
-	'Argument'
-	'UnionExpr'
-	'PathExpr'
-	'FilterExpr'
-	'OrExpr'
-	'AndExpr'
-	'EqualityExpr'
-	'RelationalExpr'
-	'AdditiveExpr'
-	'MultiplicativeExpr'
-	'UnaryExpr'
+        'Expr'
+        'PrimaryExpr'
+        'FunctionCall'
+        'Argument'
+        'UnionExpr'
+        'PathExpr'
+        'FilterExpr'
+        'OrExpr'
+        'AndExpr'
+        'EqualityExpr'
+        'RelationalExpr'
+        'AdditiveExpr'
+        'MultiplicativeExpr'
+        'UnaryExpr'
 %%	'Operator'
 %%	'OperatorName'
-	'MultiplyOperator'
-	'NameTest'
-	'<PredicateList>'
-	'<PredicateMember>'
-	'<ArgumentList>'
-	'<ArgumentMember>'
-	.
+        'MultiplyOperator'
+        'NameTest'
+        '<PredicateList>'
+        '<PredicateMember>'
+        '<ArgumentList>'
+        '<ArgumentMember>'
+        .
 
 Terminals
-	'number'
-	'axis'
-	'node_type'
-	'literal'
-	'prefix_test'
-	'var_reference'
-	'function_name'
-	'name'
-	'processing-instruction'
-	'wildcard'
-	'(' ')' '[' ']' '.' '..' '@' ',' '::'	
-	'and' 'or' 'mod' 'div'
-	'/' '//' '|' '+' '-' '=' '!=' '<' '<=' '>' '>='
-	'*'
-	.
+        'number'
+        'axis'
+        'node_type'
+        'literal'
+        'prefix_test'
+        'var_reference'
+        'function_name'
+        'name'
+        'processing-instruction'
+        'wildcard'
+        '(' ')' '[' ']' '.' '..' '@' ',' '::'
+        'and' 'or' 'mod' 'div'
+        '/' '//' '|' '+' '-' '=' '!=' '<' '<=' '>' '>='
+        '*'
+        .
 
 Rootsymbol 'Expr'.
 
@@ -123,25 +123,25 @@ Unary 500 '-' .
 %% [3]
 'RelativeLocationPath' -> 'AbbreviatedAbsoluteLocationPath' : ['$1'] .
 'RelativeLocationPath' -> 'Step' : ['$1'] .
-'RelativeLocationPath' -> 'RelativeLocationPath' '/' 'Step' : 
-			      '$1' ++ ['$3'].
+'RelativeLocationPath' -> 'RelativeLocationPath' '/' 'Step' :
+                              '$1' ++ ['$3'].
 'RelativeLocationPath' -> 'AbbreviatedRelativeLocationPath' : ['$1'] .
 
 %% [4]
 %% - should @name be {step, attribute, Name, ...} ?
 
-'Step' -> 'axis' '::' 'NodeTest' '<PredicateList>' 
-	: {step, value('$1'), '$3', '$4'} .
-'Step' -> 'axis' '::' 'NodeTest' 
-	: {step, value('$1'), '$3', []} .
-'Step' -> '@' 'name' '<PredicateList>' 
-	: {step, attribute, '$2', '$3'} .
-'Step' -> '@' 'name' 
-	: {step, attribute, '$2', []} .
+'Step' -> 'axis' '::' 'NodeTest' '<PredicateList>'
+        : {step, value('$1'), '$3', '$4'} .
+'Step' -> 'axis' '::' 'NodeTest'
+        : {step, value('$1'), '$3', []} .
+'Step' -> '@' 'name' '<PredicateList>'
+        : {step, attribute, '$2', '$3'} .
+'Step' -> '@' 'name'
+        : {step, attribute, '$2', []} .
 'Step' -> 'NodeTest' '<PredicateList>'
-	: {step, child, '$1', '$2'} .
-'Step' -> 'NodeTest' 
-	: {step, child, '$1', []} .
+        : {step, child, '$1', '$2'} .
+'Step' -> 'NodeTest'
+        : {step, child, '$1', []} .
 'Step' -> 'AbbreviatedStep' : '$1' .
 
 
@@ -149,7 +149,7 @@ Unary 500 '-' .
 
 
 '<PredicateMember>' -> '<PredicateMember>' 'Predicate'
-	: ['$2'|'$1'] .
+        : ['$2'|'$1'] .
 '<PredicateMember>' -> 'Predicate' : ['$1'] .
 
 
@@ -165,8 +165,8 @@ Unary 500 '-' .
 %%     except the heading ?xml item)
 'NodeTest' -> 'NameTest' : name_test('$1') .
 'NodeTest' -> 'node_type' '(' ')' : {node_type, value('$1')} .
-'NodeTest' -> 'processing-instruction' '(' 'literal' ')' 
-	: {processing_instruction, value('$3')} .
+'NodeTest' -> 'processing-instruction' '(' 'literal' ')'
+        : {processing_instruction, value('$3')} .
 
 
 %% [8]
@@ -175,16 +175,16 @@ Unary 500 '-' .
 %% [9]
 'PredicateExpr' -> 'Expr' : '$1' .
 
-%% [10] 
+%% [10]
 %% - return a list of location steps
 %% - is this the right expansion of "//..."? verify
 
 'AbbreviatedAbsoluteLocationPath'  -> '//' 'RelativeLocationPath'
-	: [{step, descendant, wildcard, []}|'$2'] .
+        : [{step, descendant, wildcard, []}|'$2'] .
 
 %% [11]
 'AbbreviatedRelativeLocationPath' -> 'RelativeLocationPath' '//' 'Step'
-	: '$1' ++ [{step, descendant, node, []}|'$3'] .
+        : '$1' ++ [{step, descendant, node, []}|'$3'] .
 
 %% [12]
 %% - I hope these expand to the right location steps, verify vs spec.
@@ -210,12 +210,12 @@ Unary 500 '-' .
 %% [16]
 'FunctionCall' -> 'function_name' '(' ')' : {function_call, value('$1'), []} .
 'FunctionCall' -> 'function_name' '(' '<ArgumentList>' ')'
-	: function_call(value('$1'), '$3') .
+        : function_call(value('$1'), '$3') .
 
 '<ArgumentList>' -> '<ArgumentMember>' : lists:reverse('$1') .
 
 '<ArgumentMember>' -> '<ArgumentMember>' ',' 'Argument'
-	: ['$3'|'$1'] .
+        : ['$3'|'$1'] .
 '<ArgumentMember>' -> 'Argument' : ['$1'] .
 
 
@@ -233,10 +233,10 @@ Unary 500 '-' .
 
 'PathExpr' -> 'LocationPath' : '$1' .
 'PathExpr' -> 'FilterExpr' : {path_expr, '$1'} .
-'PathExpr' -> 'FilterExpr' '/' 'RelativeLocationPath' 
-		  : ['$1'|'$3'].
-'PathExpr' -> 'FilterExpr' '//' 'RelativeLocationPath' 
-		  : {'$1', '//', '$3'} .
+'PathExpr' -> 'FilterExpr' '/' 'RelativeLocationPath'
+                  : ['$1'|'$3'].
+'PathExpr' -> 'FilterExpr' '//' 'RelativeLocationPath'
+                  : {'$1', '//', '$3'} .
 
 %% [20]
 
@@ -245,50 +245,50 @@ Unary 500 '-' .
 
 %% [21]
 'OrExpr' -> 'AndExpr' : '$1' .
-'OrExpr' -> 'OrExpr' 'or' 'AndExpr' 
-	: {bool, 'or', '$1', '$3'} .
+'OrExpr' -> 'OrExpr' 'or' 'AndExpr'
+        : {bool, 'or', '$1', '$3'} .
 
 
 %% [22]
 'AndExpr' -> 'EqualityExpr' : '$1' .
-'AndExpr' -> 'AndExpr' 'and' 'EqualityExpr' 
-	: {bool, 'and', '$1', '$3'} .
+'AndExpr' -> 'AndExpr' 'and' 'EqualityExpr'
+        : {bool, 'and', '$1', '$3'} .
 
 %% [23]
 'EqualityExpr' -> 'RelationalExpr' : '$1' .
-'EqualityExpr' -> 'EqualityExpr' '=' 'RelationalExpr' 
-	: {comp, '=', '$1', '$3'} .
-'EqualityExpr' -> 'EqualityExpr' '!=' 'RelationalExpr' 
-	: {comp, '!=', '$1', '$3'} .
+'EqualityExpr' -> 'EqualityExpr' '=' 'RelationalExpr'
+        : {comp, '=', '$1', '$3'} .
+'EqualityExpr' -> 'EqualityExpr' '!=' 'RelationalExpr'
+        : {comp, '!=', '$1', '$3'} .
 
 %%[24]
 'RelationalExpr' -> 'AdditiveExpr' : '$1' .
-'RelationalExpr' -> 'RelationalExpr' '<' 'AdditiveExpr' 
-	: {comp, '<', '$1', '$3'} .
-'RelationalExpr' -> 'RelationalExpr' '>' 'AdditiveExpr' 
-	: {comp, '>', '$1', '$3'} .
-'RelationalExpr' -> 'RelationalExpr' '<=' 'AdditiveExpr' 
-	: {comp, '<=', '$1', '$3'} .
-'RelationalExpr' -> 'RelationalExpr' '>=' 'AdditiveExpr' 
-	: {comp, '>=', '$1', '$3'} .
+'RelationalExpr' -> 'RelationalExpr' '<' 'AdditiveExpr'
+        : {comp, '<', '$1', '$3'} .
+'RelationalExpr' -> 'RelationalExpr' '>' 'AdditiveExpr'
+        : {comp, '>', '$1', '$3'} .
+'RelationalExpr' -> 'RelationalExpr' '<=' 'AdditiveExpr'
+        : {comp, '<=', '$1', '$3'} .
+'RelationalExpr' -> 'RelationalExpr' '>=' 'AdditiveExpr'
+        : {comp, '>=', '$1', '$3'} .
 
 
 %% [25]
 'AdditiveExpr' -> 'MultiplicativeExpr' : '$1' .
 'AdditiveExpr' -> 'AdditiveExpr' '+' 'MultiplicativeExpr'
-	: {arith, '+', '$1', '$3'} .
+        : {arith, '+', '$1', '$3'} .
 'AdditiveExpr' -> 'AdditiveExpr' '-' 'MultiplicativeExpr'
-	: {arith, '-', '$1', '$3'} .
+        : {arith, '-', '$1', '$3'} .
 
 
 %% [26]
 'MultiplicativeExpr' -> 'UnaryExpr' : '$1' .
 'MultiplicativeExpr' -> 'MultiplicativeExpr' 'MultiplyOperator' 'UnaryExpr'
-	: {arith, '$2', '$1', '$3'} .
-'MultiplicativeExpr' -> 'MultiplicativeExpr' 'div' 'UnaryExpr' 
-	: {arith, 'div', '$1', '$3'} .
-'MultiplicativeExpr' -> 'MultiplicativeExpr' 'mod' 'UnaryExpr' : 
-	{arith, 'mod', '$1', '$3'} .
+        : {arith, '$2', '$1', '$3'} .
+'MultiplicativeExpr' -> 'MultiplicativeExpr' 'div' 'UnaryExpr'
+        : {arith, 'div', '$1', '$3'} .
+'MultiplicativeExpr' -> 'MultiplicativeExpr' 'mod' 'UnaryExpr' :
+        {arith, 'mod', '$1', '$3'} .
 
 
 %% [27]
@@ -344,9 +344,9 @@ Erlang code.
 -export([return_error/2]).
 
 value({Token, _Line}) ->
-	Token;
+        Token;
 value({_Token, _Line, Value}) ->
-	Value.
+        Value.
 
 mk_union({union, Ps0}, {union, Ps1}) ->
     {union, Ps0 ++ Ps1};
