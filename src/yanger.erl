@@ -7,7 +7,7 @@
 -export([main/1, main/2]).
 -export([vsn/0]).
 -export([create_ctx/1, convert_options/2, run/3]).
--export([print_error/1, print_crash/1]).
+-export([print_error/1, print_crash/2]).
 
 -export_type([error/0, opts/0]).
 
@@ -92,8 +92,8 @@ do_main(Name, Args) ->
                 throw:{error, Error} ->
                     print_error(Error),
                     error;
-                _:X ->
-                    print_crash(X),
+                ?CATCH_STACKTRACE(_, X, Stacktrace)
+                    print_crash(X, Stacktrace),
                     error
             end;
         {error, {Reason, Data}} ->
@@ -536,11 +536,12 @@ print_error(Error) ->
                             ok
                     end;
                 _ ->
-                    print_crash({yang_internal_error, {Reason, StackTrace}})
+                    print_crash({yang_internal_error, {Reason, StackTrace}},
+                                StackTrace)
             end
     end.
 
-print_crash(X) ->
+print_crash(X, Stacktrace0) ->
     %% since we keep the entire data structure on the heap,
     %% our crashes can be huge.  mask the error.
     %% FIXME: use another mechanism than env var?
@@ -552,7 +553,7 @@ print_crash(X) ->
                 {yang_internal_error, {Reason, StackTrace}} ->
                     print_internal_error(YANGERROR, Reason, StackTrace);
                 _ ->
-                    print_internal_error(YANGERROR, X, ?stacktrace())
+                    print_internal_error(YANGERROR, X, Stacktrace0)
             end
     end.
 

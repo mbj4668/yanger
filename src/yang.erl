@@ -21,7 +21,7 @@
 -export([chk_mandatory/1]).
 -export([sort_targets/3, patch_target/3,
          update_conditional_hooks/2, run_mk_sn_hooks/6]).
--export([get_module/3, get_imported_module/3]).
+-export([get_module/3, get_imported_module/3, get_module_from_pos/2]).
 -export([get_grouping/3, get_typedef/3]).
 -export([find_typedef_raw/4]).
 -export([is_builtin_type/1, get_filename/1]).
@@ -527,6 +527,26 @@ get_module(ModuleName, Revision, Ctx) ->
             map_lookup({ModuleName, Revision}, Ctx#yctx.modrevs);
         none ->
             none
+    end.
+
+get_module_from_pos({uses, _UsesPos, StmtPos}, Ctx) ->
+    get_module_from_pos(StmtPos, Ctx);
+get_module_from_pos({Filename, _Line}, Ctx) ->
+    get_module_from_filename(Filename, Ctx);
+get_module_from_pos({Filename, _Line, _Col}, Ctx) ->
+    get_module_from_filename(Filename, Ctx).
+
+get_module_from_filename(Filename, Ctx) ->
+    get_module_from_filename(map_iterator(Ctx#yctx.modrevs), Filename, Ctx).
+
+get_module_from_filename(Iter0, Filename, Ctx) ->
+    case map_next(Iter0) of
+        {{_ModuleName, _Revision}, #module{filename = Filename} = M, _Iter1} ->
+            M;
+        {{_ModuleName, _Revision}, _M, Iter1} ->
+            get_module_from_filename(Iter1, Filename, Ctx);
+        none ->
+            undefined
     end.
 
 %% Searches for ModuleName with Revision (which can be undefined).
@@ -1256,13 +1276,13 @@ mk_module_maps([{Kwd, Arg, _, Substmts} = S | Stmts],
     case Kwd of
         'typedef' ->
             T = #typedef{name = Arg, stmt = S, status = Status,
-                         moduleref = MRef},
+                         moduleref = MRef, is_top_level = true},
             {Ts1, Ctx1} =
                 add_to_definitions_map(Arg, T, #typedef.stmt, Ts, Ctx0),
             mk_module_maps(Stmts, Ts1, Gs, Is, Fs, Es, M, Ctx1);
         'grouping' ->
             G = #grouping{name = Arg, stmt = S, status = Status,
-                          moduleref = MRef},
+                          moduleref = MRef, is_top_level = true},
             {Gs1, Ctx1} =
                 add_to_definitions_map(Arg, G, #grouping.stmt, Gs, Ctx0),
             mk_module_maps(Stmts, Ts, Gs1, Is, Fs, Es, M, Ctx1);
@@ -1319,7 +1339,7 @@ mk_module_maps([], Ts, Gs, Is, Fs, Es, M0, Ctx0) ->
     {TsMap0, Ctx6} =
         add_from_submodules(fun(SubM) -> SubM#module.typedefs#typedefs.map end,
                             fun(Item) -> Item#typedef.stmt end, M3, Ts, Ctx5),
-    %% indentityref typedefs need the identities map
+    %% identityref typedefs need the identities map
     {Typedefs, Ctx7} = mk_typedefs(Ts, TsMap0, undefined, M3, Ctx6),
     M4 = M3#module{typedefs = Typedefs},
 
@@ -1608,13 +1628,14 @@ mk_typedefs_and_groupings0([{Kwd, Arg, _, Substmts} = S | Stmts],
     case Kwd of
         'typedef' ->
             T = #typedef{name = Arg, stmt = S, v_status = undefined,
-                         status = Status,
+                         status = Status, is_top_level = false,
                          moduleref = MRef, is_in_grouping = IsInGrouping},
             {Ts1, Ctx1} =
                 add_to_definitions_map(Arg, T, #typedef.stmt, Ts, Ctx0),
             mk_typedefs_and_groupings0(Stmts, Ts1, Gs, MRef, IsInGrouping,Ctx1);
         'grouping' ->
             G = #grouping{name = Arg, stmt = S, v_status = undefined,
+                          is_top_level = false,
                           status = Status,  moduleref = MRef},
             {Gs1, Ctx1} =
                 add_to_definitions_map(Arg, G, #grouping.stmt, Gs, Ctx0),

@@ -41,6 +41,7 @@
           default :: 'undefined' | 'invalid' | {yang:stmt(), term()},
           v_status :: yang:validate_status(),
           is_in_grouping = false :: boolean(),
+          is_top_level = false :: boolean(),
           id = make_ref() :: reference(), % unique identifier
           stmt :: yang:stmt(),
           pmap = yang:map_new() :: yang:map0() % used by plugins
@@ -176,6 +177,7 @@
           v_status :: yang:validate_status(),
           typedefs :: 'undefined' | #typedefs{},
           groupings :: 'undefined' | #groupings{},
+          is_top_level :: boolean(),
           children = [] :: [#sn{}],
           stmt :: yang:stmt(),
           pmap = yang:map_new() :: yang:map0() % used by plugins
@@ -562,6 +564,7 @@
 
 %% with OTP-21 erlang:get_stacktrace/0 is depricated
 %% NOTE: heavily inspired by solution in hawk/lux
+-ifndef(CATCH_STACKTRACE).
 -ifdef(OTP_RELEASE).
     -define(stacktrace(),
             fun() -> try throw(1) catch _:_:StAcK -> StAcK end end()).
@@ -582,4 +585,5 @@
             Class:Reason when (When) ->
                 Stacktrace = erlang:get_stacktrace(),
            ).
+-endif.
 -endif.
