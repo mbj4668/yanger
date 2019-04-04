@@ -2,7 +2,7 @@
 
 [shell test]
     # make sure the data the tree plugin works on is properly updated
-    !yanger -f tree ref.yang
+    !yanger -Wnone -f tree ref.yang
 """??
 module: ref
   +--rw a!
@@ -13,7 +13,7 @@ module: ref
     # make sure the data the expand plugin works on is properly updated
     ## NOTE: this output will change if the expand plugin handles more
     ## statements
-    !yanger -t expand -f yang --yang-canonical ref.yang
+    !yanger -Wnone -t expand -f yang --yang-canonical ref.yang
 """??
 module ref {
   namespace "urn:ref";
@@ -43,7 +43,7 @@ module ref {
   }
 }
 """
-    !yanger -f sn --sn-depth 16 ref.yang
+    !yanger -Wnone -f sn --sn-depth 16 ref.yang
 """??
     %% /a/b
     #sn{

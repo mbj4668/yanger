@@ -4,7 +4,9 @@
 #   o  swagger-cli
 #   o  python
 
-[global SWAGGER_CLI_CMD=swagger-cli]
+# export SWAGGER_CLI_CMD=swagger-cli
+[config skip_unless=SWAGGER_CLI_CMD]
+
 
 ########################################################################
 ### M A C R O S

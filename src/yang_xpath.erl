@@ -166,6 +166,10 @@ xpath_compile1(AbsQuery, NS_map) ->
 set_default_namespace(Expr, {_, DefaultNs}) ->
     F = fun({step, child, {name, Name}, Preds}) ->
                 {step, child, {name, DefaultNs, Name}, Preds};
+           ({function_call, Fn, [E0, {literal, undefined}, E2]})
+              when Fn == 'xp_derived-from';
+                   Fn == 'xp_derived-from-or-self' ->
+                {function_call, Fn, [E0, {literal, DefaultNs}, E2]};
            (E) ->
                 E
         end,
