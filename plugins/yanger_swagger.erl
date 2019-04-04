@@ -42,8 +42,16 @@ init(Ctx0) ->
                                                 fun emit/3),
     Ctx2 = yanger_plugin:register_hook(
              Ctx1, #hooks.post_init_ctx, fun post_init_ctx/1),
+    Ctx3 = yanger_plugin:register_error_codes(
+             Ctx2,
+             [{'SWAGGER_NO_DATA_MODULES', error,
+               "No data modules given, at least one "
+               "data module is required for Swagger."},
+              {'SWAGGER_TOO_MANY_DATA_MODULES', error,
+               "Too many modules given, only one "
+               "data module is supported for Swagger."}]),
 
-    yanger_plugin:register_option_specs(Ctx2, option_specs()).
+    yanger_plugin:register_option_specs(Ctx3, option_specs()).
 
 
 -record(options, {
@@ -244,16 +252,56 @@ parse_input_methods(MethodsStr) when is_list(MethodsStr) ->
     lists:foldl(F, [], string:split(MethodsStr, ",", all)).
 
 
--type io_device() :: pid() | integer().
--spec emit(#yctx{}, [#module{}], io_device()) -> [term()].
-emit(Ctx, Mods, Fd) ->
-    Opts = mk_options(Ctx),
-    emit_tree(Ctx, Mods, Mods, Fd, Opts),
+-spec has_data_sns(#yctx{}, #module{}) -> boolean().
+has_data_sns(Ctx, Mod) ->
+    Chs     = [C || C <- Mod#module.children, is_data_def(C#sn.kind, Ctx)],
+    Rpcs    = [C || C <- Mod#module.children, C#sn.kind == 'operation',
+                    element(1, C#sn.stmt) == 'rpc'],
+    Actions = [C || C <- Mod#module.children, C#sn.kind == 'operation',
+                    element(1, C#sn.stmt) == 'action'],
+    Notifs  = [C || C <- Mod#module.children, C#sn.kind == 'notification'],
 
-    %% If this format plugin will need to produce warnings or errors
-    %% in the future, these warnings and errors need to be returned here.
-    Errors = [],
-    Errors.
+    [] =/= Chs ++ Rpcs ++ Actions ++ Notifs.
+
+
+-type io_device() :: pid() | integer().
+-spec emit(#yctx{}, [#module{}], io_device()) -> [#yerror{}].
+emit(#yctx{errors = []} = Ctx, Mods, Fd) ->
+    DataSnsMods = [M || M <- Mods, has_data_sns(Ctx, M)],
+
+    %% Verify that we are only supplied with one data module.
+    if length(DataSnsMods) =:= 0 ->
+            [#module{filename = Filename}|_] = Mods,
+            CtxE = yanger_plugin:add_error(Ctx,
+                                           _ChildPos = {Filename, 0},
+                                           'SWAGGER_NO_DATA_MODULES',
+                                           []),
+            CtxE#yctx.errors;
+
+       length(DataSnsMods) > 1 ->
+            [#module{filename = Filename}|_] = Mods,
+            CtxE = yanger_plugin:add_error(Ctx,
+                                           _ChildPos = {Filename, 0},
+                                           'SWAGGER_TOO_MANY_DATA_MODULES',
+                                           []),
+            CtxE#yctx.errors;
+
+       true ->
+            %% Create tables for collecting definitions, parameters, and
+            %% responses.
+            ets:new(?SWAGGER_DEFS,   [ordered_set, public, named_table]),
+            ets:new(?SWAGGER_PARAMS, [ordered_set, public, named_table]),
+            ets:new(?SWAGGER_RESPS,  [ordered_set, public, named_table]),
+
+            Opts = mk_options(Ctx),
+
+            ok = emit_tree(Ctx, Mods, Mods, Fd, Opts),
+            %% No errors
+            []
+    end;
+emit(_Ctx, _Mods, _Fd) ->
+    %% Errors already present in Ctx, stop here.
+    [].
 
 
 -spec emit_tree(#yctx{}, [#module{}], [#module{}], io_device(),
@@ -261,14 +309,11 @@ emit(Ctx, Mods, Fd) ->
 %% @doc Main emit function. Works through a list of modules and calls
 %%      other sub emit functions appropriately.
 emit_tree(_Ctx, _Mods = [], _AllMods, Fd, _Opts) ->
+    %% end json doc
     io:format(Fd, "\n}\n", []);
 emit_tree(Ctx, [Mod|Mods], AllMods, Fd, Opts) ->
     Lvl = 1,
     Indent2 = indent(Lvl),
-
-    _DTab = ets:new(?SWAGGER_DEFS,   [ordered_set, public, named_table]),
-    _PTab = ets:new(?SWAGGER_PARAMS, [ordered_set, public, named_table]),
-    _RTab = ets:new(?SWAGGER_RESPS,  [ordered_set, public, named_table]),
 
     Chs     = [C || C <- Mod#module.children, is_data_def(C#sn.kind, Ctx)],
     Rpcs    = [C || C <- Mod#module.children, C#sn.kind == 'operation',
@@ -277,88 +322,104 @@ emit_tree(Ctx, [Mod|Mods], AllMods, Fd, Opts) ->
                     element(1, C#sn.stmt) == 'action'],
     Notifs  = [C || C <- Mod#module.children, C#sn.kind == 'notification'],
 
-    %% start json doc
-    io:format(Fd, "{\n", []),
+    DataSns = Chs ++ Rpcs ++ Actions ++ Notifs,
 
-    %% header
-    print_header(Mod, Fd, Opts),
-
-    %% paths
-    PropertyName = ?a2l(paths),
-    io:format(Fd, "~s\"~s\": {\n", [Indent2, PropertyName]),
-
-    RootPath = tokpath2origpath([]),
-    OpPath = tokpath2origpath([operations]),
-    VerPath = tokpath2origpath(['yang-library-version']),
-    DataPath = tokpath2origpath([data]),
-
-    DataSns = Chs ++ Actions ++ Notifs,
-
-    MatchRoot = match_path(Opts#options.path_filter, RootPath),
-    MatchOp = match_path(Opts#options.path_filter, OpPath),
-    MatchVer = match_path(Opts#options.path_filter, VerPath),
-    MatchData = match_path(Opts#options.path_filter, DataPath),
-
-    HasOpNode   = has_path_node(Rpcs, Mod, OpPath, true, Opts),
-    HasDataNode = has_path_node(DataSns, Mod, DataPath, true, Opts),
-
-    if Opts#options.top_resource == root; Opts#options.top_resource == all ->
-            print_property([], Mod, Fd, RootPath, root, Opts),
-            io:format(Fd, "~s",
-                      [delimiter_nl((HasOpNode orelse MatchOp orelse
-                                     MatchVer orelse
-                                     HasDataNode orelse MatchData)
-                                    andalso MatchRoot)]);
+    %% At the moment we only allow one YANG module to be compiled at the time,
+    %% it is possible to augment this module. If we already have emitted the
+    %% Swagger doc header, we have more than one YANG module and need to bail.
+    if DataSns == [] ->
+            %% Ensure we only print sections once.
+            skip;
        true ->
-            skip
+            %% start json doc
+            io:format(Fd, "{\n", []),
+
+            %% header
+            print_header(Mod, Fd, Opts),
+
+            %% paths
+            PropertyName = ?a2l(paths),
+            io:format(Fd, "~s\"~s\": {\n", [Indent2, PropertyName]),
+
+            RootPath = tokpath2origpath([]),
+            OpPath = tokpath2origpath([operations]),
+            VerPath = tokpath2origpath(['yang-library-version']),
+            DataPath = tokpath2origpath([data]),
+
+            MatchRoot = match_path(Opts#options.path_filter, RootPath),
+            MatchOp = match_path(Opts#options.path_filter, OpPath),
+            MatchVer = match_path(Opts#options.path_filter, VerPath),
+            MatchData = match_path(Opts#options.path_filter, DataPath),
+
+            HasOpNode   = has_path_node(Rpcs, Mod, OpPath, true, Opts),
+            HasDataNode = has_path_node(DataSns, Mod, DataPath, true, Opts),
+
+            if Opts#options.top_resource == root
+               orelse
+               Opts#options.top_resource == all ->
+                    print_property([], Mod, Fd, RootPath, root, Opts),
+                    io:format(Fd, "~s",
+                              [delimiter_nl((HasOpNode orelse MatchOp orelse
+                                             MatchVer orelse
+                                             HasDataNode orelse MatchData)
+                                            andalso MatchRoot)]);
+               true ->
+                    skip
+            end,
+
+            if Opts#options.top_resource == operations
+               orelse
+               Opts#options.top_resource == all ->
+                    print_property(Rpcs, Mod, Fd, OpPath, operations, Opts),
+                    io:format(Fd, "~s",
+                              [delimiter_nl((MatchVer orelse
+                                             HasDataNode orelse MatchData)
+                                            andalso
+                                            (MatchOp orelse HasOpNode))]);
+               true ->
+                    skip
+            end,
+
+            %% generate this together with root resource
+            if Opts#options.top_resource == root
+               orelse
+               Opts#options.top_resource == all ->
+                    print_property([], Mod, Fd, VerPath,
+                                   'yang-library-version', Opts),
+                    io:format(Fd, "~s",
+                              [delimiter_nl((HasDataNode orelse MatchData)
+                                            andalso MatchVer)]);
+               true ->
+                    skip
+            end,
+
+            if Opts#options.top_resource == data
+               orelse
+               Opts#options.top_resource == all ->
+                    print_property(DataSns , Mod, Fd, DataPath, data, Opts);
+               true ->
+                    skip
+            end,
+
+            io:format(Fd, "\n~s},\n", [Indent2]),
+
+            %% parameters
+            print_parameters(Fd, Opts),
+            io:format(Fd, ",\n", []),
+
+            %% responses
+            print_responses(Fd),
+            io:format(Fd, ",\n", []),
+
+            %% security definitions
+            print_security_definitions(Fd),
+            io:format(Fd, ",\n", []),
+
+            %% definitions
+            print_definitions(Fd, Opts)
     end,
-
-    if Opts#options.top_resource == operations;
-       Opts#options.top_resource == all ->
-            print_property(Rpcs, Mod, Fd, OpPath, operations, Opts),
-            io:format(Fd, "~s",
-                      [delimiter_nl((MatchVer orelse
-                                     HasDataNode orelse MatchData)
-                                    andalso (MatchOp orelse HasOpNode))]);
-       true ->
-            skip
-    end,
-
-    %% generate this together with root resource
-    if Opts#options.top_resource == root; Opts#options.top_resource == all ->
-            print_property([], Mod, Fd, VerPath, 'yang-library-version', Opts),
-            io:format(Fd, "~s",
-                      [delimiter_nl((HasDataNode orelse MatchData)
-                                    andalso MatchVer)]);
-       true ->
-            skip
-    end,
-
-    if Opts#options.top_resource == data; Opts#options.top_resource == all ->
-            print_property(DataSns, Mod, Fd, DataPath, data, Opts);
-       true ->
-            skip
-    end,
-
-    io:format(Fd, "\n~s},\n", [Indent2]),
-
-    %% parameters
-    print_parameters(Fd, Opts),
-    io:format(Fd, ",\n", []),
-
-    %% responses
-    print_responses(Fd),
-    io:format(Fd, ",\n", []),
-
-    %% security definitions
-    print_security_definitions(Fd),
-    io:format(Fd, ",\n", []),
-
-    %% definitions
-    print_definitions(Fd, Opts),
 
     emit_tree(Ctx, Mods, AllMods, Fd, Opts).
-
 
 print_parameters(Fd, Opts) ->
     Lvl = 1,
@@ -808,7 +869,17 @@ fmt_keys(Name, [K], Acc)    ->  [Acc | [fmt_key(Name, K)]];
 fmt_keys(Name, [K|Ks], Acc) ->
     [fmt_key(Name, K), $, | fmt_keys(Name, Ks, Acc)].
 
-fmt_key(Name, K) ->  [${, ?a2l(Name), $-, ?a2l(K), $}].
+fmt_key(Name, K) ->
+    %% Mangle module:node same way for both path and param with ref_name2/1.
+    [${, ref_name2(fmt_node_name(Name, prefix)), $-, ?a2l(K), $}].
+
+
+%% Format nodes and augmented nodes
+fmt_node_name(Node) -> fmt_node_name(Node, noprefix).
+
+fmt_node_name({ModName, Name}, prefix)    -> ?a2l(ModName) ++ ":" ++ ?a2l(Name);
+fmt_node_name({_ModName, Name}, noprefix) -> ?a2l(Name);
+fmt_node_name(Name, _)                    -> ?a2l(Name).
 
 
 -spec is_data_def(atom(), #yctx{}) -> boolean().
@@ -1066,7 +1137,7 @@ responses(HttpMethod, _Path, PathType, _Mode, Opts,
      [
       "\n",
       Indent2, "\"", http_status(HttpMethod, PathType, Sn), "\": {\n",
-      Indent4, "\"description\": \"", ?a2l(Kind), " ", ?a2l(Name), " ",
+      Indent4, "\"description\": \"", ?a2l(Kind), " ", fmt_node_name(Name), " ",
       DescEffect, "\"\n",
       Indent2, "}"
      ]
@@ -1411,17 +1482,28 @@ escape_enums(Enums) ->
 
 %% NOTE: schema node (Sn) may also be a module
 %% PRE:  name is unique for the whole schema
-path_params(#sn{name = Name, kind = 'list', keys = Keys, children = Chs},
+path_params(#sn{name = Name, kind = 'list', keys = Keys, children = Chs,
+                module = Mod},
             child = _PathType, _Mode, Lvl) ->
-    %% find list key children
-    [path_param(Name, lists:keyfind(Key, #sn.name, Chs), Lvl)
-     || Key <- Keys];
+    %% Find list key children; filter out 'false', i.e. not found nodes.
+    [P || P <- [path_param(Name, find_sn(Key, Mod, Chs), Lvl) || Key <- Keys],
+          P /= false];
 path_params(Sn = #sn{name = Name, kind = 'leaf-list'},
             child = _PathType, _Mode, Lvl) ->
     %% NOTE: using leaf-list base type as instance value
     [path_param(Name, Sn, Lvl)];
 path_params(_Sn, _PathType, _Mode, _Lvl) ->
     [].
+
+
+%% Need to handle keys (atoms) and augmented keys (tuples: {module-name, key}).
+-spec find_sn(atom(), #module{}, [#sn{}]) -> #sn{} | [].
+find_sn(Key, Mod, Chs) ->
+    case lists:keyfind(Key, #sn.name, Chs) of
+        Sn = #sn{} -> Sn;
+        false      -> lists:keyfind({Mod#module.name, Key}, #sn.name, Chs)
+    end.
+
 
 
 %%
@@ -1443,7 +1525,8 @@ path_param(ParentName,
 
     %% NOTE: this does not make parameter name globally unique, only unique
     %%       in context of parent, ... hopefully enough for path params?
-    ParamName = ref_name([?a2l(ParentName), $-, ?a2l(Name)]),
+    ParamName = ref_name([fmt_node_name(ParentName, prefix), $-,
+                          fmt_node_name(Name)]),
     PathParam =
         [
          "\n",
@@ -1571,7 +1654,7 @@ body_param(HttpMethod, Path, PathType, Mode, SnOrMod, Mod, Lvl) ->
         [
          "\n",
          DIndent2, "\"", ParamName, "\": {\n",
-         DIndent4, "\"name\": \"", ?a2l(Name), "\",\n",
+         DIndent4, "\"name\": \"", fmt_node_name(Name), "\",\n",
          DIndent4, "\"in\": \"body\",\n",
          DIndent4, "\"description\": \"", description(StmtL), "\",\n",
          DIndent4, "\"required\": true,\n",
