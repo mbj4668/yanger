@@ -1364,7 +1364,8 @@ add_to_definitions_map(Name, Item, StmtPos, Map, Ctx) ->
 
 add_dup_error(Ctx, Keyword, Name, NewPos, PrevPos) ->
     add_error(Ctx, NewPos, 'YANG_ERR_DUPLICATE_DEFINITION',
-              [Keyword, Name, yang_error:fmt_pos(PrevPos)]).
+              [yang_error:fmt_keyword(Keyword), Name,
+               yang_error:fmt_pos(PrevPos)]).
 
 add_dup_sn_error(Ctx, Name, NewPos, PrevPos) ->
     add_error(Ctx, NewPos, 'YANG_ERR_DUPLICATE_SCHEMA_NODE',
@@ -3029,7 +3030,7 @@ apply_refinement({Keyword, _Arg, Pos, _Substmts} = Stmt, Sn, M, Ctx) ->
             F(Stmt, M, {Sn#sn{stmt = RefinedStmt}, Ctx});
         false ->
             {Sn, add_error(Ctx, Pos, 'YANG_ERR_ILLEGAL_REFINE',
-                           [Keyword, ParentKeyword])}
+                           [yang_error:fmt_keyword(Keyword), ParentKeyword])}
     end.
 
 %% The grammar specifies which statements are allowed to be refined.
