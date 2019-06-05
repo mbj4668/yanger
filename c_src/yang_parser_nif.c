@@ -23,6 +23,9 @@ static ERL_NIF_TERM am_undefined;
 #define STRSIZ 1024
 #define FILENAMESIZ 4096
 
+static ERL_NIF_TERM mk_tree_node(ErlNifEnv *env, struct yang_statement *s,
+                                 ERL_NIF_TERM fname);
+
 static ERL_NIF_TERM
 make_binary(ErlNifEnv *env, const char *str)
 {
@@ -37,13 +40,35 @@ make_binary(ErlNifEnv *env, const char *str)
 static ERL_NIF_TERM
 mk_tree(ErlNifEnv *env, struct yang_statement *s, ERL_NIF_TERM fname)
 {
-    ERL_NIF_TERM kw, arg, line, substmts, stmt;
-    struct yang_statement *tmp;
-    char *p;
+    int i, cnt;
+    ERL_NIF_TERM list, *stmts;
+    struct yang_statement *next;
 
     if (!s) {
         return enif_make_list(env, 0);
     }
+
+    for (cnt = 0, next = s; next; cnt++, next = next->next)
+        ;
+    stmts = malloc(sizeof(ERL_NIF_TERM) * cnt);
+
+    for (i = 0; s; i++, s = next) {
+        next = s->next;
+        stmts[i] = mk_tree_node(env, s, fname);
+        yang_free_statement(s);
+    }
+
+    list = enif_make_list_from_array(env, stmts, cnt);
+    free(stmts);
+
+    return list;
+}
+
+static ERL_NIF_TERM
+mk_tree_node(ErlNifEnv *env, struct yang_statement *s, ERL_NIF_TERM fname)
+{
+    ERL_NIF_TERM kw, arg, line, substmts;
+    char *p;
 
     if (s->prefix) {
         // FIXME: maybe send the prefix to erlang, so that erlang
@@ -106,10 +131,7 @@ mk_tree(ErlNifEnv *env, struct yang_statement *s, ERL_NIF_TERM fname)
     line = enif_make_tuple2(env, fname, enif_make_int(env, s->line));
 
     substmts = mk_tree(env, s->substmt, fname);
-    stmt = enif_make_tuple4(env, kw, arg, line, substmts);
-    tmp = s->next;
-    yang_free_statement(s);
-    return enif_make_list_cell(env, stmt, mk_tree(env, tmp, fname));
+    return enif_make_tuple4(env, kw, arg, line, substmts);
 }
 
 static ERL_NIF_TERM
