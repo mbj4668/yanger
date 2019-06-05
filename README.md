@@ -56,6 +56,34 @@ source env.sh
 make
 ```
 
+Installation of Yanger using Docker
+=============
+
+Checkout this repository (described above) and build the image:
+
+```sh
+docker build -t mbj4668/yanger .
+```
+
+Execute the images as below:
+
+```sh
+$ docker run -it mbj4668/yanger
+Usage: yanger [-h] [-v] [--print-error-code] [-p <path>]
+              [-P <plugindir>] [-c] [--strict] [-e] [-W <warning>]
+              [-w <no_warning>] [-E <error>] [-f <format>]
+              [-t <transform>] [--max-status <max_status>]
+              [--deviation-module <deviation_module>] [-F <features>]
+              [-C <conformance>] [-o <outfile>] [--no-deviation-apply]
+              [--print] [--print-all] <file>...
+```
+
+Execute the example below:
+
+```sh
+docker run -it -v ${PWD}:/workdir mbj4668/yanger -t expand -f swagger test_leaf.yang -o test_leaf_now_swagger.json
+```
+
 Sample Usage
 -----------------
 
