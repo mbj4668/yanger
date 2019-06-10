@@ -28,7 +28,7 @@
 -export([mark_import_as_used/3]).
 -export([parse_idref/3, resolve_raw_idref/4]).
 -export([get_identity/5,
-         get_feature_expr/4, check_if_features/2]).
+         get_feature_expr/4, check_if_features/3]).
 -export([combine_prefix_maps/3]).
 
 -export([parse_schema_nodeid/4, parse_schema_nodeid/5,
@@ -1318,17 +1318,18 @@ mk_module_maps([], Ts, Gs, Is, Fs, Es, M0, Ctx0) ->
     %% submodules' definitions into the map, so they are known to our
     %% definitions.  Then validate our definitions, and update the
     %% map.
-    {IsMap0, Ctx1} =
-        add_from_submodules(fun(SubM) -> SubM#module.identities end,
-                            fun(Item) -> Item#identity.stmt end, M0, Is, Ctx0),
-    {IsMap1, Ctx2} = mk_identities_map(Is, IsMap0, M0, Ctx1),
-    M1 = M0#module{identities = IsMap1},
-
-    {FsMap0, Ctx3} =
+    {FsMap0, Ctx1} =
         add_from_submodules(fun(SubM) -> SubM#module.features end,
-                            fun(Item) -> Item#feature.stmt end, M1, Fs, Ctx2),
-    {FsMap1, Ctx4} = mk_features_map(Fs, FsMap0, M1, Ctx3),
-    M2 = M1#module{features = FsMap1},
+                            fun(Item) -> Item#feature.stmt end, M0, Fs, Ctx0),
+    {FsMap1, Ctx2} = mk_features_map(Fs, FsMap0, M0, Ctx1),
+    M1 = M0#module{features = FsMap1},
+
+
+    {IsMap0, Ctx3} =
+        add_from_submodules(fun(SubM) -> SubM#module.identities end,
+                            fun(Item) -> Item#identity.stmt end, M1, Is, Ctx2),
+    {IsMap1, Ctx4} = mk_identities_map(Is, IsMap0, M1, Ctx3),
+    M2 = M1#module{identities = IsMap1},
 
     {EsMap1, Ctx5} =
         add_from_submodules(fun(SubM) -> SubM#module.extensions end,
@@ -1449,23 +1450,38 @@ add_identity(Id0, Map0, M, Ctx0) ->
             {Map0, Ctx1};
         undefined ->
             %% unhandled statement
+            {FeatureL, Ctx1} =
+                lists:foldl(
+                  fun({'if-feature', Arg, IFPos, _} = Stmt, {Acc, Ctx01}) ->
+                          case yang:get_feature_expr(Arg, IFPos, M, Ctx01) of
+                              {undefined, Ctx02} ->
+                                  {Acc, Ctx02};
+                              {Expr, Ctx02} ->
+                                  {[{Expr, local, Stmt} | Acc], Ctx02}
+                          end;
+                     (_, Acc) ->
+                          Acc
+                  end, {[], Ctx0}, Substmts),
             case search_all_stmts('base', Substmts) of
                 [_, {_, _, BPos, _} | _] when M#module.yang_version == '1' ->
-                    {Ctx0,
-                     add_error(Ctx0, BPos, 'YANG_ERR_MULTIPLE_BASES', [])};
+                    {Ctx1,
+                     add_error(Ctx1, BPos, 'YANG_ERR_MULTIPLE_BASES', [])};
                 Bases ->
                     Map1 = map_update(Name, Id0#identity{v_status = processing},
                                       Map0),
                     {Map3, Ctx2, IdRefs1} =
                         lists:foldl(
-                          fun(BaseStmt, {Map2, Ctx1, IdRefs0}) ->
-                                  chk_base(BaseStmt, Map2, M, Ctx1, IdRefs0)
+                          fun(BaseStmt, {Map2, Ctx01, IdRefs0}) ->
+                                  chk_base(BaseStmt, Map2, M, Ctx01, IdRefs0)
                           end,
-                          {Map1, Ctx0, []},
+                          {Map1, Ctx1, []},
                           Bases),
-                    Id1 = Id0#identity{bases = IdRefs1, v_status = done},
+                    {IfFeatureRes, Ctx3} = check_if_features(FeatureL, M, Ctx2),
+                    Id1 =
+                        Id0#identity{bases = IdRefs1, v_status = done,
+                                     if_feature_result = IfFeatureRes == true},
                     Map4 = map_update(Name, Id1, Map3),
-                    {Map4, Ctx2}
+                    {Map4, Ctx3}
             end
     end.
 
@@ -2106,62 +2122,62 @@ mk_children([{Kwd, Arg, Pos, Substmts} = Stmt | T], GroupingMap0,
                    end,
             {FeatureL, WhenL, MustL, Status, Ctx1} =
                 common_substmts(Substmts, 'local', M, Ctx0),
-            IfFeatureRes = check_if_features(FeatureL, Ctx1),
+            {IfFeatureRes, Ctx2} = check_if_features(FeatureL, M, Ctx1),
             Sn0 = #sn{name = Name,
                       kind = Kind,
                       module = M,
                       typedefs = Typedefs,
                       groupings = Groupings,
                       if_feature = FeatureL,
-                      if_feature_result = IfFeatureRes,
+                      if_feature_result = (IfFeatureRes == true),
                       'when' = WhenL,
                       must = MustL,
                       status = Status,
                       stmt = Stmt},
             if Kwd == 'leaf' orelse Kwd == 'leaf-list' ->
-                    {Ctx2, Sn1} =
-                        run_mk_sn_hooks(Ctx1, Sn0, #hooks.pre_mk_sn, Mode,
+                    {Ctx3, Sn1} =
+                        run_mk_sn_hooks(Ctx2, Sn0, #hooks.pre_mk_sn, Mode,
                                         undefined, Ancestors),
-                    {Ctx3, Sn2} =
-                        run_mk_sn_hooks(Ctx2, Sn1, #hooks.post_mk_sn, Mode,
+                    {Ctx4, Sn2} =
+                        run_mk_sn_hooks(Ctx3, Sn1, #hooks.post_mk_sn, Mode,
                                         undefined, Ancestors),
                     mk_children(T, GroupingMap0, Typedefs, Groupings,
                                 ParentTypedefs, ParentGroupings,
-                                M, IsInGrouping, Ctx3,
+                                M, IsInGrouping, Ctx4,
                                 Mode, Ancestors, [Sn2 | Acc], XAcc);
                true ->
-                    {Typedefs1, Groupings1, Ctx2} =
+                    {Typedefs1, Groupings1, Ctx3} =
                         if Kwd == 'choice' orelse Kwd == 'case' ->
                                 %% No typedefs or groupings allowed
-                                {Typedefs, Groupings, Ctx1};
+                                {Typedefs, Groupings, Ctx2};
                            true ->
                                 mk_typedefs_and_groupings(Substmts,
                                                           Typedefs, Groupings,
                                                           M, IsInGrouping,
-                                                          Ctx1)
+                                                          Ctx2)
                         end,
-                    {Ctx3, Sn1} =
-                        run_mk_sn_hooks(Ctx2, Sn0, #hooks.pre_mk_sn, Mode,
+                    {Ctx4, Sn1} =
+                        run_mk_sn_hooks(Ctx3, Sn0, #hooks.pre_mk_sn, Mode,
                                         undefined, Ancestors),
-                    {SubChildren, XSubstmts, GroupingMap1, Ctx4} =
+                    {SubChildren, XSubstmts, GroupingMap1, Ctx5} =
                         mk_children(Substmts, GroupingMap0,
                                     Typedefs1, Groupings1,
                                     Typedefs1, Groupings1,
-                                    M, IsInGrouping, Ctx3, Mode,
+                                    M, IsInGrouping, Ctx4, Mode,
                                     [Sn1 | Ancestors], [], []),
                     Sn2 = Sn1#sn{typedefs = Typedefs1,
                                  groupings = Groupings1,
                                  children = SubChildren,
                                  stmt = {Kwd, Arg, Pos, Substmts ++ XSubstmts}},
                     Sn3 = mk_case_from_shorthand(Sn2),
-                    Ctx5 = v_input_output(Ctx4, Sn3, Ancestors),
+                    Ctx6 = v_input_output(Ctx5, Sn3, Ancestors),
                     Sn4 = mk_operation_default_children(Sn3),
-                    {Ctx6, Sn5} =
-                        run_mk_sn_hooks(Ctx5, Sn4, #hooks.post_mk_sn, Mode,
+                    {Ctx7, Sn5} =
+                        run_mk_sn_hooks(Ctx6, Sn4, #hooks.post_mk_sn, Mode,
                                         undefined, Ancestors),
                     mk_children(T, GroupingMap1, Typedefs, Groupings,
                                 ParentTypedefs, ParentGroupings,
-                                M, IsInGrouping, Ctx6,
+                                M, IsInGrouping, Ctx7,
                                 Mode, Ancestors, [Sn5 | Acc], XAcc)
             end;
         _ ->
@@ -2180,28 +2196,29 @@ mk_children_uses(Grouping, UsesStmt, GroupingMap, Typedefs, Groupings, M,
     {_, _, Pos, Substmts} = UsesStmt,
     {FeatureL, WhenL, [] = _MustL, _Status, Ctx1} =
         common_substmts(Substmts, 'uses', M, Ctx0),
-    IfFeatureRes = check_if_features(FeatureL, Ctx1),
+    {IfFeatureRes, Ctx2} = check_if_features(FeatureL, M, Ctx1),
     GroupingChildren1 =
         if FeatureL /= [] orelse WhenL /= [] ->
                 [Ch#sn{if_feature = FeatureL ++ Ch#sn.if_feature,
                        if_feature_result =
-                           IfFeatureRes and Ch#sn.if_feature_result,
+                           (IfFeatureRes == true)
+                           andalso Ch#sn.if_feature_result,
                        'when' = WhenL ++ Ch#sn.'when'} ||
                     Ch <- Grouping#grouping.children];
            true ->
                 Grouping#grouping.children
         end,
-    {ExpandedChildren, Ctx2} =
+    {ExpandedChildren, Ctx3} =
         expand_uses(GroupingChildren1, Substmts,
-                    Typedefs, Groupings, Pos, M, Ctx1, Mode, Ancestors),
+                    Typedefs, Groupings, Pos, M, Ctx2, Mode, Ancestors),
     %% possibly copy stms from the grouping
-    CopyMap = (Ctx0#yctx.env)#env.copy_from_grouping_stmts,
+    CopyMap = (Ctx3#yctx.env)#env.copy_from_grouping_stmts,
     CopySubstmts = [S || S <- stmt_substmts(Grouping#grouping.stmt),
                          map_is_key(stmt_keyword(S), CopyMap)],
     mk_children(RestStmts, GroupingMap,
                 Typedefs, Groupings,
                 Typedefs, Groupings, M,
-                IsInGrouping, Ctx2, Mode, Ancestors,
+                IsInGrouping, Ctx3, Mode, Ancestors,
                 ExpandedChildren ++ Acc, XAcc ++ CopySubstmts).
 
 expand_uses(GroupingChildren, UsesSubstmts, Typedefs, Groupings,
@@ -2437,13 +2454,52 @@ insert_child(NewSn, [], Acc, IsFinal, Ancestors, UndefAugNodes, How, Ctx0) ->
             end
     end.
 
-check_if_features([], _) ->
-    true;
-check_if_features(Features, #yctx{features = FMap}) ->
-    if FMap == none ->
-            false;
-       true ->
-            check_all_if_features(Features, FMap)
+check_if_features([], _, Ctx) ->
+    {true, Ctx};
+check_if_features(Features, M, #yctx{features = FMap} = Ctx) ->
+    case validate_features_exist(Features, M, Ctx) of
+        ok ->
+            if FMap == none ->
+                    {false, Ctx};
+               true ->
+                    {check_all_if_features(Features, FMap), Ctx}
+            end;
+        {error, _Ctx1} = Error ->
+            Error
+    end.
+
+validate_features_exist(Features, M, Ctx) ->
+    validate_features_exist0(Features, M, true, Ctx).
+
+validate_features_exist0([{Expr, _, Stmt} | T], M, NoErrors0, Ctx0) ->
+    {NoErrors1, Ctx1} =
+        lists:foldl(
+          fun(Feature, Acc) ->
+                  validate_feature_exist(Feature, Stmt, M, Acc)
+          end,
+          {NoErrors0, Ctx0},
+          yang_if_feature:get_features(Expr)),
+    validate_features_exist0(T, M, NoErrors1, Ctx1);
+validate_features_exist0([], _, true, _) ->
+    ok;
+validate_features_exist0([], _, false, Ctx1) ->
+    {error, Ctx1}.
+
+validate_feature_exist({ModName, Name} = Id, Stmt, M, {NoErrors, Ctx}) ->
+    Map =
+        if ModName == M#module.modulename ->
+                M#module.features;
+           true ->
+                {value, ImpM} = get_imported_module(ModName, M, Ctx),
+                ImpM#module.features
+        end,
+    case map_lookup(Name, Map) of
+        {value, _} ->
+            {NoErrors, Ctx};
+        none ->
+            {false,
+             add_error(Ctx, stmt_pos(Stmt), 'YANG_ERR_DEFINITION_NOT_FOUND',
+                       ['feature', yang_error:fmt_yang_identifier(Id)])}
     end.
 
 check_all_if_features([{Expr, _, _} | T], FMap) ->
@@ -3235,25 +3291,26 @@ mk_augments([{'augment', Arg, Pos, Substmts} = Stmt | T], Typedefs, Groupings,
             M, Ctx0, IsTopLevel, Acc) ->
     {FeatureL, WhenL, [] = _MustL, _Status, Ctx1} =
         common_substmts(Substmts, 'augment', M, Ctx0),
-    IfFeatureRes = check_if_features(FeatureL, Ctx1),
-    {Children0, _, _, Ctx2} =
+    {IfFeatureRes, Ctx2} = check_if_features(FeatureL, M, Ctx1),
+    {Children0, _, _, Ctx3} =
         %% Create the children w/o explicit config property.
         %% The #sn{} nodes will get the correct config later when
         %% they are inserted into the tree.
         mk_children(Substmts, undefined, Typedefs, Groupings,
                     undefined, undefined,
-                    M, _IsInGrouping = false, Ctx1,
+                    M, _IsInGrouping = false, Ctx2,
                     _Mode = augment, _Ancestors = [], _Acc = [], []),
-    Ctx3 = v_unique_names(Children0, Ctx2),
-    case parse_schema_nodeid(IsTopLevel, Arg, Pos, M, Ctx3) of
-        {ok, SchemaNodeId, Ctx4} ->
+    Ctx4 = v_unique_names(Children0, Ctx3),
+    case parse_schema_nodeid(IsTopLevel, Arg, Pos, M, Ctx4) of
+        {ok, SchemaNodeId, Ctx5} ->
             %% Propagate when/if-feature from the augment statement
             %% to the children. (must is not allowed in augment)
             Children1 =
                 if FeatureL /= [] orelse WhenL /= [] ->
                         [Ch#sn{if_feature = FeatureL ++ Ch#sn.if_feature,
                                if_feature_result =
-                                   IfFeatureRes and Ch#sn.if_feature_result,
+                                   (IfFeatureRes == true)
+                                   andalso Ch#sn.if_feature_result,
                                'when' = WhenL ++ Ch#sn.'when'}
                          || Ch <- Children0];
                    true ->
@@ -3263,10 +3320,10 @@ mk_augments([{'augment', Arg, Pos, Substmts} = Stmt | T], Typedefs, Groupings,
                            stmt = Stmt,
                            has_when = WhenL /= [],
                            children = Children1},
-            mk_augments(T, Typedefs, Groupings, M, Ctx4, IsTopLevel,
+            mk_augments(T, Typedefs, Groupings, M, Ctx5, IsTopLevel,
                         [Aug | Acc]);
-        {error, Ctx4} ->
-            mk_augments(T, Typedefs, Groupings, M, Ctx4, IsTopLevel,
+        {error, Ctx5} ->
+            mk_augments(T, Typedefs, Groupings, M, Ctx5, IsTopLevel,
                         Acc)
     end;
 mk_augments([_ | T], Typedefs, Groupings, M, Ctx, IsTopLevel, Acc) ->

@@ -47,21 +47,27 @@
           pmap = yang:map_new() :: yang:map0() % used by plugins
          }).
 
--record(identity, {
+-record(feature, {
           name :: atom(),
           %% moduleref is the name and revision where this item is defined
           moduleref :: yang:modrev(),
-          bases = [] :: [#identity{}],
-          status :: 'undefined' | yang:yang_status(),
           v_status :: yang:validate_status(),
           stmt :: yang:stmt(),
           pmap = yang:map_new() :: yang:map0() % used by plugins
          }).
 
--record(feature, {
+-record(identity, {
           name :: atom(),
           %% moduleref is the name and revision where this item is defined
           moduleref :: yang:modrev(),
+          bases = [] :: [#identity{}],
+          if_feature = [] :: [{#feature{},
+                               Origin :: 'local',
+                               yang:stmt()}],
+          %% Nodes for which 'if-feature' evaluation resulted in 'false' are
+          %% retained in the map.
+          if_feature_result = true :: boolean(),
+          status :: 'undefined' | yang:yang_status(),
           v_status :: yang:validate_status(),
           stmt :: yang:stmt(),
           pmap = yang:map_new() :: yang:map0() % used by plugins

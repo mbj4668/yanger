@@ -50,6 +50,17 @@ module u {
     base id1;
     base idx; // LINE: YANG_ERR_DEFINITION_NOT_FOUND
   }
+  identity id4 {
+    if-feature no-such-feature; // LINE: YANG_ERR_DEFINITION_NOT_FOUND
+  }
+  identity id5 {
+    if-feature "baz or bar";
+  }
+  identity id6 {
+    if-feature "baz or no-such-feature"; // LINE: YANG_ERR_DEFINITION_NOT_FOUND
+  }
+
+  feature baz;
 
   leaf idref1 {
     type identityref {

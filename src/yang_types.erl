@@ -887,8 +887,8 @@ inherit_stmts(_ExceptKwd, [], Substmts) ->
 chk_if_features(Substmts, M, Ctx0) ->
     {FeatureL, [] = _WhenL, [] = _MustL, _Status, Ctx1} =
         yang:common_substmts(Substmts, 'local', M, Ctx0),
-    Keep = yang:check_if_features(FeatureL, Ctx1),
-    {Keep, Ctx1}.
+    {Keep, Ctx2} = yang:check_if_features(FeatureL, M, Ctx1),
+    {Keep == true, Ctx2}.
 
 
 %% bits

@@ -225,7 +225,7 @@ module no-feat-ref {
       type string;
     }
     leaf when4 {
-      if-feature foo;
+      if-feature foog; // LINE: YANG_ERR_DEFINITION_NOT_FOUND
       when "../../must1 > ../../rootleaf";
       type int16;
     }
