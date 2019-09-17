@@ -568,6 +568,10 @@
 -define(STMT_POS, 3).
 -define(STMT_SUBSTMTS, 4).
 
+-define(MUST_XPATH, 1).
+-define(MUST_DEPS, 2).
+-define(MUST_STMT, 3).
+
 %% with OTP-21 erlang:get_stacktrace/0 is depricated
 %% NOTE: heavily inspired by solution in hawk/lux
 -ifndef(CATCH_STACKTRACE).

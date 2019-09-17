@@ -9,4 +9,10 @@ module dev {
       must "current() < no-existing";
     }
   }
+
+  deviation "/s1:servers/s1:server/s1:port" {
+    deviate delete {
+      must ". < 1024";
+    }
+  }
 }

@@ -43,7 +43,7 @@
          map_iterator/1, map_next/1,
          map_foldl/3, map_foreach/2]).
 -export([topo_sort/1, get_schema_node/2]).
--export([pre_mk_sn_xpath/5]).
+-export([pre_mk_sn_xpath/5, search_module/3]).
 
 -ifdef(debugX).
 -export([tst/1, pp_module/1]).
@@ -284,7 +284,7 @@ new_ctx(Plugins) ->
         yang_error:codes() ++
         yang_llerror:codes(),
     Env = mk_env(),
-    PEMVNMRAF = fun post_expand_module_v_no_mandatory_remote_augments/2,
+    PEMARAAD = fun post_expand_module_after_remote_augments_and_deviations/2,
     Ctx0 = #yctx{error_codes = ErrorCodes,
                  plugins = Plugins,
                  %% NOTE: the hooks will be called in reverse order
@@ -296,7 +296,7 @@ new_ctx(Plugins) ->
                                      fun post_mk_sn_v_default/5,
                                      fun post_mk_sn_type/5,
                                      fun post_mk_sn_v_choice_default/5],
-                                post_expand_module = [PEMVNMRAF],
+                                post_expand_module = [PEMARAAD],
                                 post_expand_sn = [fun post_expand_sn/4]},
                  modrevs = map_new(),
                  revs = map_new(),
@@ -548,6 +548,9 @@ get_module_from_filename(Iter0, Filename, Ctx) ->
         none ->
             undefined
     end.
+
+search_module(Ctx, ModuleName, Revision) ->
+    search_module(Ctx, undefined, undefined, ModuleName, Revision, undefined).
 
 %% Searches for ModuleName with Revision (which can be undefined).
 %% If the module is not already present, it is added to the ctx.
@@ -940,7 +943,7 @@ parse_body(Stmts, M0, Ctx0) ->
     %% Add all schema nodes from all submodules
     SubChildren = get_children_from_submodules(M2),
     %% Create schema node records for all children.
-    {Children, XAcc, _, Ctx3} =
+    {Children0, XAcc, _, Ctx3} =
         mk_children(Stmts, undefined,
                     M2#module.typedefs, M2#module.groupings,
                     undefined, undefined, M2,
@@ -957,23 +960,36 @@ parse_body(Stmts, M0, Ctx0) ->
                     _IsTopLevel = true, []),
     {LocalAugments, RemoteAugments0} =
         sort_augments(Augments, M3#module.modulename),
-    SubModuleAugments =
-        lists:concat([SM#module.local_augments ||
-                         {SM,_} <- M3#module.submodules]),
+
     %% Apply local augments and augments from the submodules
-    {AugmentedChildren, Ctx5} =
-        augment_children(SubModuleAugments ++ LocalAugments,
-                         Children, final, [M3], M3, Ctx4),
+    SavedHooks = Ctx4#yctx.hooks,
+    {Children1, UndefAugNodes1, Ctx7} =
+        lists:foldl(
+          fun({SM, _}, {Children2, UndefAugNodes0, Ctx5}) ->
+                  %% Ensure that the hooks are properly set for the submodule
+                  Ctx6 =
+                      update_conditional_hooks(Ctx5#yctx{hooks = OrigHooks},
+                                               SM),
+                  augment_children(SM#module.local_augments,
+                                   Children2, UndefAugNodes0,
+                                   final, [M3], M3, Ctx6)
+          end, {Children0, [], Ctx4}, M3#module.submodules),
+    {AugmentedChildren, UndefAugNodes2, Ctx8} =
+        augment_children(LocalAugments, Children1, UndefAugNodes1,
+                         final, [M3], M3, Ctx7),
+    Ctx9 = report_undef_augment_nodes(UndefAugNodes2,
+                                      Ctx8#yctx{hooks = SavedHooks}),
+
     %% Validate that all children have unique names
-    Ctx6 = v_unique_names(AugmentedChildren, Ctx5),
+    Ctx10 = v_unique_names(AugmentedChildren, Ctx9),
     %% Build the deviations list
     %% Track imports used only in deviations separately, to allow plugins
     %% to record dependencies based on the combination of #module.imports,
     %% #module.unused_imports, and #module.deviation_imports
-    PreDeviationsUnused = Ctx6#yctx.unused_imports,
-    {Deviations, Ctx7} = mk_deviations(Stmts, M3, Ctx6, []),
-    PostDeviationsUnused = Ctx7#yctx.unused_imports,
-    Ctx8 = Ctx7#yctx{unused_imports = PreDeviationsUnused},
+    PreDeviationsUnused = Ctx10#yctx.unused_imports,
+    {Deviations, Ctx11} = mk_deviations(Stmts, M3, Ctx10, []),
+    PostDeviationsUnused = Ctx11#yctx.unused_imports,
+    Ctx12 = Ctx11#yctx{unused_imports = PreDeviationsUnused},
     {LocalDeviations, RemoteDeviations} =
         sort_deviations(Deviations, M3#module.modulename),
     SubModuleDeviations =
@@ -981,9 +997,9 @@ parse_body(Stmts, M0, Ctx0) ->
                          {SM,_} <- M3#module.submodules]),
     %% Apply local deviations and deviations from the submodules
     %% Do the validation even if not actually applying
-    {DeviatedChildren, Ignored, Ctx9} =
+    {DeviatedChildren, Ignored, Ctx13} =
         deviate_children(SubModuleDeviations ++ LocalDeviations,
-                         AugmentedChildren, [], [M3], Ctx8),
+                         AugmentedChildren, [], [M3], Ctx12),
     M4 = M3#module{local_deviations = LocalDeviations,
                    remote_deviations = RemoteDeviations},
     M5 = if Conformance == import ->
@@ -999,41 +1015,41 @@ parse_body(Stmts, M0, Ctx0) ->
                            local_augments = LocalAugments}
          end,
     %% Apply all remote augments
-    {Ctx11, M6} =
+    {Ctx15, M6} =
         if Conformance == import ->
-                {Ctx9, M5#module{remote_augments = []}};
+                {Ctx13, M5#module{remote_augments = []}};
            true ->
-                {Ctx10, RemoteAugments1} =
-                    apply_remote_augments(RemoteAugments0, M5, Ctx9, []),
+                {Ctx14, RemoteAugments1} =
+                    apply_remote_augments(RemoteAugments0, M5, Ctx13, []),
                 RemoteAugments2 =
                     lists:usort(
                       RemoteAugments1 ++
                           lists:append(
                             [SM#module.remote_augments ||
                                 {SM, _Pos} <- M5#module.submodules])),
-                {Ctx10, M5#module{remote_augments = RemoteAugments2}}
+                {Ctx14, M5#module{remote_augments = RemoteAugments2}}
          end,
     %% Update the module in the context before applying remote deviations,
     %% to allow the deviations to reference definitions from this module
     ModRevs = map_update({M6#module.name, M6#module.revision}, M6,
-                          Ctx11#yctx.modrevs),
-    Ctx12 = Ctx11#yctx{modrevs = ModRevs},
+                          Ctx15#yctx.modrevs),
+    Ctx16 = Ctx15#yctx{modrevs = ModRevs},
     %% Apply all remote deviations - after remote augments
-    Ctx13 = apply_remote_deviations(RemoteDeviations, M6, Ctx12),
+    Ctx17 = apply_remote_deviations(RemoteDeviations, M6, [], Ctx16),
     %% Imports that are in #yctx.unused_imports but not in
     %% PostDeviationsUnused have been used only for deviations
     {_, MyPostDeviationsUnused} =
         lists:keyfind(M6#module.name, 1, PostDeviationsUnused),
     {value, {ModuleName, MyUnused}, RemUnused} =
-        lists:keytake(M6#module.name, 1, Ctx13#yctx.unused_imports),
+        lists:keytake(M6#module.name, 1, Ctx17#yctx.unused_imports),
     MyDeviationsOnly = MyUnused -- MyPostDeviationsUnused,
     Unused = [{ModuleName, MyUnused -- MyDeviationsOnly} | RemUnused],
     DeviationImports =
-        [{ModuleName, MyDeviationsOnly} | Ctx13#yctx.deviation_imports],
-    Ctx14 = Ctx13#yctx{unused_imports = Unused,
+        [{ModuleName, MyDeviationsOnly} | Ctx17#yctx.deviation_imports],
+    Ctx18 = Ctx17#yctx{unused_imports = Unused,
                        deviation_imports = DeviationImports,
                        hooks = OrigHooks},
-    {Ctx14, M6}.
+    {Ctx18, M6}.
 
 get_conformance(ModName, #yctx{conformances = ConfL}) ->
     case lists:keyfind(ModName, 1, ConfL) of
@@ -1135,57 +1151,14 @@ apply_remote_augments([{TargetModuleName, Augments0} | T], M, Ctx0, Acc) ->
             ModRevs = map_update(TargetModRev, TargetM1, Ctx1#yctx.modrevs),
             Ctx2 = Ctx1#yctx{modrevs = ModRevs},
             apply_remote_augments(T, M, Ctx2,
-                                  [{TargetModuleName, TargetM1, Augments1} |
+                                  [{TargetModuleName, Augments1} |
                                    Acc]);
         none ->
             %% Some error with the target module; already reported.
             apply_remote_augments(T, M, Ctx0, Acc)
     end;
-apply_remote_augments([], M, Ctx0, AccIn) ->
-    %% Now we have created the new full augmented tree.
-    %% Run post_expand_sn hooks on all augmented children.  We
-    %% need to lookup the new target node and augmented child #sn{}
-    %% so that we don't loose any data set in the #sn{} by
-    %% augment_children() above.
-    lists:foldl(
-      fun({TargetModuleName, TargetM1, Augments}, {Ctx1, Acc}) ->
-              {lists:foldl(
-                 fun(#augment{children = Chs,
-                              target_node = TargetNode}, Ctx2) ->
-                         case get_schema_node(TargetNode, TargetM1) of
-                             {true, TargetSn, SnAncestors} ->
-                                 Ancestors = [TargetSn | SnAncestors];
-                             _ ->
-                                 TargetSn = undefined,
-                                 Ancestors = []
-                         end,
-                         lists:foldl(
-                           fun(Sn0, Ctx3) ->
-                                   %% Get the updated child #sn{}
-                                   case TargetSn of
-                                       undefined ->
-                                           Sn1 = Sn0;
-                                       #sn{children = TgtChs} ->
-                                           case
-                                               find_child(TgtChs, Sn0#sn.name)
-                                           of
-                                               {value, Sn1} ->
-                                                   ok;
-                                               {skipped, _, Sn1} ->
-                                                   ok;
-                                               false ->
-                                                   %% node was not augmented,
-                                                   %% error YANG_ERR_BAD_
-                                                   %% AUGMENT_NODE_TYPE{,2}
-                                                   %% already reported
-                                                   Sn1 = Sn0
-                                           end
-                                   end,
-                                   post_expand_child(Sn1, Ancestors, M, Ctx3)
-                           end, Ctx2, Chs)
-                 end, Ctx1, Augments),
-               [{TargetModuleName, Augments} | Acc]}
-      end, {Ctx0, []}, AccIn).
+apply_remote_augments([], _M, Ctx, Acc) ->
+    {Ctx, Acc}.
 
 set_module_name_and_config(Ctx,
                            [#sn{name = Name, children = Children} = Sn0 | T],
@@ -2281,20 +2254,25 @@ expand_uses2([], RefTree, _M, Ctx0, Acc) ->
 %% Return the augmented 'Children'.
 augment_children(Augments, Children, Mode, Ancestors, M, Ctx0) ->
     {AugmentedChildren, UndefAugNodes, Ctx1} =
-        lists:foldl(
-          fun(Augment, {AccChildren, UndefAugNodes00, Ctx00}) ->
-                  augment_children0(Augment#augment.target_node,
-                                    AccChildren, [], Mode, Ancestors,
-                                    Augment, UndefAugNodes00, M, Ctx00)
-          end, {Children, [], Ctx0}, Augments),
-    %% Report errors for all undefined augment nodes
-    Ctx2 =
-        lists:foldl(
-          fun({Pos, Id}, Ctx00) ->
-                  add_error(Ctx00, Pos, 'YANG_ERR_NODE_NOT_FOUND',
-                            [yang_error:fmt_yang_identifier(Id)])
-          end, Ctx1, UndefAugNodes),
+        augment_children(Augments, Children, [], Mode, Ancestors, M, Ctx0),
+    Ctx2 = report_undef_augment_nodes(UndefAugNodes, Ctx1),
     {AugmentedChildren, Ctx2}.
+
+augment_children(Augments, Children, UndefAugNodes, Mode, Ancestors, M, Ctx0) ->
+    lists:foldl(
+      fun(Augment, {AccChildren, UndefAugNodes00, Ctx00}) ->
+              augment_children0(Augment#augment.target_node,
+                                AccChildren, [], Mode, Ancestors,
+                                Augment, UndefAugNodes00, M, Ctx00)
+      end, {Children, UndefAugNodes, Ctx0}, Augments).
+
+%% Report errors for all undefined augment nodes
+report_undef_augment_nodes(UndefAugNodes, Ctx) ->
+    lists:foldl(
+      fun({Pos, Id}, Ctx1) ->
+              add_error(Ctx1, Pos, 'YANG_ERR_NODE_NOT_FOUND',
+                        [yang_error:fmt_yang_identifier(Id)])
+      end, Ctx, UndefAugNodes).
 
 augment_children0([], Sns, _Acc = [], Mode,
                   Ancestors, Augment, UndefAugNodes, _M, Ctx) ->
@@ -3362,21 +3340,11 @@ mk_deviates([_ | T], M, Ctx, Acc) ->
 mk_deviates([], _, Ctx, Acc) ->
     {Acc, Ctx}.
 
-apply_remote_deviations([{TargetModuleName, Deviations0} | T], M, Ctx0) ->
+apply_remote_deviations([{TargetModuleName, Deviations0} | T], M,
+                        DeviatedModuleNames, Ctx0) ->
     %% Find the imported revision for this modulename.
     case get_imported_module(TargetModuleName, M, Ctx0) of
         {value, TargetM0} ->
-            %% In order for xpath expressions in remote deviations, pointing to
-            %% statements defined the target module and in statements defined in
-            %% modules imported by the deviation module, we need to update the
-            %% target modules xpath_ns_map to also include those from the
-            %% deviation module.
-            case combine_prefix_maps(TargetM0, M, Ctx0) of
-                {false, Ctx1} ->
-                    TargetM = TargetM0;
-                {TargetM, Ctx1} ->
-                    ok
-            end,
             %% Update the target_node
             %% identifier so that it matches the target schema node
             %% tree; i.e., nodes in the target module have just a
@@ -3389,71 +3357,113 @@ apply_remote_deviations([{TargetModuleName, Deviations0} | T], M, Ctx0) ->
                                                      TargetModuleName),
                           D#deviation{target_node = TargetNode1}
                   end, Deviations0),
+            %% If we're deviating an augmented node, it is
+            %% the augmenting module that is deviated, not
+            %% the target module.
+            DevModF = fun (#deviation{target_node = TN}) ->
+                              case lists:last(TN) of
+                                  {child, {ModuleName, _}} ->
+                                      ModuleName;
+                                  _ ->
+                                      TargetModuleName
+                              end
+                      end,
+            NewDeviatedModuleNames0 =
+                lists:usort([DevModF(D) || D <- Deviations1]),
+            NewDeviatedModuleNames =
+                NewDeviatedModuleNames0 -- DeviatedModuleNames,
+            %% We need to update the prefix maps of all deviated modules,
+            %% to also include those from the deviation module.
+            {DeviatedModules, TargetM, Ctx2} =
+                update_prefix_maps(NewDeviatedModuleNames,
+                                   TargetModuleName, TargetM0, M, Ctx0),
             %% Perform the deviation - for validation even if not applying
-            {DeviatedChildren, Ignored, Ctx2} =
+            {DeviatedChildren, Ignored, Ctx3} =
                 deviate_children(Deviations1,
                                  TargetM#module.children,
                                  TargetM#module.ignored,
-                                 [TargetM], Ctx1),
-            Ctx4 = if Ctx2#yctx.apply_deviations ->
+                                 [TargetM], Ctx2),
+            Ctx4 = if Ctx3#yctx.apply_deviations ->
                            %% Record the deviation.
-                           %% If we're deviating an augmented node, it is
-                           %% the augmenting module that is deviated, not
-                           %% the target module.
-                           DevModF = fun (#deviation{target_node = TN}) ->
-                                             case lists:last(TN) of
-                                                 {child, {ModuleName, _}} ->
-                                                     ModuleName;
-                                                 _ ->
-                                                     TargetModuleName
-                                             end
-                                     end,
-                           DeviatedModuleNames =
-                               lists:usort([DevModF(D) || D <- Deviations1]),
-                           %% Update the modules in the context
-                           deviation_update_modules(DeviatedModuleNames, M,
+                           %% Update the modules in the context.
+                           deviation_update_modules(DeviatedModules, M,
                                                     TargetM, DeviatedChildren,
-                                                    Ignored, Ctx2);
+                                                    Ignored, Ctx3);
                       true ->
-                           Ctx2
+                           Ctx3
                    end,
-            apply_remote_deviations(T, M, Ctx4);
+            AllDeviatedModuleNames =
+                NewDeviatedModuleNames ++ DeviatedModuleNames,
+            apply_remote_deviations(T, M, AllDeviatedModuleNames, Ctx4);
         none ->
             %% Some error with the target module; already reported.
             Ctx0
     end;
-apply_remote_deviations([], _M, Ctx) ->
+apply_remote_deviations([], _M, _DeviatedModuleNames, Ctx) ->
     Ctx.
 
-deviation_update_modules(DeviatedModuleNames,
+update_prefix_maps(DeviatedModuleNames, TargetModuleName, TargetM0, M, Ctx0) ->
+    %% Always do the target module - it must be done first,
+    %% outside the loop, to preserve the updates
+    case combine_prefix_maps(TargetM0, M, undefined, Ctx0) of
+        {false, Ctx1} ->
+            TargetM1 = TargetM0;
+        {TargetM1, _undefined, Ctx1} ->
+            ok
+    end,
+    %% Do the actually deviated modules
+    {DeviatedModules, TargetM, Ctx2} =
+        update_prefix_maps(lists:delete(TargetModuleName,
+                                        DeviatedModuleNames),
+                           TargetM1, M, Ctx1),
+    {[TargetM|DeviatedModules], TargetM, Ctx2}.
+
+update_prefix_maps(DeviatedModuleNames, TargetM, M, Ctx) ->
+    lists:foldl(
+      fun (DeviatedModuleName, {DeviatedModules, TargetM0, Ctx0} = Acc) ->
+              case get_imported_module(DeviatedModuleName, M, Ctx0) of
+                  {value, DeviatedM0} ->
+                      case
+                          combine_prefix_maps(DeviatedM0, M, TargetM0, Ctx0)
+                      of
+                          {false, Ctx1} ->
+                              {[DeviatedM0|DeviatedModules], TargetM0, Ctx1};
+                          {DeviatedM, TargetM1, Ctx1} ->
+                              {[DeviatedM|DeviatedModules], TargetM1, Ctx1}
+                      end;
+                  none ->
+                      %% Some error with the deviated module; already reported.
+                      Acc
+              end
+      end,
+      {[], TargetM, Ctx},
+      DeviatedModuleNames).
+
+deviation_update_modules(DeviatedModules,
                          #module{modulename = DeviatingModuleName,
                                  revision = DeviatingModuleRev} = DeviatingM,
                          #module{modulename = TargetModuleName} = TargetM,
                          DeviatedChildren, Ignored,
                          #yctx{modrevs = ModRevs} = Ctx) ->
-    deviation_update_modules(DeviatedModuleNames, TargetModuleName, ModRevs,
+    deviation_update_modules(DeviatedModules, TargetModuleName, ModRevs,
                              [{DeviatingModuleName, DeviatingModuleRev}],
                              TargetM#module{children = DeviatedChildren,
                                             ignored = Ignored},
                              DeviatingM, Ctx).
 
-deviation_update_modules([TargetModuleName | T], TargetModuleName, ModRevs,
+deviation_update_modules([#module{modulename = TargetModuleName} | T],
+                         TargetModuleName, ModRevs,
                          DeviatingModRevL, TargetM, M, Ctx) ->
     NewModRevs = update_deviated_by(TargetModuleName, TargetM,
                                     DeviatingModRevL, ModRevs),
     deviation_update_modules(T, '$done', NewModRevs,
                              DeviatingModRevL, TargetM, M, Ctx);
-deviation_update_modules([DeviatedModuleName | T], TargetModuleName, ModRevs,
+deviation_update_modules([DeviatedM | T],
+                         TargetModuleName, ModRevs,
                          DeviatingModRevL, TargetM, M, Ctx) ->
-    NewModRevs =
-        case get_imported_module(DeviatedModuleName, M, Ctx) of
-            {value, DeviatedM} ->
-                update_deviated_by(DeviatedModuleName, DeviatedM,
-                                   DeviatingModRevL, ModRevs);
-            none ->
-                %% Some error with the deviated module; already reported.
-                ModRevs
-        end,
+    #module{modulename = DeviatedModuleName} = DeviatedM,
+    NewModRevs = update_deviated_by(DeviatedModuleName, DeviatedM,
+                                    DeviatingModRevL, ModRevs),
     deviation_update_modules(T, TargetModuleName, NewModRevs,
                              DeviatingModRevL, TargetM, M, Ctx);
 deviation_update_modules([], '$done', ModRevs,
@@ -3479,7 +3489,7 @@ update_deviated_by(DeviatedModuleName,
 
 
 %% This is a builtin post_expand_module hook.
-post_expand_module_v_no_mandatory_remote_augments(
+post_expand_module_after_remote_augments_and_deviations(
   Ctx, #module{modulename = MName, yang_version = YangVersion} = M) ->
     lists:foldl(
       fun({TargetName, RAugments}, Ctx_0) ->
@@ -3500,14 +3510,24 @@ post_expand_module_v_no_mandatory_remote_augments(
                             _ ->
                                 %% check - need to get the "final" children
                                 %% that may have been updated by deviations
-                                Chs = get_updated_children(TargetName, TN, Chs0,
-                                                           M, Ctx_1),
-                                v_no_mandatory(
-                                  Chs,
-                                  _PruneAugment = children,
-                                  _PruneConfigFalse = YangVersion /= '1',
-                                  'YANG_ERR_MANDATORY_NODE_IN_AUGMENT',
-                                  Ctx_1)
+                                {Ancestors, Chs} =
+                                    get_updated_children(TargetName, TN, Chs0,
+                                                         M, Ctx_1),
+                                Ctx_2 =
+                                    v_no_mandatory(
+                                      Chs,
+                                      _PruneAugment = children,
+                                      _PruneConfigFalse = YangVersion /= '1',
+                                      'YANG_ERR_MANDATORY_NODE_IN_AUGMENT',
+                                      Ctx_1),
+                                %% Since deviations might have changed nodes
+                                %% (e.g. not-supported) we need to run this
+                                %% again.
+                                lists:foldl(
+                                  fun(Sn0, Ctx_3) ->
+                                          post_expand_child(Sn0, Ancestors,
+                                                            M, Ctx_3)
+                                  end, Ctx_2, Chs)
                         end
                 end, Ctx_0, RAugments)
       end, Ctx, M#module.remote_augments).
@@ -3516,26 +3536,27 @@ get_updated_children(TargetName, TargetNode, Children, M, Ctx) ->
     case get_imported_module(TargetName, M, Ctx) of
         {value, TargetM} ->
             case get_schema_node(TargetNode, TargetM) of
-                {true, #sn{children = AllChildren}, _Ancestors} ->
+                {true, #sn{children = AllChildren} = TargetSn, Ancestors} ->
                     %% get the (successfully) augmented children
-                    lists:zf(
-                      fun (#sn{name = Name, stmt = {_, _, Pos, _}}) ->
-                              %% if Pos differs, it's a different child
-                              %% - "our" child was dropped as duplicate
-                              case lists:keyfind(Name, #sn.name, Children) of
-                                  #sn{stmt = {_, _, Pos, _}} ->
-                                      true;
-                                  _ ->
-                                      false
-                              end
-                      end, AllChildren);
+                    {[TargetSn | Ancestors],
+                     lists:zf(
+                       fun (#sn{name = Name, stmt = {_, _, Pos, _}}) ->
+                               %% if Pos differs, it's a different child
+                               %% - "our" child was dropped as duplicate
+                               case lists:keyfind(Name, #sn.name, Children) of
+                                   #sn{stmt = {_, _, Pos, _}} ->
+                                       true;
+                                   _ ->
+                                       false
+                               end
+                       end, AllChildren)};
                 _ ->
                     %% error already reported
-                    []
+                    {[], []}
             end;
         _ ->
             %% error already reported
-            []
+            {[], []}
     end.
 
 %% Given two modules, combine their prefix maps.
@@ -3546,6 +3567,22 @@ get_updated_children(TargetName, TargetNode, Children, M, Ctx) ->
 %%     target module, _not_ the source module.
 -spec combine_prefix_maps(TargetM :: #module{}, SrcM :: #module{}, #yctx{}) ->
                                  {NewTargetM :: #module{} | false, #yctx{}}.
+combine_prefix_maps(TargetM, SrcM, Ctx) ->
+    case combine_prefix_maps(TargetM, SrcM, undefined, Ctx) of
+        {NewTargetM, _undefined, Ctx1} ->
+            {NewTargetM, Ctx1};
+        Other ->
+            Other
+    end.
+
+%% If ParentM == undefined, update the #sn{} children of the (updated) TargetM,
+%% otherwise update the #sn{} children of ParentM.
+-spec combine_prefix_maps(TargetM :: #module{}, SrcM :: #module{},
+                          ParentM :: undefined | #module{}, #yctx{}) ->
+                                 {NewTargetM :: #module{},
+                                  NewParentM :: undefined | #module{},
+                                  #yctx{}} |
+                                 {false, #yctx{}}.
 combine_prefix_maps(#module{modulename = TName,
                             prefix_map = TPrefixMap,
                             imports    = TImports,
@@ -3555,6 +3592,7 @@ combine_prefix_maps(#module{modulename = TName,
                             imports    = SImports,
                             revision   = SRev,
                             stmt       = {_, _, _, SModSubStmts}},
+                    ParentM,
                     #yctx{unused_imports = U} = Ctx0) ->
     %% Get the target module's unused_imports entry
     {value, {TName, TUnusedL}, UnusedRem} = lists:keytake(TName, 1, U),
@@ -3622,10 +3660,19 @@ combine_prefix_maps(#module{modulename = TName,
                                        imports    = NewImports},
             TargetM2 = TargetM1#module{xpath_ns_map =
                                            yang_xpath:mk_ns_map(TargetM1)},
-            NewChs = update_sn_mod(TargetM2#module.children, TargetM2, []),
-            NewTargetM = TargetM2#module{children = NewChs},
+            if ParentM == undefined ->
+                    NewChs =
+                        update_sn_mod(TargetM2#module.children, TargetM2, []),
+                    NewTargetM = TargetM2#module{children = NewChs},
+                    NewParentM = ParentM;
+               true ->
+                    NewChs =
+                        update_sn_mod(ParentM#module.children, TargetM2, []),
+                    NewTargetM = TargetM2,
+                    NewParentM = ParentM#module{children = NewChs}
+            end,
             Ctx2 = Ctx1#yctx{unused_imports = [{TName, NewUnusedL}|UnusedRem]},
-            {NewTargetM, Ctx2};
+            {NewTargetM, NewParentM, Ctx2};
        true ->
             {false, Ctx1}
     end.
@@ -3775,7 +3822,20 @@ apply_deviation_sn(Sn0, #deviation{deviates = Deviates}, Ancestors, Ctx0) ->
     {Ctx2, Sn2} =
         run_mk_sn_hooks(Ctx1, Sn1, #hooks.pre_mk_sn, final,
                         undefined, Ancestors),
-    run_mk_sn_hooks(Ctx2, Sn2, #hooks.post_mk_sn, final,
+    %% config is special - if it is changed to false we apply it
+    %% recursively to all children
+    {Ctx4, Sn4} =
+        if Sn0#sn.config /= Sn1#sn.config,
+           Sn1#sn.config == false ->
+                TmpHooks = #hooks{pre_mk_sn = [fun pre_mk_sn_config/5]},
+                {Ctx3, Sn3} =
+                    run_mk_sn_hooks_rec(Ctx2#yctx{hooks = TmpHooks}, Sn2,
+                                        final, undefined, Ancestors),
+                {Ctx3#yctx{hooks = Ctx2#yctx.hooks}, Sn3};
+           true ->
+                {Ctx2, Sn2}
+        end,
+    run_mk_sn_hooks(Ctx4, Sn4, #hooks.post_mk_sn, final,
                     undefined, Ancestors).
 
 apply_deviate({How, Stmts}, Acc0) ->
@@ -3840,7 +3900,9 @@ apply_deviate2(How, {Kwd, Arg, Pos, _} = Stmt,
                     Sn1 = Sn#sn{stmt = SnStmt1},
                     case Kwd of
                         'must' ->
-                            MustL = lists:keydelete(Found, 4, Sn#sn.must),
+                            {value, _, MustL} =
+                                lists:keytake(Found,
+                                              ?MUST_STMT, Sn#sn.must),
                             {Ctx, Sn1#sn{must = MustL}};
                         'default' ->
                             {Ctx, Sn1#sn{default = undefined}};

@@ -3,7 +3,7 @@ module eb11f {
   namespace urn:eb11f;
   prefix eb11f;
 
-  // YANGER_EXTRA_FLAGS: --features bar
+  // YANGER_EXTRA_FLAGS: --ignore-unknown-features --features bar
 
   feature foo;
 

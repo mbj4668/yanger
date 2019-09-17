@@ -23,9 +23,9 @@
     """??
     module: a
       +--ro x
-         +--rw bar* [foo]
-            +--rw foo    int32
-            +--rw bar?   int32
+         +--ro bar* [foo]
+            +--ro foo    int32
+            +--ro bar?   int32
     """
 
 [shell test]

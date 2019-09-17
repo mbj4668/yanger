@@ -30,7 +30,8 @@
           outfile,
           no_deviation_apply = false,
           max_status :: 'undefined' | yang:yang_status(),
-          debug_print = false
+          debug_print = false,
+          ignore_unknown_features = false
          }).
 
 -type error() :: {bad_format, string()}
@@ -201,6 +202,9 @@ option_specs(Ctx) ->
      {features,         $F, "features", string,
       "Features to support, default all."
       " Format: <modname>:[<feature>,]*"},
+     {ignore_unknown_features, undefined, "ignore-unknown-features", boolean,
+      "Use to suppress errors regarding unknown features"},
+
      {conformance,      $C, "conformance", string,
       "Conformance, default implement."
       " Format: [<modname>:]implement|import"},
@@ -324,6 +328,8 @@ opts(Options, Ctx) ->
                       Opts#opts{debug_print = true};
                   debug_print_all ->
                       Opts#opts{debug_print = all};
+                  {ignore_unknown_features, true} ->
+                      Opts#opts{ignore_unknown_features = true};
                   _ ->
                       Opts
               end
@@ -363,6 +369,9 @@ run(Ctx0, Opts, Files) ->
           fun (TransformFun, Modules1) ->
                   TransformFun(Ctx3, Modules1)
           end, Modules0, Opts#opts.transform),
+
+    validate_features(Opts#opts.ignore_unknown_features, Ctx3),
+
     if Opts#opts.emit == undefined ->
             case Opts#opts.debug_print of
                 true ->
@@ -449,6 +458,37 @@ run(Ctx0, Opts, Files) ->
        true ->
             throw({error, format_no_modules})
     end.
+
+validate_features(true = _IgnoreUnknownFeatures, _Ctx) ->
+    ok;
+validate_features(_IgnoreUnknownFeatures, #yctx{features = none}) ->
+    ok;
+validate_features(false = _IgnoreUnknownFeatures,
+                  #yctx{features = Features} = Ctx) ->
+    FeaturesLs = yang:map_to_list(Features),
+    [validate_feature(F, Ctx) ||  F <- FeaturesLs].
+
+validate_feature({ModuleName, FeatureNames}, #yctx{} = Ctx) ->
+    case yang:search_module(Ctx, ModuleName, undefined) of
+        {true, _Ctx, #module{name = ModuleName, features = Features}} ->
+            validate_feature1(FeatureNames, Features);
+        _ ->
+            ErrMsg = "Module " ++ ?a2l(ModuleName) ++ " is not found",
+            throw({error, {bad_features, ErrMsg}})
+    end.
+
+validate_feature1(FeatureNames, Features) ->
+    EvalFun = fun(FeatureName) ->
+                      case yang:map_lookup(FeatureName, Features) of
+                          none ->
+                              throw({error, {bad_features,
+                                             "Feature not found in the module"
+                                            }});
+                          _ ->
+                              ok
+                      end
+              end,
+    lists:foreach(EvalFun, FeatureNames).
 
 t_max_status(Ctx, [#module{children = Chs, identities = Ids} = M | T],
              MaxStatus) ->
