@@ -6,7 +6,7 @@ module b {
     prefix a;
   }
 
-  augment /a:a {
+  augment /a:a { // this is an error if 'a' has conformance 'import'
     container b;
   }
 }

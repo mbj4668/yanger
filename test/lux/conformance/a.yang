@@ -2,10 +2,18 @@ module a {
   namespace urn:a;
   prefix a;
 
+  typedef xref {
+    type leafref {
+      path "/a/x";
+    }
+  }
+
   container a;
 
   augment /a {
-    container x;
+    leaf x {
+      type string;
+    }
   }
 
 }

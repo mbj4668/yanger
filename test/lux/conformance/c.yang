@@ -1,0 +1,19 @@
+module c {
+  namespace urn:c;
+  prefix c;
+
+  import a {
+    prefix a;
+  }
+
+  container c {
+    leaf cxref {
+      type a:xref; // this is an error if 'a' has conformance 'import'
+    }
+    leaf cxref2 {
+      type leafref {
+        path "/a:a/a:x"; // this is an error if 'a' has conformance 'import'
+      }
+    }
+  }
+}

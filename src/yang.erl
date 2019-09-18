@@ -297,7 +297,10 @@ new_ctx(Plugins) ->
                                      fun post_mk_sn_type/5,
                                      fun post_mk_sn_v_choice_default/5],
                                 post_expand_module = [PEMARAAD],
-                                post_expand_sn = [fun post_expand_sn/4]},
+                                post_expand_sn = [fun post_expand_sn/4],
+                                post_parse_module =
+                                    [fun post_parse_module_conformance/2]
+                               },
                  modrevs = map_new(),
                  revs = map_new(),
                  typemap = map_new(),
@@ -1004,7 +1007,8 @@ parse_body(Stmts, M0, Ctx0) ->
                    remote_deviations = RemoteDeviations},
     M5 = if Conformance == import ->
                  M4#module{children = [],
-                           ignored = Ignored ++ DeviatedChildren,
+                           ignored = M4#module.children ++ Ignored ++
+                               DeviatedChildren,
                            local_augments = []};
             Ctx9#yctx.apply_deviations ->
                  M4#module{children = DeviatedChildren,
@@ -4125,9 +4129,19 @@ add_xpath_bad_ref(#yerror{code = Code, args = Args, pos = Pos},
               [yang_error:fmt_code(Codes, Code, Args)]).
 
 
+post_parse_module_conformance(Ctx, M) ->
+    case M#module.conformance of
+        import ->
+            {Ctx, M#module{children = [],
+                           remote_augments = []}};
+        implement ->
+            {Ctx, M}
+    end.
+
 %% FIXME: should we make a hook out of this, just like post_expand_sn?
 post_expand_typedefs(#typedefs{same_as_parent = false, map = Map},
-                     Ancestors, M, Ctx) ->
+                     Ancestors, M, Ctx)
+  when M#module.conformance == implement ->
     map_foldl(
       fun(_, #typedef{type = #type{type_spec = TypeSpec, base = Base},
                       moduleref = {ModuleName, _},
@@ -4152,7 +4166,8 @@ post_expand_typedefs(_, _, _, Ctx) ->
 %% FIXME: For groupings, the errors detected by validate_leafref_xxx
 %% will be reported for each 'uses', with the grouping's pos()...
 
-validate_leafref_path_and_default(#typedef{default = BaseDefault}, Default,
+validate_leafref_path_and_default(#typedef{default = BaseDefault,
+                                           moduleref = MRef}, Default,
                                   TypeSpec, Sn, _, _, M, Ancestors, Ctx0) ->
     %% Validate the default if possible,
     %% ignoring leafref path validation failure
@@ -4164,9 +4179,21 @@ validate_leafref_path_and_default(#typedef{default = BaseDefault}, Default,
                true ->
                     Ctx1
             end;
-        {false, _Ctx1} ->
-            %% error is reported in "root" typedef check
-            Ctx0
+        {false, Ctx1} ->
+            %% error is reported in "root" typedef check unless its module
+            %% has conformance 'import'
+            {TypedefModName, TypedefModRev} = MRef,
+            if TypedefModName /= M#module.name ->
+                    case get_module(TypedefModName, TypedefModRev, Ctx1) of
+                        {value, #module{conformance = 'import'}} ->
+                            %% report error
+                            Ctx1;
+                        _ ->
+                            Ctx0
+                    end;
+               true ->
+                    Ctx0
+            end
     end;
 validate_leafref_path_and_default(_, Default, TypeSpec,
                                   Sn, Status, Stmt, M, Ancestors, Ctx0) ->
@@ -4231,7 +4258,7 @@ post_parse_module(Ctx = #yctx{hooks = #hooks{post_parse_module = HookFs}},
                   {true, HookFun} ->
                       HookFun(Ctx0, M);
                   false ->
-                      M
+                      {Ctx0, M}
               end
       end, {Ctx, Module}, HookFs).
 

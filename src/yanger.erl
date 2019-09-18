@@ -551,6 +551,8 @@ print_error(Error) ->
             io:format(standard_error, "Bad status '~w'\n", [Status]);
         {bad_features, FStr} ->
             io:format(standard_error, "Bad features spec '~s'\n", [FStr]);
+        {bad_conformance, CStr} ->
+            io:format(standard_error, "Bad conformance '~s'\n", [CStr]);
         errors_printed ->
             ok;
         {file_error, FileName, FileError} ->
