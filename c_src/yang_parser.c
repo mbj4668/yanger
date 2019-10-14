@@ -52,7 +52,7 @@ tok_readline(struct toks *toks)
         if (toks->buf[len-1] == '\n')
             break;
         toks->bufn += BUFSIZ;
-        toks->buf = realloc(toks->buf, toks->bufn);
+        toks->buf = (char *)realloc(toks->buf, toks->bufn * sizeof(char));
         p = &toks->buf[len];
         n = BUFSIZ;
     }
@@ -80,7 +80,7 @@ tok_init(struct toks *toks, char *filename, struct yang_error_ctx *ectx)
     toks->ectx = ectx;
     toks->filename = filename;
     toks->line = 0;
-    toks->buf = (char *)malloc(BUFSIZ * sizeof(char *));
+    toks->buf = (char *)malloc(BUFSIZ * sizeof(char));
     toks->bufn = BUFSIZ;
     toks->p = toks->buf;
     toks->expect_eof = false;
@@ -233,7 +233,7 @@ tok_get_string(struct toks *toks, char **str)
             toks->p++;
         }
         len = toks->p - s;
-        *str = malloc(len + 1);
+        *str = malloc((len+1) * sizeof(char));
         strncpy(*str, s, len);
         (*str)[len] = '\0';
         return true;
@@ -295,19 +295,19 @@ tok_get_string(struct toks *toks, char **str)
                     && p-s > 1 && *(p-1) == '\n'
                     && is_wspace_cr(*(p-2)))
                 {
-                    int cr = 0;
+                    bool cr_found = false;
                     /* remove trailing whitespace */
                     p -= 2; // skip ['\r'] '\n' '\0'
                     if (*p == '\r') {
-                        cr = 1;
+                        cr_found = true;
                         p--;
                     }
-                    while (is_wspace(*p) && p >= s) {
+                    while (p >= s && is_wspace(*p)) {
                         p--;
                         len--;
                     }
                     /* put back ['\r'] '\n' '\0' */
-                    if (cr) {
+                    if (cr_found) {
                         *++p = '\r';
                     }
                     *++p = '\n';
