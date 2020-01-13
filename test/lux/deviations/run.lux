@@ -25,13 +25,12 @@
       +--ro x
          +--ro bar* [foo]
             +--ro foo    int32
-            +--ro bar?   int32
+            +--ro bar    int32
     """
 
 [shell test]
     [doc test that validation is done on the refined statements]
     !yanger --print-error-code --deviation-module bad.yang b.yang
-    ?bad.yang:\d+: YANG_ERR_BAD_DEVIATE_DELETE
     ?bad.yang:\d+: YANG_ERR_TYPE_VALUE
     ?bad.yang:\d+: YANG_ERR_BAD_RANGE_VALUE
     -bad.yang

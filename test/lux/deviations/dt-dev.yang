@@ -22,7 +22,6 @@ module dt-dev {
     }
     deviate delete {
       must ". = 42"; // LINE: YANG_ERR_BAD_DEVIATE_DELETE
-      type string; // LINE: YANG_ERR_BAD_DEVIATE_DELETE
     }
   }
 }

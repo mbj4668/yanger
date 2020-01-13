@@ -104,6 +104,9 @@ static const char *stmts[] = {
         "1",     "description",      "?",
         "1",     "reference",        "?",
         "1",     "deviate",          "*",
+        "1",     "deviate",          "*",
+        "1",     "deviate",          "*",
+        "1",     "deviate",          "*",
         NULL,    NULL,               NULL,
     "mandatory",        "boolean",
         NULL,    NULL,               NULL,
@@ -296,6 +299,25 @@ static const char *stmts[] = {
         */
         "1",     "base",             "*",
         "1",     "type",             "*",
+        NULL,    NULL,               NULL,
+     "deviate",          "=not-supported",
+        NULL,    NULL,               NULL,
+     "deviate",          "=delete",
+        "1",     "units",            "?",
+        "1",     "must",             "*",
+        "1",     "unique",           "*",
+        "1",     "default",          "?",
+        NULL,    NULL,               NULL,
+     "deviate",          "=replace",
+        "1",     "type",             "?",
+        "1",     "units",            "?",
+        "1",     "must",             "?",
+        "1",     "unique",           "?",
+        "1",     "default",          "?",
+        "1",     "config",           "?",
+        "1",     "mandatory",        "?",
+        "1",     "min-elements",     "?",
+        "1",     "max-elements",     "?",
         NULL,    NULL,               NULL,
      "deviate",          "deviate-arg",
         "1",     "type",             "?",
@@ -700,7 +722,7 @@ chk_if_feature_expr(char *arg, void *opaque, char yang_version,
     }
 }
 
-#define NTYPES 26
+#define NTYPES 29
 
 #define STRBUFSIZ 256
 
@@ -904,6 +926,21 @@ yang_init_core_stmt_grammar(void)
 
     types[i].name = yang_make_atom("deviate-arg");
     types[i].syntax.xsd_regexp = (char *)"add|delete|replace|not-supported";
+    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    i++;
+
+    types[i].name = yang_make_atom("=not-supported");
+    types[i].syntax.xsd_regexp = (char *)"not-supported";
+    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    i++;
+
+    types[i].name = yang_make_atom("=delete");
+    types[i].syntax.xsd_regexp = (char *)"delete";
+    types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
+    i++;
+
+    types[i].name = yang_make_atom("=replace");
+    types[i].syntax.xsd_regexp = (char *)"replace";
     types[i].flags = F_ARG_TYPE_SYNTAX_REGEXP;
     i++;
 

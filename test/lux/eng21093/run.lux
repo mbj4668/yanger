@@ -1,0 +1,18 @@
+[doc Test that deviation delete of mandatory gives error]
+
+
+[shell compilation]
+    !yanger --print-error-code --deviation-module a-dev.yang a.yang 2>&1
+    -==0==
+    !echo ==$$?==
+    ?YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD
+    ?==1==
+
+    !yanger --print-error-code --deviation-module a-dev2.yang a.yang 2>&1
+    -==0==
+    !echo ==$$?==
+    ?YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD
+    ?==1==
+
+    !exit
+    [endshell]

@@ -694,6 +694,9 @@ set_type_bits(void)
         "ordered-by-arg",
         "enum-arg",
         "deviate-arg",
+        "=not-supported",
+        "=delete",
+        "=replace",
         "status-arg",
         NULL};
     const char *int_types[] = {

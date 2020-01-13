@@ -44,11 +44,6 @@ module a {
       config false;
     }
   }
-  deviation /x/bar/bar {
-    deviate delete {
-      mandatory true;
-    }
-  }
   deviation /x/bar/baz {
     deviate not-supported;
   }

@@ -125,10 +125,29 @@ match_rule(struct yang_statement *stmt,
 {
     int i;
     char buf[STRSIZ];
+    bool rule_match;
 
     for (i = *start; i < nrules; i++) {
+        rule_match = false;
         if (stmt->module_name == rules[i].module_name &&
             stmt->keyword == rules[i].keyword) {
+            if (rules[i].spec && rules[i].spec->flags & F_STMT_ARG_MATCH) {
+                /* check if the argument also matches this rule */
+                struct yang_arg_type *t = &types[rules[i].spec->arg_type_idx];
+                if (t->syntax.cb.validate(
+                        stmt->arg,
+                        t->syntax.cb.opaque,
+                        stmt->yang_version,
+                        NULL, 0)) {
+                    rule_match = true;
+                } else {
+                    rule_match = false;
+                }
+            } else {
+                rule_match = true;
+            }
+        }
+        if (rule_match) {
             if (rules[i].min_yang_version > stmt->yang_version) {
                 build_keyword_from_stmt(buf, STRSIZ, stmt);
                 yang_add_err(ectx, YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD,
@@ -213,7 +232,8 @@ yang_get_statement_spec(yang_atom_t module_name,
         return NULL;
     }
     for (i = 0; i < g->nspecs; i++) {
-        if (g->specs[i].keyword == keyword) {
+        if (g->specs[i].keyword == keyword &&
+            !(g->specs[i].flags & F_STMT_ARG_MATCH)) {
             return &g->specs[i];
         }
     }
@@ -223,7 +243,8 @@ yang_get_statement_spec(yang_atom_t module_name,
 
 static struct yang_statement_spec *
 get_spec_from_rule(struct grammar *g,
-                   struct yang_statement_rule *rule)
+                   struct yang_statement_rule *rule,
+                   int offset)
 {
     int i;
 
@@ -231,7 +252,11 @@ get_spec_from_rule(struct grammar *g,
 
     for (i = 0; i < g->nspecs; i++) {
         if (rule->keyword == g->specs[i].keyword) {
-            return &g->specs[i];
+            if (offset > 0) {
+                offset--;
+            } else {
+                return &g->specs[i];
+            }
         }
     }
     return NULL;
@@ -462,19 +487,26 @@ fix_grammar(void)
     struct yang_statement_spec *s;
     struct yang_statement_rule *r;
     struct grammar *g;
+    int offset = 0;
 
     for (i = 0; i < ngrammar; i++) {
         for (j = 0; j < grammar[i].nspecs; j++) {
             s = &grammar[i].specs[j];
             for (k = 0; k < s->nrules; k++) {
                 r = &s->rules[k];
+                if (k > 0 && s->rules[k-1].keyword == r->keyword) {
+                    // more than one rule for the same keyword
+                    offset++;
+                }  else {
+                    offset = 0;
+                }
                 if (!r->spec && r->keyword != am_sp_cut) {
                     if (!(g = get_grammar(r->module_name))) {
                         fprintf(stderr, "grammar for %s not found\n",
                                 r->module_name?r->module_name:"(null)");
                         return false;
                     }
-                    if (!(r->spec = get_spec_from_rule(g, r))) {
+                    if (!(r->spec = get_spec_from_rule(g, r, offset))) {
                         fprintf(stderr, "spec not found %s %s\n",
                                 r->module_name, r->keyword);
                         return false;
@@ -526,6 +558,7 @@ yang_install_grammar(yang_atom_t module_name,
     for (i = 0; i < len; i++) {
         g->specs[i].keyword = new_specs[i].keyword;
         g->specs[i].arg_type_idx = new_specs[i].arg_type_idx;
+        g->specs[i].flags = new_specs[i].flags;
         g->specs[i].rules =
             (struct yang_statement_rule *)
             malloc(new_specs[i].nrules * sizeof(struct yang_statement_rule));
@@ -568,6 +601,9 @@ install_grammar_str(const char *module_name,
                 fprintf(stderr, "%s:%d: arg_type %s not found",
                         __FILE__, __LINE__, stmts[i+1]);
                 return false;
+            }
+            if (stmts[i+1][0] == '=') {
+                spec[s].flags |= F_STMT_ARG_MATCH;
             }
         } else {
             spec[s].arg_type_idx = -1;
@@ -827,7 +863,7 @@ yang_grammar_check_module(struct yang_statement *stmt,
     }
     top_rule[0].min_yang_version = YANG_VERSION_1;
     top_rule[0].occurance = '1';
-    top_rule[0].spec = get_spec_from_rule(get_grammar(NULL), &top_rule[0]);
+    top_rule[0].spec = get_spec_from_rule(get_grammar(NULL), &top_rule[0], 0);
 
     /* resolve all prefixes to module names.  first count the prefixes */
     nprefixes = 1; // we always have our own prefix

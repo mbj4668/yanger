@@ -1,0 +1,15 @@
+module a-dev2 {
+  yang-version 1.1;
+  namespace "urn:example:a-dev2";
+  prefix adev2;
+
+  import a {
+    prefix a;
+  }
+
+  deviation "/a:test/a:foo" {
+    deviate not-supported {
+      mandatory true;
+    }
+  }
+}

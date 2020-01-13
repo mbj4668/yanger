@@ -17,7 +17,6 @@ dt-dev.yang:17: (\(.*\): )?YANG_ERR_BAD_DEVIATE_ADD
 dt-dev.yang:20: (\(.*\): )?YANG_ERR_BAD_DEVIATE_REPLACE_NOT_FOUND
 dt-dev.yang:21: (\(.*\): )?YANG_ERR_BAD_DEVIATE_REPLACE
 dt-dev.yang:24: (\(.*\): )?YANG_ERR_BAD_DEVIATE_DELETE
-dt-dev.yang:25: (\(.*\): )?YANG_ERR_BAD_DEVIATE_DELETE
 """
   # make sure there are no extra errors reported
   -dt.yang
@@ -37,7 +36,6 @@ dt-dev.yang:17: (\(.*\): )?(error|warning): \S+.*
 dt-dev.yang:20: (\(.*\): )?(error|warning): \S+.*
 dt-dev.yang:21: (\(.*\): )?(error|warning): \S+.*
 dt-dev.yang:24: (\(.*\): )?(error|warning): \S+.*
-dt-dev.yang:25: (\(.*\): )?(error|warning): \S+.*
 """
   # make sure there are no extra errors reported
   -dt.yang

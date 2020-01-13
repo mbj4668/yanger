@@ -23,11 +23,6 @@ module bad {
     }
   }
 
-  deviation /x {
-    deviate delete {
-      config false; // error, no such config stmt
-    }
-  }
   deviation /b:x/b:r {
     deviate add {
       default hej; // error, doesn't match the new type

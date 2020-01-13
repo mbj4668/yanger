@@ -22,10 +22,16 @@ struct yang_statement_spec {
     yang_atom_t keyword;
     /* If arg_type_idx is -1, the keyword does not expect any argument */
     int arg_type_idx;
+    /* If a yang_statement_spec has F_STMT_ARG_MATCH, then there MUST be
+       another yang_statement_spec with the same keyword without this
+       flags set. */
+    unsigned int flags;
     /* Rules is an array of the substatements accepted by this statement */
     struct yang_statement_rule *rules;
     int nrules;
 };
+
+#define F_STMT_ARG_MATCH  (1 << 0)
 
 extern bool yang_init_grammar(void);
 extern bool yang_install_arg_types(struct yang_arg_type types[], int len);
@@ -60,6 +66,35 @@ extern bool yang_install_grammar(yang_atom_t module_name,
   If <arg-typename> is NULL, it means the <keyword> does not expect
   any argument.  If <arg-typename> is non-NULL, it MUST be installed
   by a called to yang_install_arg_types().
+
+  If the grammar for a keyword is different depending on the argument,
+  this can be handled by specifiying N multiple stmts with the same keyword
+  but different <arg-typename>.  In this case, all but the last <arg-typename>
+  MUST start with the character '='.  Also, the statements that use this
+  special keyword as a substmt, MUST specify N identical substmts.  For
+  example:
+
+     "deviate",          "=not-supported",
+        NULL,    NULL,               NULL,
+     "deviate",          "=delete",
+        "1",     "units",            "?",
+        "1",     "must",             "*",
+        "1",     "unique",           "*",
+        "1",     "default",          "?",
+        NULL,    NULL,               NULL,
+     "deviate",          "deviate-arg",
+        <all deviation substmts here>
+        NULL,    NULL,               NULL,
+
+     ...
+
+     "deviation",        "absolute-schema-nodeid",
+        "1",     "description",      "?",
+        "1",     "reference",        "?",
+        "1",     "deviate",          "*",
+        "1",     "deviate",          "*",
+        "1",     "deviate",          "*",
+        NULL,    NULL,               NULL,
 */
 extern bool yang_install_grammar_str(const char *module_name,
                                      const char *stmts[]);
