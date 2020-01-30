@@ -490,11 +490,16 @@ validate_feature1(FeatureNames, Features) ->
               end,
     lists:foreach(EvalFun, FeatureNames).
 
-t_max_status(Ctx, [#module{children = Chs, identities = Ids} = M | T],
+t_max_status(Ctx, [#module{children = Chs, identities = Ids,
+                           local_augments = LAug,
+                           remote_augments = RAug} = M | T],
              MaxStatus) ->
     MaxStatusN = n(MaxStatus),
-    [M#module{children = prune_sn_status(Chs, MaxStatusN),
-              identities = prune_identities_status(Ids, MaxStatusN)} |
+    [M#module{children = prune_sn_status(Chs, MaxStatusN)
+              , identities = prune_identities_status(Ids, MaxStatusN)
+              , local_augments = prune_augment_status(LAug, MaxStatusN)
+              , remote_augments = prune_remote_augment_status(RAug, MaxStatusN)
+             } |
      t_max_status(Ctx, T, MaxStatus)];
 t_max_status(_Ctx, [], _) ->
     [].
@@ -530,6 +535,33 @@ prune_identities_status(Ids, MaxStatusN) ->
       fun(Key, Map) ->
               yang:map_delete(Key, Map)
       end, Ids, Deletes).
+
+prune_augment_status(Augs, MaxStatusN) ->
+    lists:zf(
+      fun(#augment{children = Chs, status = Status} = A) ->
+              case n(Status) =< MaxStatusN of
+                  true ->
+                      case prune_sn_status(Chs, MaxStatusN) of
+                          [] ->
+                              false;
+                          Chs1 ->
+                              {true, A#augment{children = Chs1}}
+                      end;
+                  false ->
+                      false
+              end
+      end, Augs).
+
+prune_remote_augment_status(RAugs, MaxStatusN) ->
+    lists:zf(
+      fun({RemoteModule, Augs}) ->
+              case prune_augment_status(Augs, MaxStatusN) of
+                  [] ->
+                      false;
+                  Augs1 ->
+                      {true, {RemoteModule, Augs1}}
+              end
+      end, RAugs).
 
 print_version(Name) ->
     io:format("~s ~s\n", [Name, vsn()]).

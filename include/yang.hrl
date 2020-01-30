@@ -171,6 +171,7 @@
           target_node :: yang:cursor_path(),
           children = [] :: [#sn{}],
           stmt :: yang:stmt(),
+          status :: yang:yang_status(),
           has_when = false :: boolean(),
           pmap = yang:map_new() :: yang:map0() % used by plugins
          }).

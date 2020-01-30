@@ -3299,8 +3299,10 @@ mk_augments([{'augment', Arg, Pos, Substmts} = Stmt | T], Typedefs, Groupings,
                    true ->
                         Children0
                 end,
+            Status = get_stmts_arg(Substmts, 'status', 'current'),
             Aug = #augment{target_node = SchemaNodeId,
                            stmt = Stmt,
+                           status = Status,
                            has_when = WhenL /= [],
                            children = Children1},
             mk_augments(T, Typedefs, Groupings, M, Ctx5, IsTopLevel,
