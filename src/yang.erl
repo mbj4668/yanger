@@ -24,7 +24,7 @@
 -export([get_module/3, get_imported_module/3, get_module_from_pos/2]).
 -export([get_grouping/3, get_typedef/3]).
 -export([find_typedef_raw/4]).
--export([is_builtin_type/1, get_filename/1]).
+-export([is_builtin_type/1, get_filename/1, local_name/1]).
 -export([mark_import_as_used/3]).
 -export([parse_idref/3, resolve_raw_idref/4]).
 -export([get_identity/5,
@@ -4294,13 +4294,15 @@ post_parse_module(Ctx = #yctx{hooks = #hooks{post_parse_module = HookFs}},
               end
       end, {Ctx, Module}, HookFs).
 
--spec get_schema_node(cursor_path(), #module{}) ->
+-spec get_schema_node(cursor_path(), #module{} | #grouping{}) ->
                              {true, #sn{}, Ancestors :: [#sn{}]} | false.
 %% Nodes with if_feature_result == false are considered to *exist*,
 %% in order to not give an error when such a node is the target node of
 %% 'augment' (or an extension with similar semantics).
 %% We still need to actually apply the augment, to get the same effect
 %% for augments of augments.
+get_schema_node(SchemaNodeId, #grouping{children = Children}) ->
+    get_schema_node(SchemaNodeId, Children, []);
 get_schema_node(SchemaNodeId, #module{children = Children}) ->
     get_schema_node(SchemaNodeId, Children, []).
 
@@ -4687,7 +4689,7 @@ cursor_reset(Sn, Cursor) ->
 
 -spec cursor_follow_path(cursor_path(), #cursor{}, #yctx{}) ->
           {true, #cursor{}}
-        | {false, #yerror{}}.
+        | {false, #yctx{}}.
 %% Nodes with with if_feature_result == false are
 %% considered to *not* exist, see find_child/5.
 cursor_follow_path([H | T], Cursor0, Ctx) ->

@@ -419,6 +419,8 @@ run(Ctx0, Opts, Files) ->
                 try
                     EmitFun(Ctx3, Modules, OutFd)
                 catch
+                    throw:EmitError ->
+                        throw(EmitError);
                     ?CATCH_STACKTRACE_WHEN(Class, Reason, Stacktrace,
                                            OutFd /= standard_io)
                         %% don't leave the file behind on error/throw

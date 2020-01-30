@@ -38,8 +38,7 @@
     -
     !yanger --print-error-code -C a:import a.yang c.yang
     -SH-PROMPT
-    ?YANG_ERR_NODE_NOT_FOUND
-    ?YANG_ERR_NODE_NOT_FOUND
+    ?YANG_ERR_NODE_NOT_FOUND2
     -YANG_ERR
     ?SH-PROMPT
     -

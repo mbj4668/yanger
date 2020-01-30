@@ -278,6 +278,7 @@ codes() ->
         "the node ~s from module '~s' is not found"}
      , {'YANG_ERR_NODE_NOT_FOUND3', error,
         "the node ~s from module '~s' (in node ~s from '~s') is not found"}
+     , {'YANG_ERR_REFER_TOP_NODE', error, "the path refers to top node"}
      , {'YANG_ERR_PREFIX_MOD_MISMATCH', error,
         "prefix '~s' conflicts with prefix ~s"}
      , {'YANG_ERR_PREFIX_NOT_FOUND', error,"prefix '~s' not found"}
