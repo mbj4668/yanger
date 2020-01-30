@@ -3412,12 +3412,7 @@ apply_remote_deviations([], _M, _DeviatedModuleNames, Ctx) ->
 update_prefix_maps(DeviatedModuleNames, TargetModuleName, TargetM0, M, Ctx0) ->
     %% Always do the target module - it must be done first,
     %% outside the loop, to preserve the updates
-    case combine_prefix_maps(TargetM0, M, undefined, Ctx0) of
-        {false, Ctx1} ->
-            TargetM1 = TargetM0;
-        {TargetM1, _undefined, Ctx1} ->
-            ok
-    end,
+    {TargetM1, Ctx1} = combine_prefix_maps(TargetM0, M, Ctx0),
     %% Do the actually deviated modules
     {DeviatedModules, TargetM, Ctx2} =
         update_prefix_maps(lists:delete(TargetModuleName,
@@ -3430,14 +3425,9 @@ update_prefix_maps(DeviatedModuleNames, TargetM, M, Ctx) ->
       fun (DeviatedModuleName, {DeviatedModules, TargetM0, Ctx0} = Acc) ->
               case get_imported_module(DeviatedModuleName, M, Ctx0) of
                   {value, DeviatedM0} ->
-                      case
-                          combine_prefix_maps(DeviatedM0, M, TargetM0, Ctx0)
-                      of
-                          {false, Ctx1} ->
-                              {[DeviatedM0|DeviatedModules], TargetM0, Ctx1};
-                          {DeviatedM, TargetM1, Ctx1} ->
-                              {[DeviatedM|DeviatedModules], TargetM1, Ctx1}
-                      end;
+                      {DeviatedM, TargetM1, Ctx1} =
+                          combine_prefix_maps(DeviatedM0, M, TargetM0, Ctx0),
+                      {[DeviatedM|DeviatedModules], TargetM1, Ctx1};
                   none ->
                       %% Some error with the deviated module; already reported.
                       Acc
@@ -3573,14 +3563,11 @@ get_updated_children(TargetName, TargetNode, Children, M, Ctx) ->
 %%     Give an error, and use the prefix-module pair from the
 %%     target module, _not_ the source module.
 -spec combine_prefix_maps(TargetM :: #module{}, SrcM :: #module{}, #yctx{}) ->
-                                 {NewTargetM :: #module{} | false, #yctx{}}.
+                                 {NewTargetM :: #module{}, #yctx{}}.
 combine_prefix_maps(TargetM, SrcM, Ctx) ->
-    case combine_prefix_maps(TargetM, SrcM, undefined, Ctx) of
-        {NewTargetM, _undefined, Ctx1} ->
-            {NewTargetM, Ctx1};
-        Other ->
-            Other
-    end.
+    {NewTargetM, _undefined, Ctx1} =
+        combine_prefix_maps(TargetM, SrcM, undefined, Ctx),
+    {NewTargetM, Ctx1}.
 
 %% If ParentM == undefined, update the #sn{} children of the (updated) TargetM,
 %% otherwise update the #sn{} children of ParentM.
@@ -3681,7 +3668,18 @@ combine_prefix_maps(#module{modulename = TName,
             Ctx2 = Ctx1#yctx{unused_imports = [{TName, NewUnusedL}|UnusedRem]},
             {NewTargetM, NewParentM, Ctx2};
        true ->
-            {false, Ctx1}
+            if ParentM == undefined ->
+                    NewChs =
+                        update_sn_mod(TargetM0#module.children, TargetM0, []),
+                    NewTargetM = TargetM0#module{children = NewChs},
+                    NewParentM = ParentM;
+               true ->
+                    NewChs =
+                        update_sn_mod(ParentM#module.children, TargetM0, []),
+                    NewTargetM = TargetM0,
+                    NewParentM = ParentM#module{children = NewChs}
+            end,
+            {NewTargetM, NewParentM, Ctx1}
     end.
 
 find_prefix_pos(PArg, [{import, _, _, Subs} | T]) ->
