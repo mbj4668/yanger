@@ -39,7 +39,8 @@
 -export([has_mandatory_descendant/1]).
 
 -export([map_new/0, map_is_empty/1, map_insert/3, map_update/3, map_keys/1,
-         map_lookup/2, map_get/2, map_is_key/2, map_delete/2, map_to_list/1,
+         map_lookup/2, map_get/2, map_get/3,
+         map_is_key/2, map_delete/2, map_to_list/1,
          map_iterator/1, map_next/1,
          map_foldl/3, map_foreach/2]).
 -export([topo_sort/1, get_schema_node/2]).
@@ -4895,6 +4896,15 @@ map_lookup(Key, Map) ->
 %% crashes if Key is not present
 map_get(Key, Map) ->
     gb_trees:get(Key, Map).
+
+-spec map_get(Key :: term(), map0(), DefVal :: term()) -> Val :: term().
+map_get(Key, Map, DefVal) ->
+    case gb_trees:lookup(Key, Map) of
+        {value, Val} ->
+            Val;
+        none ->
+            DefVal
+    end.
 
 -spec map_is_key(term(), map0()) -> boolean().
 map_is_key(Key, Map) ->
