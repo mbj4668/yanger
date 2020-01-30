@@ -85,4 +85,8 @@ module new2 {
     default id3;
   }
 
+  leaf uses-foo {
+    type foo;
+  }
+
 }

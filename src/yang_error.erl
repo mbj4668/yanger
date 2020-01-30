@@ -1,7 +1,8 @@
 -module(yang_error).
 
 -export([codes/0]).
--export([add_error/4, add_error/5]).
+-export([build_error/4]).
+-export([add_error/2, add_error/4, add_error/5]).
 -export([has_errors/1]).
 -export([print_error/3, print_errors/2]).
 -export([fmt_error/2, fmt_pos/1, fmt_yang_identifier/1, fmt_code/3,
@@ -12,10 +13,24 @@
 
 -define(ilf, io_lib:format).
 
+-spec add_error(#yerror{}, #yctx{}) -> #yctx{}.
+add_error(#yerror{level = none}, Ctx) ->
+    Ctx;
+add_error(Err, Ctx) ->
+    Ctx#yctx{errors = [Err | Ctx#yctx.errors]}.
+
 -spec add_error(#yctx{}, yang:pos(), ErrCode :: atom(), Args :: list()) ->
         #yctx{}.
 %% @doc Report an error or warning to the context.
 add_error(Ctx, Pos, ErrCode, Args) ->
+    Error = build_error(Ctx, Pos, ErrCode, Args),
+    add_error(Error, Ctx).
+
+add_error(ExpectedLevel, Ctx, Pos, ErrCode, Args) ->
+    Error = build_error(ExpectedLevel, Ctx, Pos, ErrCode, Args),
+    add_error(Error, Ctx).
+
+build_error(Ctx, Pos, ErrCode, Args) ->
     ExpectedLevel =
         case lists:keyfind(ErrCode, 1, Ctx#yctx.error_codes) of
             {_ErrCode, warning, _Fmt} ->
@@ -23,9 +38,9 @@ add_error(Ctx, Pos, ErrCode, Args) ->
             _ ->
                 error
         end,
-    add_error(ExpectedLevel, Ctx, Pos, ErrCode, Args).
+    build_error(ExpectedLevel, Ctx, Pos, ErrCode, Args).
 
-add_error(ExpectedLevel, Ctx, Pos, ErrCode, Args) ->
+build_error(ExpectedLevel, Ctx, Pos, ErrCode, Args) ->
     {WarningsAsErrors, NoPrintWarnings,
      TreatAsNone, TreatAsWarning, TreatAsError} =
         Ctx#yctx.warnings,
@@ -56,16 +71,10 @@ add_error(ExpectedLevel, Ctx, Pos, ErrCode, Args) ->
             _ ->
                 ExpectedLevel
         end,
-    add_error2(Level, Ctx, Pos, ErrCode, Args).
-
-add_error2(none, Ctx, _ErrPos, _ErrCode, _Args) ->
-    Ctx;
-add_error2(Level, Ctx, ErrPos, ErrCode, Args) ->
-    Err = #yerror{level = Level,
-                  pos = ErrPos,
-                  code = ErrCode,
-                  args = Args},
-    Ctx#yctx{errors = [Err | Ctx#yctx.errors]}.
+    #yerror{level = Level,
+            pos = Pos,
+            code = ErrCode,
+            args = Args}.
 
 print_error(Ctx, E, DoPrintCode) ->
     print_errors0(Ctx, [E], DoPrintCode).

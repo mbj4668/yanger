@@ -1314,7 +1314,7 @@ name({name, ModuleName, Name}) ->
 -spec validate_leafref_path(#leafref_type_spec{}, #sn{} | undefined,
                             #module{}, [#sn{}], #yctx{}) ->
                                    {true, TargetSn :: #sn{}, FinalSn :: #sn{}} |
-                                   {false, #yctx{}}.
+                                   {false, #yctx{} | #yerror{}}.
 validate_leafref_path(#leafref_type_spec{path = undefined},
                       _Sn, _M, _Ancestors, Ctx) ->
     %% path undefined means an error in the leafref definition.
@@ -1324,17 +1324,17 @@ validate_leafref_path(#leafref_type_spec{path_stmt = Stmt} = TypeSpec,
     PathPos = yang:stmt_pos(Stmt),
     InitCursor = yang:mk_cursor(Sn, Ancestors, PathPos, M, data, Ctx),
     case validate_leafref_path0(TypeSpec, InitCursor, [Sn], Ctx) of
-        {circular, Ctx1} ->
-            {false, Ctx1};
+        {circular, Error} ->
+            {false, Error};
         {true,  #sn{kind = Kind} = TargetSn, FinalSn}
           when (Kind == 'leaf') orelse (Kind == 'leaf-list') ->
             {true, TargetSn, FinalSn};
         {true, #sn{name = TargetName, stmt = TargetStmt}, _FinalSn} ->
-            {false, add_error(Ctx, PathPos, 'YANG_ERR_LEAFREF_NOT_LEAF',
-                              [yang_error:fmt_yang_identifier(TargetName),
-                               yang_error:fmt_pos(stmt_pos(TargetStmt))])};
-        Else ->
-            Else
+            {false, build_error(Ctx, PathPos, 'YANG_ERR_LEAFREF_NOT_LEAF',
+                                [yang_error:fmt_yang_identifier(TargetName),
+                                 yang_error:fmt_pos(stmt_pos(TargetStmt))])};
+        {false, Error} ->
+            {false, Error}
     end.
 
 validate_leafref_path0(#leafref_type_spec{path = Path},
@@ -1350,12 +1350,12 @@ validate_leafref_path0(#leafref_type_spec{path = Path},
                                  PathStmt} = TypeSpec}} = TargetSn} = Cursor} ->
             case lists:member(TargetSn, Visited) of
                 true ->
-                    {circular, add_error(Ctx,
-                                         yang:stmt_pos(PathStmt),
-                                         'YANG_ERR_CIRCULAR_DEPENDENCY_LEAFREF',
-                                         [?a2l(TargetSn#sn.kind),
-                                          yang_error:fmt_yang_identifier(
-                                            TargetSn#sn.name)])};
+                    {circular,
+                     build_error(Ctx, yang:stmt_pos(PathStmt),
+                                 'YANG_ERR_CIRCULAR_DEPENDENCY_LEAFREF',
+                                 [?a2l(TargetSn#sn.kind),
+                                  yang_error:fmt_yang_identifier(
+                                    TargetSn#sn.name)])};
                 false ->
                     %% make sure that the target's leafref doesn't
                     %% refer to us (directly or indirectly)
@@ -1368,18 +1368,18 @@ validate_leafref_path0(#leafref_type_spec{path = Path},
                             {circular, Ctx1};
                         {true, _, FinalSn} ->
                             {true, TargetSn, FinalSn};
-                        {false, _Ctx1} ->
+                        {false, Error} ->
                             %% ignore other errors, if any; they are
                             %% reported when the leafref is checked
-                            {false, Ctx}
+                            {false, Error#yerror{level = none}}
                     end
             end;
         %% If pointing to a direct leafref, TargetSn
         %% and FinalSn will be the same
         {true, #cursor{cur = Sn}} ->
             {true, Sn, Sn};
-        {false, Ctx1} ->
-            {false, Ctx1}
+        {false, Error} ->
+            {false, Error}
     end.
 
 follow_leafref_path(Path, InitCursor, Ctx) ->
@@ -1403,19 +1403,19 @@ follow_leafref_path({deref, DerefPath, Rest}, Cursor0, InitCursor,
                 {true, Cursor2} ->
                     follow_leafref_path_int(Rest, Cursor2, InitCursor,
                                             ValidateKeys, Ctx0);
-                {false, _} ->
+                {false, Error} ->
                     %% This error will be reported when we validate the
                     %% target leafref.
-                    {false, Ctx0}
+                    {false, Error#yerror{level = none}}
             end;
         {true, #cursor{cur = #sn{name = Name, stmt = Stmt}}} ->
             %% Not ok, deref argument not a leafref
             {false,
-             add_error(Ctx0, Cursor0#cursor.pos, 'YANG_ERR_DEREF_NOT_LEAFREF',
-                       [yang_error:fmt_yang_identifier(Name),
-                        yang_error:fmt_pos(yang:stmt_pos(Stmt))])};
-        {false, Ctx1} ->
-            {false, Ctx1}
+             build_error(Ctx0, Cursor0#cursor.pos, 'YANG_ERR_DEREF_NOT_LEAFREF',
+                         [yang_error:fmt_yang_identifier(Name),
+                          yang_error:fmt_pos(yang:stmt_pos(Stmt))])};
+        {false, Error} ->
+            {false, Error}
     end;
 follow_leafref_path({relative, Path}, Cursor, InitCursor, ValidateKeys, Ctx) ->
     follow_leafref_path_int(Path, Cursor, InitCursor, ValidateKeys, Ctx);
@@ -1436,8 +1436,8 @@ follow_leafref_path_int([parent | T], C0, InitCursor, ValidateKeys, Ctx0) ->
     case yang:cursor_move(parent, C0, Ctx0) of
         {true, C1} ->
             follow_leafref_path_int(T, C1, InitCursor, ValidateKeys, Ctx0);
-        False ->
-            False
+        {false, Error} ->
+            {false, Error}
     end;
 follow_leafref_path_int([{child, Name, KeyEqL} | T], C0, InitCursor,
                         ValidateKeys, Ctx) ->
@@ -1454,11 +1454,11 @@ follow_leafref_path_int([{child, Name, KeyEqL} | T], C0, InitCursor,
                 true ->
                     follow_leafref_path_int(T, C1, InitCursor,
                                             ValidateKeys, Ctx);
-                False ->
-                    False
+                {false, Error} ->
+                    {false, Error}
             end;
-        False ->
-            False
+        {false, Error} ->
+            {false, Error}
     end;
 follow_leafref_path_int([], C, _, _, _) ->
     {true, C}.
@@ -1467,16 +1467,16 @@ check_keys([], _, _, _, _, _) ->
     true;
 check_keys([{{OtherMod, _} = KeyId, _} | _], Mod, _, C1, _, Ctx)
   when OtherMod /= Mod ->
-    {false, add_error(Ctx, C1#cursor.pos,
-                      'YANG_ERR_NODE_NOT_FOUND',
-                      [yang_error:fmt_yang_identifier(KeyId)])};
+    {false, build_error(Ctx, C1#cursor.pos,
+                        'YANG_ERR_NODE_NOT_FOUND',
+                        [yang_error:fmt_yang_identifier(KeyId)])};
 check_keys([{KeyName, _} | _], Mod, _, C1, _, Ctx)
   when is_atom(KeyName),
        Mod /= C1#cursor.init_modulename ->
-    {false, add_error(Ctx, C1#cursor.pos,
-                      'YANG_ERR_NODE_NOT_FOUND2',
-                      [yang_error:fmt_yang_identifier(KeyName),
-                       C1#cursor.init_modulename])};
+    {false, build_error(Ctx, C1#cursor.pos,
+                        'YANG_ERR_NODE_NOT_FOUND2',
+                        [yang_error:fmt_yang_identifier(KeyName),
+                         C1#cursor.init_modulename])};
 check_keys([{KeyId, LeafPath} | T], Mod, Keys, C1, InitCursor, Ctx)
   when is_list(Keys) ->
     case KeyId of
@@ -1502,22 +1502,25 @@ check_keys([{KeyId, LeafPath} | T], Mod, Keys, C1, InitCursor, Ctx)
                 {true, #cursor{cur = #sn{name = Name, stmt = Stmt}}} ->
                     %% Not ok, refers to something else than a leaf.
                     {false,
-                     add_error(Ctx, C1#cursor.pos, 'YANG_ERR_LEAFREF_NOT_LEAF0',
-                               [yang_error:fmt_yang_identifier(Name),
-                                yang_error:fmt_pos(yang:stmt_pos(Stmt))])};
-                False ->
-                    False
+                     build_error(Ctx, C1#cursor.pos,
+                                 'YANG_ERR_LEAFREF_NOT_LEAF0',
+                                 [yang_error:fmt_yang_identifier(Name),
+                                  yang_error:fmt_pos(yang:stmt_pos(Stmt))])};
+                {false, Error} ->
+                    {false, Error}
             end;
         false ->
-            {false, add_error(Ctx, C1#cursor.pos,
-                              'YANG_ERR_NODE_NOT_FOUND',
-                              [yang_error:fmt_yang_identifier(KeyId)])}
+            {false, build_error(Ctx, C1#cursor.pos,
+                                'YANG_ERR_NODE_NOT_FOUND',
+                                [yang_error:fmt_yang_identifier(KeyId)])}
     end;
 check_keys([{KeyId, _LeafPath} | _], _, _, C1, _, Ctx) ->
-    {false, add_error(Ctx, C1#cursor.pos,
-                      'YANG_ERR_NODE_NOT_FOUND',
-                      [yang_error:fmt_yang_identifier(KeyId)])}.
+    {false, build_error(Ctx, C1#cursor.pos,
+                        'YANG_ERR_NODE_NOT_FOUND',
+                        [yang_error:fmt_yang_identifier(KeyId)])}.
 
+build_error(Ctx, Pos, ErrCode, Args) ->
+    yang_error:build_error(Ctx, Pos, ErrCode, Args).
 
 stmt_pos({_, _, Pos, _}) -> Pos;
 stmt_pos(_)              -> undefined.

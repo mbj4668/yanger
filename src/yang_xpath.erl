@@ -377,11 +377,11 @@ v_dep_path(Dep, {_, _, Pos, _}, Ctx, Sn, M, Ancestors) ->
             true  -> yang:mk_cursor(undefined, [], Pos, M, data, Ctx);
             false -> yang:mk_cursor(Sn, Ancestors, Pos, M, data, Ctx)
         end,
-    case yang:cursor_follow_path(Path, InitCursor, Ctx#yctx{errors = []}) of
+    case yang:cursor_follow_path(Path, InitCursor, Ctx) of
         {true, #cursor{cur = CurSn}} ->
             {true, CurSn};
-        {false, #yctx{errors = Errors}} ->
-            {false, Errors}
+        {false, Error} ->
+            {false, [Error]}
     end.
 
 dep_path_to_cursor_path(DepPath, _Ctx) ->

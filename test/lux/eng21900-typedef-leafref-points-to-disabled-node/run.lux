@@ -1,0 +1,36 @@
+[doc]
+Handle validation of path in leafref
+
+If there is a typedef leafref, points to non-existent node, then
+Yanger shall silently ignore the typedef if no node uses the typedef.
+Yanger shall report an error if there is node using the typedef.
+[enddoc]
+
+################################################################################
+
+[shell yanger]
+    -==1==
+    !yanger ENG-21900-1.yang
+    !echo ==$$?==
+    ?==0==
+
+    !yanger ENG-21900-2.yang
+    !echo ==$$?==
+    ?==0==
+
+    !yanger -F ENG-21900-1:enabled-feature ENG-21900-1.yang
+    !echo ==$$?==
+    ?==0==
+
+    -==0==
+    !yanger --print-error-code -F ENG-21900-1:enabled-feature ENG-21900-2.yang
+    ?ENG-21900-1.yang:19: YANG_ERR_NODE_NOT_FOUND3
+    !echo ==$$?==
+    ?==1==
+
+    !yanger --print-error-code -F ENG-21900-2:enabled-feature ENG-21900-2.yang
+    ?ENG-21900-2.yang:16: YANG_ERR_NODE_NOT_FOUND3
+    ?ENG-21900-2.yang:25: YANG_ERR_NODE_NOT_FOUND3
+    ?ENG-21900-2.yang:34: YANG_ERR_NODE_NOT_FOUND3
+    !echo ==$$?==
+    ?==1==

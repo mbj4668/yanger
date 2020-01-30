@@ -350,7 +350,7 @@
          }).
 
 -record(yerror, {
-          level = error :: 'error' | 'warning',
+          level = error :: 'error' | 'warning' | 'none',
           pos :: yang:pos(),
           code :: atom(),
           args :: list()
@@ -542,6 +542,10 @@
           unused_imports = [] :: [{ModuleName :: atom(), [yang:import()]}],
           %% Imports that have only been used in deviations
           deviation_imports = [] :: [{ModuleName :: atom(), [yang:import()]}],
+          %% Typedef leafrefs that failed path validation will be added here.
+          %% These typedefs are only reported as errors if there are any nodes
+          %% using them.
+          bad_typedefs :: yang:map({Name :: atom(), yang:modrev()}, #yerror{}),
           pmap = yang:map_new() :: yang:map0() % used by plugins
          }).
 

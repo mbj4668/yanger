@@ -1,0 +1,39 @@
+module ENG-21900-1 {
+  yang-version 1.1;
+  namespace "http://tail-f.com/eng-21900-1";
+  prefix eng-1;
+
+  feature enabled-feature;
+  feature disabled-feature;
+
+  typedef typedef-leafref-no-prefix {
+    type leafref {
+      require-instance false;
+      path "/the-container/the-list/the-leaf";
+    }
+  }
+
+  typedef typedef-leafref-has-prefix {
+    type leafref {
+      require-instance false;
+      path "/eng-1:the-container/eng-1:the-list/eng-1:the-leaf";
+    }
+  }
+
+  typedef typedef-uses-typedef-leafref {
+    type typedef-leafref-no-prefix;
+  }
+
+  container the-container {
+    list the-list {
+      if-feature "disabled-feature";
+      key name;
+      leaf name {
+        type string;
+      }
+      leaf the-leaf {
+        type string;
+      }
+    }
+  }
+}

@@ -306,6 +306,7 @@ new_ctx(Plugins) ->
                  revs = map_new(),
                  typemap = map_new(),
                  files = map_new(),
+                 bad_typedefs = map_new(),
                  env = Env},
     Ctx2 = lists:foldl(fun(M, Ctx1) -> M:init(Ctx1) end, Ctx0, Plugins),
     Ctx2#yctx{env = (Ctx2#yctx.env)#env{
@@ -2979,8 +2980,8 @@ follow_unique_path([H | T], Cursor0, Ctx) ->
                                       [yang_error:fmt_yang_identifier(Name),
                                        Kind])}
             end;
-        {false, _Ctx} = Else ->
-            Else
+        {false, Error} ->
+            {false, yang_error:add_error(Error, Ctx)}
     end;
 follow_unique_path([], Cursor, _) ->
     {true, Cursor}.
@@ -4124,6 +4125,10 @@ add_leafref_config_error(Ctx, Pos, TargetSn) ->
               [yang_error:fmt_yang_identifier(TargetName),
                yang_error:fmt_pos(stmt_pos(TargetStmt))]).
 
+add_xpath_bad_ref(#yerror{code = 'YANG_ERR_REFER_TOP_NODE' = Code,
+                          args = Args, pos = Pos},
+                  Ctx) ->
+    add_error(warning, Ctx, Pos, Code, Args);
 add_xpath_bad_ref(#yerror{code = Code, args = Args, pos = Pos},
                   #yctx{error_codes = Codes} = Ctx) ->
     add_error(Ctx, Pos, 'YANG_ERR_XPATH_BAD_REF',
@@ -4168,8 +4173,8 @@ post_expand_typedefs(_, _, _, Ctx) ->
 %% will be reported for each 'uses', with the grouping's pos()...
 
 validate_leafref_path_and_default(#typedef{default = BaseDefault,
-                                           moduleref = MRef}, Default,
-                                  TypeSpec, Sn, _, _, M, Ancestors, Ctx0) ->
+                                           moduleref = MRef} = Base, Default,
+                                  TypeSpec, Sn, _, Stmt, M, Ancestors, Ctx0) ->
     %% Validate the default if possible,
     %% ignoring leafref path validation failure
     case yang_types:validate_leafref_path(TypeSpec, Sn, M, Ancestors, Ctx0) of
@@ -4180,7 +4185,7 @@ validate_leafref_path_and_default(#typedef{default = BaseDefault,
                true ->
                     Ctx1
             end;
-        {false, Ctx1} ->
+        {false, Ctx1} when is_record(Ctx1, yctx) ->
             %% error is reported in "root" typedef check unless its module
             %% has conformance 'import'
             {TypedefModName, TypedefModRev} = MRef,
@@ -4194,7 +4199,11 @@ validate_leafref_path_and_default(#typedef{default = BaseDefault,
                     end;
                true ->
                     Ctx0
-            end
+            end;
+        {false, Error} when is_record(Error, yerror) andalso Sn == undefined ->
+            update_bad_typedefs(Stmt, M, Error, Ctx0);
+        {false, Error} when is_record(Error, yerror) ->
+            maybe_add_error(Base, Error, Ctx0)
     end;
 validate_leafref_path_and_default(_, Default, TypeSpec,
                                   Sn, Status, Stmt, M, Ancestors, Ctx0) ->
@@ -4206,8 +4215,30 @@ validate_leafref_path_and_default(_, Default, TypeSpec,
                               stmt_pos(Stmt), Ctx0),
             Ctx2 = validate_leafref_config(Sn, TargetSn, TypeSpec, Ctx1, false),
             validate_leafref_default(Default, Sn, FinalSn, M, Ctx2);
-        {false, Ctx1} ->
-            Ctx1
+        {false, Ctx1} when is_record(Ctx1, yctx) ->
+            Ctx1;
+        {false, Error} when is_record(Error, yerror) andalso Sn == undefined ->
+            update_bad_typedefs(Stmt, M, Error, Ctx0);
+        {false, Error} when is_record(Error, yerror) ->
+            yang_error:add_error(Error, Ctx0)
+    end.
+
+update_bad_typedefs({_, Name, _, _},
+                    #module{modulename = ModName, modulerevision = ModRev},
+                    Error, #yctx{bad_typedefs = Map} = Ctx) ->
+    NewMap = map_insert({Name, {ModName, ModRev}}, Error, Map),
+    Ctx#yctx{bad_typedefs = NewMap}.
+
+maybe_add_error(#typedef{name = Name, moduleref = ModRef},
+                Error, #yctx{bad_typedefs = Map} = Ctx) ->
+    case map_lookup({Name, ModRef}, Map) of
+        none ->
+            Ctx;
+        _ ->
+            %% Add error and delete the typedef in bad_typedefs to make sure
+            %% we only add error once.
+            NewMap = map_delete({Name, ModRef}, Map),
+            yang_error:add_error(Error, Ctx#yctx{bad_typedefs = NewMap})
     end.
 
 validate_leafref_default(Defaults,
@@ -4611,6 +4642,9 @@ chk_any_mandatory([H | T], PruneAugment, PruneConfigFalse) ->
 chk_any_mandatory([], _, _) ->
     false.
 
+build_error(Ctx, Pos, ErrCode, Args) ->
+    yang_error:build_error(Ctx, Pos, ErrCode, Args).
+
 add_error(Ctx, Pos, ErrCode, Args) ->
     yang_error:add_error(Ctx, Pos, ErrCode, Args).
 
@@ -4653,7 +4687,7 @@ cursor_reset(Sn, Cursor) ->
 
 -spec cursor_follow_path(cursor_path(), #cursor{}, #yctx{}) ->
           {true, #cursor{}}
-        | {false, #yctx{}}.
+        | {false, #yerror{}}.
 %% Nodes with with if_feature_result == false are
 %% considered to *not* exist, see find_child/5.
 cursor_follow_path([H | T], Cursor0, Ctx) ->
@@ -4663,12 +4697,14 @@ cursor_follow_path([H | T], Cursor0, Ctx) ->
         Error ->
             Error
     end;
+cursor_follow_path([], #cursor{cur = {top, _}, pos = Pos}, Ctx) ->
+    {false, build_error(Ctx, Pos, 'YANG_ERR_REFER_TOP_NODE', [])};
 cursor_follow_path([], Cursor, _Ctx) ->
     {true, Cursor}.
 
 -spec cursor_move(cursor_path_element(), #cursor{}, #yctx{}) ->
           {true, #cursor{}}
-        | {false, #yctx{}}.
+        | {false, #yerror{}}.
 %% Moves up or down in the module trees using a cursor.
 %% Nodes with with if_feature_result == false are
 %% considered to *not* exist, see find_child/5.
@@ -4699,7 +4735,7 @@ cursor_move(parent, #cursor{cur = #sn{} = Sn, ancestors = []} = C, _Ctx) ->
                     last_skipped = undefined}};
 cursor_move(parent, C, Ctx) ->
     %% move up from the top-level
-    {false, add_error(Ctx, C#cursor.pos, 'YANG_ERR_TOO_MANY_UP', [])};
+    {false, build_error(Ctx, C#cursor.pos, 'YANG_ERR_TOO_MANY_UP', [])};
 
 cursor_move({child, Id},
             #cursor{cur = #sn{children = Chs} = CurSn,
@@ -4725,26 +4761,26 @@ cursor_move({child, Id},
             end,
             case CurSn#sn.module of
                 undefined ->
-                    {false, add_error(Ctx, C#cursor.pos,
-                                      'YANG_ERR_NODE_NOT_FOUND2',
-                                      [yang_error:fmt_yang_identifier(Name),
-                                       Mod])};
+                    {false, build_error(Ctx, C#cursor.pos,
+                                        'YANG_ERR_NODE_NOT_FOUND2',
+                                        [yang_error:fmt_yang_identifier(Name),
+                                         Mod])};
                 M ->
                     {false,
-                     add_error(Ctx, C#cursor.pos,
-                               'YANG_ERR_NODE_NOT_FOUND3',
-                               [yang_error:fmt_yang_identifier(Name),
-                                Mod,
-                                yang_error:fmt_yang_identifier(CurSn#sn.name),
-                                M#module.modulename])}
+                     build_error(Ctx, C#cursor.pos,
+                                 'YANG_ERR_NODE_NOT_FOUND3',
+                                 [yang_error:fmt_yang_identifier(Name),
+                                  Mod,
+                                  yang_error:fmt_yang_identifier(CurSn#sn.name),
+                                  M#module.modulename])}
             end
     end;
 cursor_move({child, {Mod, Name}}, #cursor{cur = {top, OtherMod}} = C, Ctx)
   when Mod /= OtherMod ->
     %% trying to move down in wrong module with relative path
-    {false, add_error(Ctx, C#cursor.pos,
-                      'YANG_ERR_NODE_NOT_FOUND2',
-                      [yang_error:fmt_yang_identifier(Name), Mod])};
+    {false, build_error(Ctx, C#cursor.pos,
+                        'YANG_ERR_NODE_NOT_FOUND2',
+                        [yang_error:fmt_yang_identifier(Name), Mod])};
 cursor_move({child, {Mod, Name} = Id}, C, Ctx) ->
     %% move down from the top-level
     if (C#cursor.module)#module.modulename == Mod ->
@@ -4764,9 +4800,9 @@ cursor_move({child, {Mod, Name} = Id}, C, Ctx) ->
             {true, C#cursor{cur = Sn, ancestors = [],
                             last_skipped = undefined}};
         false ->
-            {false, add_error(Ctx, C#cursor.pos,
-                              'YANG_ERR_NODE_NOT_FOUND2',
-                              [yang_error:fmt_yang_identifier(Name), Mod])}
+            {false, build_error(Ctx, C#cursor.pos,
+                                'YANG_ERR_NODE_NOT_FOUND2',
+                                [yang_error:fmt_yang_identifier(Name), Mod])}
     end;
 cursor_move({child, Name}, C, Ctx) ->
     %% move down from top-level in current module
