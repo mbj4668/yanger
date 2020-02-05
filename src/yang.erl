@@ -342,6 +342,15 @@ data_definition_stmts() ->
 %% @doc Initialize the YANG compiler context.
 init_ctx(Ctx0, ExtraSearchPath) ->
     SearchPath = ExtraSearchPath ++ search_path(),
+    case do_verbose(?V_NORMAL, Ctx0) of
+        true ->
+            io:format("YANG module search path:\n"),
+            lists:foreach(fun(Dir) ->
+                                  io:format("  ~s\n", [Dir])
+                          end, SearchPath);
+        false ->
+            ok
+    end,
     Files = lists:foldl(
               fun(Dir, Acc) ->
                       case file:list_dir(Dir) of
@@ -494,7 +503,7 @@ v_unique_namespaces(#yctx{modrevs = ModRevs} = Ctx) ->
     Ctx1.
 
 add_file0(Ctx, FileName, AddCause) ->
-    verbose(?V_NORMAL, Ctx, "# read file ~s\n", [FileName]),
+    verbose(?V_NORMAL, Ctx, "Read file ~s\n", [FileName]),
     case yang_parser:parse(FileName, Ctx#yctx.canonical) of
         {ok, Stmts, LLErrors} ->
             Ctx1 = add_llerrors(LLErrors, Ctx),
@@ -516,10 +525,16 @@ add_file0(Ctx, FileName, AddCause) ->
             {false, add_llerrors(LLErrors, Ctx), undefined}
     end.
 
-verbose(Lvl, #yctx{verbosity = V}, _, _) when Lvl > V ->
-    ok;
-verbose(_, _, Fmt, Args) ->
-    io:format(Fmt, Args).
+do_verbose(Lvl, #yctx{verbosity = V}) ->
+    Lvl =< V.
+
+verbose(Lvl, Ctx, Fmt, Args) ->
+    case do_verbose(Lvl, Ctx) of
+        true ->
+            io:format(Fmt, Args);
+        false ->
+            ok
+    end.
 
 parse_file_name(FileName) ->
     BaseName = filename:basename(FileName, ".yang"),
@@ -632,7 +647,7 @@ search_file(Ctx, FromPos, ModKeyword, ModuleName, Revision,
                     Canonical = false,
                     AddCause = 'import'
             end,
-            verbose(?V_NORMAL, Ctx, "# read file ~s\n", [FileName]),
+            verbose(?V_NORMAL, Ctx, "Read file ~s\n", [FileName]),
             case yang_parser:parse(FileName, Canonical) of
                 {ok, Stmts, LLErrors} ->
                     Ctx1 = add_llerrors(LLErrors, Ctx),
