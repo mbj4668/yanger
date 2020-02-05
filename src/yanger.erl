@@ -15,6 +15,7 @@
 
 -record(opts, {
           canonical = false,
+          verbose = false,
           strict = false,
           print_error_code = false,
           path = [],
@@ -132,6 +133,11 @@ convert_options(Ctx1, Options) ->
                                  Opts#opts.warnings,
                                  Opts#opts.errors}},
     Ctx4 = Ctx3#yctx{canonical = Opts#opts.canonical,
+                     verbosity = if Opts#opts.verbose ->
+                                         ?V_NORMAL;
+                                    true ->
+                                         ?V_SILENT
+                                 end,
                      strict = Opts#opts.strict,
                      conformances = Opts#opts.conformances,
                      apply_deviations = not Opts#opts.no_deviation_apply},
@@ -163,6 +169,8 @@ option_specs(Ctx) ->
      {version,          $v, "version", undefined,
       "Show version number and exit."},
 
+     {verbose,          $V, "verbose", undefined,
+      "Verbose output."},
      {print_error_code, undefined, "print-error-code", undefined,
       "On errors, print the error code instead of the error message."},
      {path,             $p, "path", string,
@@ -242,6 +250,8 @@ opts(Options, Ctx) ->
     lists:foldl(
       fun(Opt, Opts) ->
               case Opt of
+                  verbose ->
+                      Opts#opts{verbose = true};
                   canonical ->
                       Opts#opts{canonical = true};
                   strict ->

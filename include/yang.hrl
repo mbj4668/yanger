@@ -19,6 +19,10 @@
                                        ?stacktrace()])).
 -endif.
 
+%% verbosity level
+-define(V_SILENT, 0).
+-define(V_NORMAL, 1).
+
 -record(type, {
           %% 'builtin' means "really" builtin #type{} in #yctx.typemap
           %% - never used for #type{} in type_spec(), #typedef{}, or #sn{}
@@ -494,6 +498,7 @@
 
 -record(yctx, {
           search_path = [] :: [DirName :: string()],
+          verbosity = ?V_SILENT :: yang:verbosity(),
           xpath_functions = [] :: [{Name :: atom(), Arity :: integer()}],
           primary_module_names = [] :: [atom()],
           %% contains all modules and submodules found

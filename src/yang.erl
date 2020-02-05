@@ -86,7 +86,7 @@
 
 -include("yang_llerror.hrl").
 
--export_type([builtin_type_name/0,
+-export_type([builtin_type_name/0, verbosity/0,
               cursor_path/0, cursor_type/0, cursor_skipped/0,
               hookfun/0, keyword/0, kind/0,
               map/2, map0/0, module_rec/0, pos/0, prefix_map/0,
@@ -94,6 +94,8 @@
               grouping_rec/0, typedef_rec/0, augment_rec/0,
               validate_status/0, yang_identifier/0, yang_status/0,
               import/0, yang_version/0, modrev/0, conformance/0]).
+
+-type verbosity() :: ?V_SILENT | ?V_NORMAL.
 
 -type yang_version() :: '1' | '1.1'.
 
@@ -492,6 +494,7 @@ v_unique_namespaces(#yctx{modrevs = ModRevs} = Ctx) ->
     Ctx1.
 
 add_file0(Ctx, FileName, AddCause) ->
+    verbose(?V_NORMAL, Ctx, "# read file ~s\n", [FileName]),
     case yang_parser:parse(FileName, Ctx#yctx.canonical) of
         {ok, Stmts, LLErrors} ->
             Ctx1 = add_llerrors(LLErrors, Ctx),
@@ -512,6 +515,11 @@ add_file0(Ctx, FileName, AddCause) ->
         {error, LLErrors} ->
             {false, add_llerrors(LLErrors, Ctx), undefined}
     end.
+
+verbose(Lvl, #yctx{verbosity = V}, _, _) when Lvl > V ->
+    ok;
+verbose(_, _, Fmt, Args) ->
+    io:format(Fmt, Args).
 
 parse_file_name(FileName) ->
     BaseName = filename:basename(FileName, ".yang"),
@@ -624,6 +632,7 @@ search_file(Ctx, FromPos, ModKeyword, ModuleName, Revision,
                     Canonical = false,
                     AddCause = 'import'
             end,
+            verbose(?V_NORMAL, Ctx, "# read file ~s\n", [FileName]),
             case yang_parser:parse(FileName, Canonical) of
                 {ok, Stmts, LLErrors} ->
                     Ctx1 = add_llerrors(LLErrors, Ctx),
