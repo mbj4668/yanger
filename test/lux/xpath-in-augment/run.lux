@@ -1,0 +1,8 @@
+[doc Test that must expr are checked in augment with when in 1.1]
+
+[shell compilation]
+    !yanger --print-error-code b.yang
+    -SH-PROMPT
+    ?YANG_ERR_XPATH_BAD_REF
+    -
+    ?SH-PROMPT

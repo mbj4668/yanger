@@ -3516,10 +3516,9 @@ post_expand_module_after_remote_augments_and_deviations(
     lists:foldl(
       fun({TargetName, RAugments}, Ctx_0) ->
               lists:foldl(
-                fun(#augment{has_when = true}, Ctx_1)
-                      when YangVersion /= '1' ->
-                        Ctx_1;
-                   (#augment{target_node = TN, children = Chs0}, Ctx_1) ->
+                fun(#augment{target_node = TN, children = Chs0,
+                             has_when = HasWhen},
+                    Ctx_1) ->
                         %% Since patch_target() has been done for target_node,
                         %% nodes in the augment target module have just a name,
                         %% while other nodes have {ModuleName, Name}
@@ -3536,12 +3535,12 @@ post_expand_module_after_remote_augments_and_deviations(
                                     get_updated_children(TargetName, TN, Chs0,
                                                          M, Ctx_1),
                                 Ctx_2 =
-                                    v_no_mandatory(
-                                      Chs,
-                                      _PruneAugment = children,
-                                      _PruneConfigFalse = YangVersion /= '1',
-                                      'YANG_ERR_MANDATORY_NODE_IN_AUGMENT',
-                                      Ctx_1),
+                                    if HasWhen andalso YangVersion /= '1' ->
+                                            Ctx_1;
+                                       true ->
+                                            v_no_mandatory_aug(
+                                              Chs, YangVersion, Ctx_1)
+                                    end,
                                 %% Since deviations might have changed nodes
                                 %% (e.g. not-supported) we need to run this
                                 %% again.
@@ -3553,6 +3552,13 @@ post_expand_module_after_remote_augments_and_deviations(
                         end
                 end, Ctx_0, RAugments)
       end, Ctx, M#module.remote_augments).
+
+v_no_mandatory_aug(Chs, YangVersion, Ctx_1) ->
+    v_no_mandatory(Chs,
+                   _PruneAugment = children,
+                   _PruneConfigFalse = YangVersion /= '1',
+                   'YANG_ERR_MANDATORY_NODE_IN_AUGMENT',
+                   Ctx_1).
 
 get_updated_children(TargetName, TargetNode, Children, M, Ctx) ->
     case get_imported_module(TargetName, M, Ctx) of
