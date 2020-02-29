@@ -890,10 +890,12 @@ is_data_def(Keyword, #yctx{env = #env{data_definition_stmts = D}}) ->
         andalso yang:map_is_key(Keyword, D).
 
 
+% In case of a submodule we need to use modulename not name.
 name(true = _IsTopNode, #sn{module = Module} = Sn, _Mod) ->
-    {_, ModuleName, _, _} = Module#module.stmt,
+    ModuleName = Module#module.modulename,
     LocalName = local_name(Sn),
     ?a2l(ModuleName) ++ ":" ++ LocalName;
+
 name(false = _IsTopNode, #sn{module = Module} = Sn, Mod) ->
     LocalName = local_name(Sn),
     if Module#module.modulename == Mod#module.modulename ->
