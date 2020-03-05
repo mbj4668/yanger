@@ -22,7 +22,7 @@ brew install erlang coreutils
 
 ```
 
-3. (optional) install lux to verify test cases 
+3. (optional) install lux to verify test cases
 
 ```
 ##deps
@@ -87,7 +87,7 @@ docker run -it -v ${PWD}:/workdir mbj4668/yanger -t expand -f swagger test_leaf.
 Sample Usage
 -----------------
 
-To create a Swagger JSON file from a yang file, you must first have a yang file, 
+To create a Swagger JSON file from a yang file, you must first have a yang file,
 for example, create the following `test_leaf.yang` file in your current working directory:
 
 ```
@@ -104,7 +104,7 @@ container test_vars{
 }
 ```
 
-Next you must tell yanger which format to output the yang into, in this example, 
+Next you must tell yanger which format to output the yang into, in this example,
 it is the swagger JSON format, giving the new file output name `test_leaf_now_swagger.json`:
 
 ```
@@ -128,8 +128,8 @@ $ more test_leaf_now_swagger.json
 .....
 ```
 
-You can for example take the Swagger file to the [Swaggerhub](https://app.swaggerhub.com/home) and auto create an SDK from 
-it in a python flask format or other languages. The Swaggerhub requires free registration. 
+You can for example take the Swagger file to the [Swaggerhub](https://app.swaggerhub.com/home) and auto create an SDK from
+it in a python flask format or other languages. The Swaggerhub requires free registration.
 
 
 For running tests
@@ -154,3 +154,15 @@ Hint for emacs users:
 (setq whitespace-style (quote (face trailing tabs lines)))
 
 and use whitespace-mode.
+
+
+
+Debugging
+=========
+If you wanted to use the erl-shell in order to debug you could:
+
+```
+erl -pa ./ebin
+yanger:main(["-p","<<YANG_PATH>>","-f","swagger","<<YANG_PATH>>/tailf-ncs.yang","-o","tailf-ncs.json"]).
+```
+

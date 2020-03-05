@@ -1762,7 +1762,7 @@ body(json, IsTop, Context, HttpMethod, PathType, Mode,
      fmt_type(Lvl + 2, {object, undefined}), ",\n",
      Indent6, "\"properties\": {",
      %% child properties
-     lists:join($,, ChildProperties), "\n",
+     lists:join($,, lists:usort(ChildProperties)), "\n",
      Indent6, "}\n",
      Indent4, "}\n",
      Indent2, "}"
