@@ -467,6 +467,9 @@ run(Ctx0, Opts, Files) ->
                 false ->
                     ok
             end;
+       HasTransformErrors ->
+            yang_error:print_errors(Ctx3, Opts#opts.print_error_code),
+            throw({error, errors_printed});
        true ->
             throw({error, format_no_modules})
     end.
