@@ -1,0 +1,17 @@
+module dev {
+
+  namespace "http://tail-f.com/ns/deviant-art";
+  prefix deviant-art;
+
+  import deviated {
+    prefix deviated;
+  }
+
+  deviation '/deviated:cont/deviated:native-cont/deviated:deviant-art' {
+    deviate replace {
+      type enumeration {
+        enum any { description "Deviation-replacement"; }
+      }
+    }
+  }
+}

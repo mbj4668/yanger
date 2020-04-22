@@ -1,0 +1,24 @@
+module deviated {
+  yang-version 1.1;
+  namespace "http://tail-f.com/ns/deviated";
+
+  prefix deviated;
+
+  typedef restricted-string {
+    type string { pattern "(a-z)+"; }
+  }
+
+  container cont {
+    container native-cont {
+      leaf deviant-art {
+        type union {
+          type restricted-string;
+          type enumeration {
+            enum any { description "This is to be deviated-replaced"; }
+          }
+        }
+        default any;
+      }
+    }
+  }
+}
