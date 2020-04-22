@@ -2726,7 +2726,8 @@ post_mk_sn_type(Ctx0,
            true ->
                 Ctx1
         end,
-    {Ctx2, Sn#sn{type = Type}};
+    %% Force reprocessing of default value in case when the type was changed
+    {Ctx2, Sn#sn{type = Type, default = undefined}};
 post_mk_sn_type(Ctx, Sn, _, _, _) ->
     {Ctx, Sn}.
 
