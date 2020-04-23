@@ -10,7 +10,7 @@ build:
 test:
 	@error="" ; \
 	for d in $(DIRS);  do \
-		( cd $$d && $(MAKE) test;  \
+		( cd $$d && env MAKE=$(MAKE) $(MAKE) test;  \
 	         ) || error="$$error $$d"; \
 	done ; \
 	if [ "$$error" ]; then \

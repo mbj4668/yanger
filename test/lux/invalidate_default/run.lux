@@ -1,7 +1,5 @@
 [doc Test of YANG model deviation compilation and use]
 
-[config require=MAKE]
-
 [global fail_pattern=[Ee][Rr][Rr][Oo][Rr]]
 
 ################################################################################
