@@ -13,7 +13,7 @@ APP_OBJECTS := $(APP_SOURCES:%.app.src=../ebin/%.app)
 
 ERLC ?= erlc
 
-ERLC_FLAGS += -DVSN=\"$(VSN)\" -pa ../../yanger/ebin -Werror
+ERLC_FLAGS += -DVSN=\"$(VSN)\" -pa ../../yanger/ebin -Werror +debug_info
 
 compile: all
 
