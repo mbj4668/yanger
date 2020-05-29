@@ -10,6 +10,10 @@ ERL_OBJECTS += ../ebin/yang_llerror.beam
 APP_SOURCES := $(wildcard *.app.src)
 APP_OBJECTS := $(APP_SOURCES:%.app.src=../ebin/%.app)
 
+null  :=
+space := $(null) #
+comma := ,
+MODULES := $(subst $(space),$(comma),$(strip $(ERL_SOURCES:%.erl=%)))
 
 ERLC ?= erlc
 
@@ -28,7 +32,7 @@ yang_llerror.hrl: ../c_src/yang_error.h
 ../ebin/yang.beam: yang_llerror.hrl
 
 ../ebin/%.app: %.app.src ../vsn.mk Makefile
-	perl -e $(APPSCRIPT) "$(VSN)" $(MODULES) < $< > $@
+	sed -e "s/%VSN%/$(VSN)/; s/%MODULES%/$(MODULES)/" < $< > $@
 
 ../ebin/%.beam: %.erl
 	$(ERLC) $(ERLC_FLAGS) -o ../ebin $<

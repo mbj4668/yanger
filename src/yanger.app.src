@@ -2,6 +2,7 @@
  [
   {description, ""},
   {vsn, "%VSN%"},
+  {modules, [%MODULES%]},
   {registered, []},
   {applications, [
                   kernel,
