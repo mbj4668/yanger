@@ -6,7 +6,7 @@
 
 -export([main/1, main/2]).
 -export([vsn/0]).
--export([create_ctx/1, convert_options/2, run/3]).
+-export([create_ctx/1, create_ctx/3, convert_options/2, run/3]).
 -export([print_error/1, print_crash/2]).
 
 -export_type([error/0, opts/0]).
@@ -80,7 +80,8 @@ main(Args) ->
 do_main(Name, Args) ->
     %% Peek into the command line and load the plugin code
     PluginPath = get_plugin_path(Args),
-    Ctx0 = create_ctx(PluginPath),
+    {Pa, Pz} = get_erlang_path(Args, [], []),
+    Ctx0 = create_ctx(PluginPath, Pa, Pz),
 
     %% Parse the command line
     case getopt:parse(Ctx0#yctx.option_specs, Args) of
@@ -108,6 +109,12 @@ do_main(Name, Args) ->
 %% Non-interactive entry point.
 %% Must call convert_options() after this call.
 create_ctx(PluginPath) ->
+    create_ctx(PluginPath, [], []).
+
+-spec create_ctx([string()], [string()], [string()]) -> #yctx{}.
+create_ctx(PluginPath, Pa, Pz) ->
+    lists:foreach(fun(P) -> code:add_patha(P) end, Pa),
+    lists:foreach(fun(P) -> code:add_pathz(P) end, Pz),
     Plugins = yang:load_plugins(PluginPath),
     %% Create a new context and initialize the plugins.
     %% This is done before command line parsing, in order to
@@ -177,6 +184,10 @@ option_specs(Ctx) ->
       "colon-separated path for YANG modules."},
      {plugindir,        $P, "plugindir", string,
       "Load yanger plugins from PLUGINDIR."},
+     {pa,               undefined, "pa", string,
+      "Erlang -pa, for plugins."},
+     {pz,               undefined, "pz", string,
+      "Erlang -pz, for plugins."},
      {canonical,        $c, "canonical", undefined,
       "Validate the module(s) according to the canonical YANG order."},
      {strict,           undefined, "strict", undefined,
@@ -699,6 +710,15 @@ get_plugin_path([_ | T]) ->
     get_plugin_path(T);
 get_plugin_path([]) ->
     [].
+
+get_erlang_path(["--pa", Dir | T], Pa, Pz) ->
+    get_erlang_path(T, [Dir | Pa], Pz);
+get_erlang_path(["--pz", Dir | T], Pa, Pz) ->
+    get_erlang_path(T, Pa, [Dir | Pz]);
+get_erlang_path([_ | T], Pa, Pz) ->
+    get_erlang_path(T, Pa, Pz);
+get_erlang_path([], Pa, Pz) ->
+    {lists:reverse(Pa), lists:reverse(Pz)}.
 
 -spec get_error_mask() -> false | string().
 get_error_mask() ->
