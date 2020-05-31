@@ -660,32 +660,37 @@ print_crash(X, Stacktrace0) ->
 print_internal_error(YANGERROR, Reason, StackTrace) ->
     case YANGERROR of
         "stack" ->
-            io:format(standard_error,
-                      "internal error\n~p\n~p\n",
-                      [Reason, StackTrace]);
+            local_format_error("internal error\n~p\n~p\n",
+                               [Reason, StackTrace]);
         "pruned-stack" ->
-            io:format(standard_error,
-                      "internal error: ~p\n~p\n",
-                      [prune_reason(Reason),
-                       prune_stacktrace(StackTrace)]);
+            local_format_error("internal error: ~p\n~p\n",
+                               [prune_reason(Reason),
+                                prune_stacktrace(StackTrace)]);
         "super-pruned" ->
-            io:format(standard_error,
-                      "internal error: ~p\n~p\n",
-                      [prune_reason(Reason),
-                       superprune_stacktrace(StackTrace)]);
+            local_format_error("internal error: ~p\n~p\n",
+                               [prune_reason(Reason),
+                                superprune_stacktrace(StackTrace)]);
         DepthStr ->
             case (catch ?l2i(DepthStr)) of
                 {'EXIT', _} ->
-                    Depth = 10;
+                    Depth = 20;
                 Depth ->
                     ok
             end,
-            io:format(standard_error, "~P\n~p\n",
-                      [Reason, Depth, StackTrace])
+            local_format_error("~P\n~P\n",
+                               [Reason, Depth, StackTrace, Depth])
     end.
+
+local_format_error(Format, Data) ->
+    %% Avoid the "unsharing" of subterms in Reason and StackTrace (which
+    %% may take literally forever when not "pruned") that is done when
+    %% sending them to the I/O server if io:format/3 is used "directly".
+    io:format(standard_error, "~s", [io_lib:format(Format, Data)]).
 
 prune_reason(T) when is_tuple(T) ->
     element(1, T);
+prune_reason(A) when is_atom(A) ->
+    A;
 prune_reason(_) ->
     [].
 
