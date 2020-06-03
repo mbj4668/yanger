@@ -17,7 +17,7 @@
 -define(stmt_substmts, yang:stmt_substmts).
 -define(in,            lists:member).
 
--type mode() :: data | rpc | input | output | notification.
+-type mode() :: data | rpc | input | output | notification | structure.
 
 -spec help() -> binary().
 help() ->
@@ -109,6 +109,9 @@ emit_tree(Ctx, [Mod|Mods], AllMods, Fd, Depth, Path) ->
     Chs    = [C || C <- ExistingChildren, is_data_def(C#sn.kind, Ctx)],
     Rpcs   = [C || C <- ExistingChildren, C#sn.kind == 'operation'],
     Notifs = [C || C <- ExistingChildren, C#sn.kind == 'notification'],
+    Structs = [C || C <- ExistingChildren,
+                      ?stmt_kw(C#sn.stmt) == {'ietf-yang-structure-ext',
+                                              'structure'}],
     YangDatas = [C || C <- ExistingChildren,
                       ?stmt_kw(C#sn.stmt) == {'ietf-restconf', 'yang-data'}],
     AllModuleNames = [Mx#module.name|| Mx <- AllMods],
@@ -125,7 +128,8 @@ emit_tree(Ctx, [Mod|Mods], AllMods, Fd, Depth, Path) ->
                   end
           end, [], Mod#module.remote_augments),
 
-    if Chs == [] andalso Rpcs == [] andalso Notifs == [], Augs == [] ->
+    if Chs == [] andalso Rpcs == [] andalso Notifs == [] andalso Augs == []
+       andalso Structs == [] andalso YangDatas == [] ->
             skip;
        true ->
             print_header(Mod, Fd)
@@ -160,7 +164,17 @@ emit_tree(Ctx, [Mod|Mods], AllMods, Fd, Depth, Path) ->
             print_list(Notifs, Mod, Fd, Path, notification, Depth, "  "),
             SectionPrinted4 = Notifs /= [] orelse SectionPrinted3,
 
-            maybe_print_separator(Fd, SectionPrinted4 andalso YangDatas /= []),
+            maybe_print_separator(Fd, SectionPrinted4 andalso Structs /= []),
+            lists:foreach(
+              fun(YD) ->
+                      io:format(Fd, "  structure ~s:~n",
+                                [?stmt_arg(YD#sn.stmt)]),
+                      print_list(YD#sn.children, Mod, Fd, Path, structure,
+                                 Depth, "  ")
+              end, Structs),
+            SectionPrinted5 = Structs /= [] orelse SectionPrinted4,
+
+            maybe_print_separator(Fd, SectionPrinted5 andalso YangDatas /= []),
             lists:foreach(
               fun(YD) ->
                       io:format(Fd, "  yang-data ~s:~n",
@@ -188,7 +202,7 @@ maybe_print_separator(_Fd, false) ->
     ok.
 
 print_list(Chs, Mod, Fd, Path, Mode, Depth, Prefix) ->
-    case (Chs == []) orelse (Mode == data) of
+    case (Chs == []) orelse (Mode == data) orelse (Mode == structure) of
             true  -> skip;
             false -> io:format(Fd, "  ~ss:~n", [Mode])
     end,
@@ -374,6 +388,7 @@ flags_str(#sn{kind = Kind, config = Config}, Mode) ->
     if Mode == input        -> "-w";
        Kind == operation    -> "-x";
        Kind == notification -> "-n";
+       Mode == structure    -> "";
        Config == true       -> "rw";
        Config == false;
        Mode == output;
