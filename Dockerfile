@@ -8,7 +8,7 @@ ENV YANG_MODPATH="${YANGER_LOCATION}/modules"
 WORKDIR ${YANGER_LOCATION}
 COPY ./ ${YANGER_LOCATION}
 
-# emacs required for etags 
+# emacs required for etags
 # -virtual used to remove build deps as part of single layer, keep image small
 RUN set -xe \
     && apk add --no-cache coreutils libxml2-dev \
