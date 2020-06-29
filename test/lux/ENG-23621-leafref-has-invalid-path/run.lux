@@ -1,0 +1,19 @@
+[doc]
+Check invalid path in leafref path handled gracefully.
+
+If there is a leafref path that points to an invalid path eg. invalid namespace
+due to not imported modules, or XPATH compilation failed for some reason,
+yanger shall report a proper error. This is the case for most of the scenarios
+but when a leafref points to another leafref that has an invalid path, we were
+getting an internal error previously. This test ensures that yanger reports a
+proper error message.
+[enddoc]
+
+################################################################################
+
+[shell yanger]
+    -function_clause
+    !env YANGERROR=super-pruned yanger --verbose test.yang
+    ???test.yang:11: error: XPath error: Invalid namespace prefix: ngsub
+    !echo ==$$?==
+    ?==1==

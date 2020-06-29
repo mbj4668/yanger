@@ -1,0 +1,14 @@
+module test {
+  namespace "http://acme/test";
+  prefix test;
+  leaf name {
+    type leafref {
+      path '../name2';
+    }
+  }
+  leaf name2 {
+    type leafref {
+      path '/ngsub:sub-vpns';
+    }
+  }
+}

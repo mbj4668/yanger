@@ -1337,6 +1337,10 @@ validate_leafref_path(#leafref_type_spec{path_stmt = Stmt} = TypeSpec,
             {false, Error}
     end.
 
+validate_leafref_path0(#leafref_type_spec{path = undefined},
+		       _InitCursor, _Visited, Ctx) ->
+    %% path undefined means an error in the leafref definition.
+    {false, Ctx};
 validate_leafref_path0(#leafref_type_spec{path = Path},
                        InitCursor, Visited, Ctx) ->
     case
@@ -1368,6 +1372,8 @@ validate_leafref_path0(#leafref_type_spec{path = Path},
                             {circular, Ctx1};
                         {true, _, FinalSn} ->
                             {true, TargetSn, FinalSn};
+			{false, Ctx1} when is_record(Ctx1, yctx) ->
+			    {false, Ctx1};
                         {false, Error} ->
                             %% ignore other errors, if any; they are
                             %% reported when the leafref is checked
