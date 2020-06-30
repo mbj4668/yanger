@@ -972,23 +972,37 @@ parse_body(Stmts, M0, Ctx0) ->
     %% Add all schema nodes from all submodules
     SubChildren = get_children_from_submodules(M2),
     %% Create schema node records for all children.
-    {Children0, XAcc, _, Ctx3} =
+    {Children00, XAcc, _, Ctx3} =
         mk_children(Stmts, undefined,
                     M2#module.typedefs, M2#module.groupings,
                     undefined, undefined, M2,
                     _IsInGrouping = false, Ctx2,
                     _Mode = final, _Ancestors = [M2],
                     _Acc = SubChildren, []),
+    Children0 = prune_status(Ctx3,
+                             fun prune_sn_status/2,
+                             Children00),
     {ModKW, ModArg, ModPos, ModSubs} = M2#module.stmt,
     Conformance = get_conformance(M2#module.modulename, Ctx3),
+    Identities = prune_status(Ctx3,
+                              fun prune_identities_status/2,
+                              M2#module.identities),
     M3 = M2#module{stmt = {ModKW, ModArg, ModPos, ModSubs ++ XAcc},
-                   conformance = Conformance},
+                   conformance = Conformance,
+                   identities = Identities},
     %% Build the augments list.
     {Augments, Ctx4} =
         mk_augments(Stmts, M3#module.typedefs, M2#module.groupings, M3, Ctx3,
                     _IsTopLevel = true, []),
-    {LocalAugments, RemoteAugments0} =
+    {LocalAugments0, RemoteAugments00} =
         sort_augments(Augments, M3#module.modulename),
+    LocalAugments = prune_status(Ctx4,
+                                 fun prune_augment_status/2,
+                                 LocalAugments0),
+    RemoteAugments0 =
+        prune_status(Ctx4,
+                     fun prune_remote_augment_status/2,
+                     RemoteAugments00),
 
     %% Apply local augments and augments from the submodules
     SavedHooks = Ctx4#yctx.hooks,
@@ -3019,6 +3033,71 @@ find_sn(Name, [_ | T]) ->
     find_sn(Name, T);
 find_sn(_, []) ->
     false.
+
+%% max status prune code follows
+prune_status(#yctx{max_status = undefined}, _PruneFun, Items) ->
+    Items;
+prune_status(#yctx{max_status = MaxStatus}, PruneFun, Items) ->
+    PruneFun(Items, n(MaxStatus)).
+
+n(undefined) -> 0;
+n(current) -> 1;
+n(deprecated) -> 2;
+n(obsolete) -> 3.
+
+prune_sn_status([#sn{status = Status, children = Chs} = H | T], MaxStatusN) ->
+    case n(Status) =< MaxStatusN of
+        true ->
+            [H#sn{children = prune_sn_status(Chs, MaxStatusN)} |
+             prune_sn_status(T, MaxStatusN)];
+        false ->
+             prune_sn_status(T, MaxStatusN)
+    end;
+prune_sn_status([], _) ->
+    [].
+
+prune_identities_status(Ids, MaxStatusN) ->
+    Deletes =
+        map_foldl(
+          fun(Key, #identity{status = Status}, Acc) ->
+                  case n(Status) =< MaxStatusN of
+                      true ->
+                          Acc;
+                      false ->
+                          [Key | Acc]
+                  end
+          end, [], Ids),
+    lists:foldl(
+      fun(Key, Map) ->
+              map_delete(Key, Map)
+      end, Ids, Deletes).
+
+prune_augment_status(Augs, MaxStatusN) ->
+    lists:zf(
+      fun(#augment{children = Chs, status = Status} = A) ->
+              case n(Status) =< MaxStatusN of
+                  true ->
+                      case prune_sn_status(Chs, MaxStatusN) of
+                          [] ->
+                              false;
+                          Chs1 ->
+                              {true, A#augment{children = Chs1}}
+                      end;
+                  false ->
+                      false
+              end
+      end, Augs).
+
+prune_remote_augment_status(RAugs, MaxStatusN) ->
+    lists:zf(
+      fun({RemoteModule, Augs}) ->
+              case prune_augment_status(Augs, MaxStatusN) of
+                  [] ->
+                      false;
+                  Augs1 ->
+                      {true, {RemoteModule, Augs1}}
+              end
+      end, RAugs).
 
 %% This is a builtin post_mk_sn hook.
 post_mk_sn_v_choice_default(Ctx0,
