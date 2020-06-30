@@ -1,0 +1,44 @@
+module a-aug {
+  namespace urn:m;
+  prefix m;
+
+  import a {
+    prefix a;
+  }
+
+  augment /a:bez {
+    leaf buzz {
+      status obsolete;
+      type string;
+    }
+  }
+  augment /a:bez {
+    status obsolete;
+    leaf byzz {
+      type string;
+    }
+  }
+  augment /a:bez {
+    container bezz {
+      status obsolete;
+      leaf bozz {
+        type string;
+      }
+    }
+  }
+  augment /a:bez {
+    container bazz {
+      leaf bizz {
+        status obsolete;
+        type string;
+      }
+    }
+  }
+
+  augment /a:aaa {
+    leaf fizz {
+      type string;
+    }
+  }
+
+}

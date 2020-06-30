@@ -551,6 +551,7 @@
           %% These typedefs are only reported as errors if there are any nodes
           %% using them.
           bad_typedefs :: yang:map({Name :: atom(), yang:modrev()}, #yerror{}),
+          max_status :: 'undefined' | yang:yang_status(),
           pmap = yang:map_new() :: yang:map0() % used by plugins
          }).
 
