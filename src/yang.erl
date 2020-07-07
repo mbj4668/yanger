@@ -467,7 +467,11 @@ post_add_modules(Ctx0) ->
                              Ctx_1 = update_conditional_hooks(Ctx_0, M),
                              Ctx_2 = post_expand_module(M, Ctx_1),
                              Ctx_2#yctx{hooks = OrigHooks};
-                        true -> % submodule, version >= 1.1, don't check here
+                        true -> % submodule, version >= 1.1, don't check here;
+                            %% instead, checks on the SNs that are defined in
+                            %% this submodule, are done while processing the
+                            %% module that this submodule belongs to. See:
+                            %% post_expand_sn/4 function.
                              Ctx_0
                      end
              end, Ctx0, Ctx0#yctx.modrevs),
@@ -4159,15 +4163,23 @@ post_expand_sn(Ctx,
                Ancestors) ->
     %% This clause matches when we're expanding the (sub)module where this
     %% Sn was defined.  This ensures this function is called only once.
-    Funs = [fun post_expand_sn_leafref/4
-            , fun post_expand_sn_xpath_dep/4
-           ],
-    lists:foldl(
-      fun(Fun, Ctx0) ->
-              Fun(Ctx0, Sn, M, Ancestors)
-      end, Ctx, Funs);
+    do_post_expand_sn(Ctx, Sn, M, Ancestors);
+post_expand_sn(Ctx,
+               #sn{module = #module{yang_version = '1.1',
+                                    modulename = ModName,
+                                    stmt = {'submodule', _, _, _}}} = Sn,
+               #module{name = ModName} = M,
+               Ancestors) ->
+    %% This clause is added since for yang 1.1 submodules, post_expand_module/2
+    %% is not called at all and thus we match module name to the name of module
+    %% that the submodule belongs to.
+    do_post_expand_sn(Ctx, Sn, M, Ancestors);
 post_expand_sn(Ctx, _Sn, _M, _Ancestors) ->
     Ctx.
+
+do_post_expand_sn(Ctx0, Sn, M, Ancestors) ->
+    Ctx1 = post_expand_sn_leafref(Ctx0, Sn, M, Ancestors),
+    post_expand_sn_xpath_dep(Ctx1, Sn, M, Ancestors).
 
 post_expand_sn_leafref(Ctx,
                        #sn{type = #type{type_spec = TypeSpec, base = Base},
