@@ -1,0 +1,19 @@
+[doc]
+Return proper error if a leafref refers to a conditional leaf that does not exist due to the condtition.
+
+RFC-7950 states:
+  "If the leaf that the leafref refers to is conditional based on one or
+   more features (see Section 7.20.2), then the leaf with the leafref
+   type MUST also be conditional based on at least the same set of features." 
+
+[enddoc]
+
+################################################################################
+
+[shell test]
+    !env yanger --print-error-code test.yang --features test:
+    ???./subtest.yang:9: YANG_ERR_NODE_NOT_FOUND3
+    ???./subtest.yang:15: YANG_ERR_NODE_NOT_FOUND2
+    -==0==
+    !echo ==$$?==
+    ?==1==

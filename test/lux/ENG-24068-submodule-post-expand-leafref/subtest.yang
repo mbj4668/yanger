@@ -1,0 +1,18 @@
+submodule subtest {
+  yang-version 1.1;
+  belongs-to test {
+    prefix t;
+  }
+
+  leaf target {
+    type leafref {
+      path '/t:top/t:subtarget';
+    }
+  }
+
+  leaf name {
+    type leafref {
+      path '/t:basename';
+    }
+  }
+}
