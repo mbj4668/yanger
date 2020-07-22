@@ -135,8 +135,7 @@ emit_tree(Ctx, [Mod|Mods], AllMods, Fd, Depth, Path) ->
             print_header(Mod, Fd)
     end,
     print_list(Chs, Mod, Fd, Path, data, Depth, ""),
-    SectionPrinted1 = true, % always print separator after data, even if empty
-    maybe_print_separator(Fd, SectionPrinted1 andalso Augs /= []),
+    maybe_print_separator(Fd, Augs /= []),
     lists:foreach(
       fun({TargetM, Augment}) ->
               io:format(Fd, "  augment ~s:~n",
@@ -154,17 +153,14 @@ emit_tree(Ctx, [Mod|Mods], AllMods, Fd, Depth, Path) ->
                              Mod, Fd, undefined,
                              "  ", Path, Mode, Depth, 0)
       end, Augs),
-    SectionPrinted2 = Augs /= [] orelse SectionPrinted1,
     if Path == [] ->
-            maybe_print_separator(Fd, SectionPrinted2 andalso Rpcs /= []),
+            maybe_print_separator(Fd, Rpcs /= []),
             print_list(Rpcs, Mod, Fd, Path, rpc, Depth, "  "),
-            SectionPrinted3 = Rpcs /= [] orelse SectionPrinted2,
 
-            maybe_print_separator(Fd, SectionPrinted3 andalso Notifs /= []),
+            maybe_print_separator(Fd, Notifs /= []),
             print_list(Notifs, Mod, Fd, Path, notification, Depth, "  "),
-            SectionPrinted4 = Notifs /= [] orelse SectionPrinted3,
 
-            maybe_print_separator(Fd, SectionPrinted4 andalso Structs /= []),
+            maybe_print_separator(Fd, Structs /= []),
             lists:foreach(
               fun(YD) ->
                       io:format(Fd, "  structure ~s:~n",
@@ -172,9 +168,8 @@ emit_tree(Ctx, [Mod|Mods], AllMods, Fd, Depth, Path) ->
                       print_list(YD#sn.children, Mod, Fd, Path, structure,
                                  Depth, "  ")
               end, Structs),
-            SectionPrinted5 = Structs /= [] orelse SectionPrinted4,
 
-            maybe_print_separator(Fd, SectionPrinted5 andalso YangDatas /= []),
+            maybe_print_separator(Fd, YangDatas /= []),
             lists:foreach(
               fun(YD) ->
                       io:format(Fd, "  yang-data ~s:~n",
@@ -300,10 +295,19 @@ print_node(Sn, Mod, Fd, PKey, Prefix, Path, Mode, Depth, Width) ->
        KW == 'leaf';
        KW == 'anyxml';
        KW == 'anydata' ->
+            %% @gmuloc - if the node is an augment
+            %% Sn#sn.name  is formatted as {module, name}
+            %% andalso ?in(Sn#sn.name, PKey) is always false
+            %% list for keys appear as optional (because no mandatory statement)
+            LocalName =
+                case Sn#sn.name of
+                    {_, B} -> B;
+                    A -> A
+                end,
             NewName =
                 case
                     PKey /= undefined
-                    andalso ?in(Sn#sn.name, PKey)
+                    andalso ?in(LocalName, PKey)
                 of
                     false ->
                         Mand = ?search_one(mandatory, Subs),

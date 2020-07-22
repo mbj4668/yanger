@@ -31,6 +31,13 @@
     ## In order for the #groupings{} to be correct, I think we must
     ## topo sort all groupings and process them in the correct order.
     #[invoke tree_compare small5.yang]
+
+    ## FIXME: pyang is not sending the correct output as per
+    ##  RFC https://tools.ietf.org/html/rfc8340#section-2
+    ## There should be a newline between module name and newline
+    ## cf https://github.com/mbj4668/yanger/pull/17 for discussion
+    #[invoke tree_compare small6.yang]
+
     [invoke tree_compare a.yang]
     [invoke tree_compare x.yang]
 
