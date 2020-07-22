@@ -1,0 +1,16 @@
+[doc text sx:structure]
+
+[shell yanger]
+    !yanger -f tree small6.yang
+    """???
+    module: small6
+
+      augment /parent:parent-container:
+        +--rw test-list* [test-key]
+           +--rw test-key    string
+           +--rw dummy?      uint16
+      augment /parent:parent-container-2:
+        +--rw test-list* [test-key]
+           +--rw test-key    string
+           +--rw dummy?      uint16
+    """
