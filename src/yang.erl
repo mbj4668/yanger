@@ -1994,8 +1994,9 @@ add_grouping(G0, Map0, ParentTypedefs, ParentGroupings, M, Ctx0) ->
                              groupings = Groupings,
                              children = Children,
                              stmt = {Kwd, Name, Pos, Substmts ++ XSubstmts}},
-            Map3 = map_update(Name, G1, Map2),
-            {Map3, Ctx1}
+            {Ctx2, G2} = run_hooks(#hooks.mk_grouping, Ctx1, G1, M),
+            Map3 = map_update(Name, G2, Map2),
+            {Map3, Ctx2}
     end.
 
 get_children_from_submodules(M) ->

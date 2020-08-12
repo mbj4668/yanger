@@ -450,6 +450,16 @@
           %% The .pmap can be updated by the plugins.
           mk_typedef = [] :: [yang:hookfun()],
 
+          %% HookF(#yctx{}, #grouping{}, #module{}) -> {#yctx{}, #grouping{}}.
+          %%
+          %% mk_grouping is called for each #grouping{} in the expanded
+          %% module, when it is created.
+          %%
+          %% The intention is that plugins can do validation that
+          %% requires the created #grouping{}, and access to substatemets.
+          %% The .pmap can be updated by the plugins.
+          mk_grouping = [] :: [yang:hookfun()],
+
           %% HookF(#yctx{}, #module{}) -> #yctx{}.
           %%
           %% post_expand_module is called after expansion of
