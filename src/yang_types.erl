@@ -406,8 +406,8 @@ decimal64_type_spec_fun({parse, Val, _Pos}, #type{type_spec = TypeSpec},
             {ok, Max};
         _ ->
             try
-                RE = ["^\\s*([+-]?\\d+)(\\.(\\d+))?\\s*$"],
-                {match, [I, F]} = re:run(Val, RE, [{capture, [1,3], list}]),
+                RE = ["^\\s*([+-]?(0|([1-9]\\d*)))(\\.(\\d+))?\\s*$"],
+                {match, [I, F]} = re:run(Val, RE, [{capture, [1,5], list}]),
                 if length(F) > FD ->
                         {error, "too many fraction digits"};
                    true ->

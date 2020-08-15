@@ -1,0 +1,38 @@
+module decimal {
+  namespace urn:decimal;
+  prefix decimal;
+ 
+  typedef myDecimal {
+    type decimal64 {
+      fraction-digits 2;
+      range "0 .. 3.14 | 10 | 20 ..max";
+    }
+  }
+
+  leaf l {
+    type myDecimal {
+      fraction-digits 3; // LINE: YANG_ERR_BAD_RESTRICTION
+    }
+  }
+
+  leaf l2 {
+    type myDecimal {
+      range "5.55"; // LINE: YANG_ERR_BAD_RANGE_VALUE
+    }
+  }
+
+  leaf l3 {
+    type myDecimal;
+    default 2.000; // LINE: YANG_ERR_TYPE_VALUE
+  }
+
+  leaf l4 {
+    type myDecimal;
+    default 02.01; // LINE: YANG_ERR_TYPE_VALUE
+  }
+
+  leaf l5 {
+    type myDecimal;
+    default 0.01;
+  }
+}
