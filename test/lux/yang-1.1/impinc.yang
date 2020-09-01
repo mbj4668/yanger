@@ -9,7 +9,7 @@ module impinc {
     reference "RFC 6991";       // new in 1.1
   }
 
-  include incsub {
+  include incsub {              // LINE: YANG_ERR_BAD_INCLUDE_YANG_VERSION
     description bar;            // new in 1.1.
     reference "RFC XXXX";       // new in 1.1
   }

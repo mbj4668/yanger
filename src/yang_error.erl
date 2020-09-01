@@ -166,8 +166,12 @@ codes() ->
         "the type \"~s\" cannot have a default value"}
      , {'YANG_ERR_BAD_IMPORT', error,
         "expected module, found submodule at ~s"}
+     , {'YANG_ERR_BAD_IMPORT_YANG_VERSION', error,
+        "a version ~s module cannot import a version ~s module by revision"}
      , {'YANG_ERR_BAD_INCLUDE', error,
         "expected submodule, found module at ~s"}
+     , {'YANG_ERR_BAD_INCLUDE_YANG_VERSION', error,
+        "cannot include a version ~s submodule in a version ~s module"}
      , {'YANG_ERR_BAD_KEY', error,
         "the key ~s does not reference an existing leaf"}
      , {'YANG_ERR_BAD_LENGTH', error,

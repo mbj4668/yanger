@@ -1,0 +1,9 @@
+submodule incsubyv1 {
+  belongs-to impincyv {
+    prefix iiyv;
+  }
+
+  leaf yv1 {
+    type int32;
+  }
+}

@@ -1,0 +1,9 @@
+module impyv1 {
+  namespace urn:impyv1;
+  yang-version 1.1;
+  prefix iyv1;
+
+  typedef myInt {
+    type int32;
+  }
+}

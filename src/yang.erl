@@ -817,22 +817,22 @@ parse_linkage([{Kwd, Arg, Pos, Substmts} = _H | T] = Stmts, M, Ctx) ->
                 false ->
                     Revision = undefined
             end,
-            {ModKeyword, IncRev} =
+            {ModKeyword, IncRev, YangVersion} =
                 case Kwd of
                     'import' ->
-                        {'module', undefined};
+                        {'module', undefined, M#module.yang_version};
                     'include' ->
-                        {'submodule', M#module.modulerevision}
+                        {'submodule', M#module.modulerevision, M#module.yang_version}
                 end,
             case search_module(Ctx, Pos, ModKeyword, Arg, Revision, IncRev) of
                 {true, Ctx1, SubM} when Kwd == 'include' ->
-                    Ctx2 = v_include(M, Pos, SubM, Ctx1),
+                    Ctx2 = v_include(M, Pos, SubM, YangVersion, Ctx1),
                     M1 = M#module{submodules =
                                       M#module.submodules ++ [{SubM, Pos}]},
                     parse_linkage(T, M1, Ctx2);
                 {true, Ctx1, ImpM} ->
                     {_, Prefix, _, _} = search_one_stmt('prefix', Substmts),
-                    {M1, Ctx2} = v_import(M, Pos, ImpM, Prefix, Revision, Ctx1),
+                    {M1, Ctx2} = v_import(M, Pos, ImpM, Prefix, Revision, YangVersion, Ctx1),
                     parse_linkage(T, M1, Ctx2);
                 {false, Ctx1} ->
                     parse_linkage(T, M, Ctx1)
@@ -883,19 +883,27 @@ parse_meta([{Kwd, _Arg, _Pos, _Substmts} = _H | T] = Stmts, M, Ctx) ->
 parse_meta([], M, Ctx) ->
     parse_revision([], M, Ctx).
 
-v_import(M, Pos, ImpM, Prefix, Revision, Ctx) ->
-    if ImpM#module.kind == 'module' ->
-            NewImport =
-                {ImpM#module.name, ImpM#module.revision, Prefix, Revision},
-            {M#module{imports = [NewImport | M#module.imports]}, Ctx};
+v_import(M, Pos, ImpM, Prefix, Revision, YangVersion, Ctx) ->
+    if Revision /= undefined andalso YangVersion == '1' andalso ImpM#module.yang_version == '1.1' ->
+           {M, add_error(Ctx, Pos, 'YANG_ERR_BAD_IMPORT_YANG_VERSION',
+                         [YangVersion, ImpM#module.yang_version])};
        true ->
-            {_, _, ModPos, _} = ImpM#module.stmt,
-            {M, add_error(Ctx, Pos, 'YANG_ERR_BAD_IMPORT',
-                          [yang_error:fmt_pos(ModPos)])}
+            if ImpM#module.kind == 'module' ->
+                    NewImport =
+                        {ImpM#module.name, ImpM#module.revision, Prefix, Revision},
+                    {M#module{imports = [NewImport | M#module.imports]}, Ctx};
+               true ->
+                    {_, _, ModPos, _} = ImpM#module.stmt,
+                    {M, add_error(Ctx, Pos, 'YANG_ERR_BAD_IMPORT',
+                                  [yang_error:fmt_pos(ModPos)])}
+            end
     end.
 
-v_include(M, Pos, SubM, Ctx1) ->
-    if SubM#module.kind /= 'submodule' ->
+v_include(M, Pos, SubM, YangVersion, Ctx1) ->
+    if SubM#module.yang_version /= YangVersion ->
+            add_error(Ctx1, Pos, 'YANG_ERR_BAD_INCLUDE_YANG_VERSION',
+                      [SubM#module.yang_version, YangVersion]);
+       SubM#module.kind /= 'submodule' ->
             {_, _, SubPos, _} = SubM#module.stmt,
             add_error(Ctx1, Pos, 'YANG_ERR_BAD_INCLUDE',
                       [yang_error:fmt_pos(SubPos)]);

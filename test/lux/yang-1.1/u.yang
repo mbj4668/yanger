@@ -3,7 +3,7 @@ module u {
   namespace urn:u;
   prefix u;
 
-  include usub; // error; bad version in submodule
+  include usub; // error; bad version in submodule - LINE: YANG_ERR_BAD_INCLUDE_YANG_VERSION
   revision 2015-11-06;
   feature foo;
   feature bar;
