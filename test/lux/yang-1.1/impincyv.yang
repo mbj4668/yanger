@@ -1,0 +1,21 @@
+module impincyv {
+  yang-version 1;
+  namespace urn:impinc-yv;
+  prefix iiyv;
+
+  import impyv1 {
+    prefix iyv1;
+  }
+
+  import impyv2 { // LINE: YANG_ERR_BAD_IMPORT_YANG_VERSION
+    revision-date 2020-08-30;
+    prefix iyv2;
+  }
+
+  include incsubyv1;
+  include incsubyv2; // LINE: YANG_ERR_BAD_INCLUDE_YANG_VERSION
+
+  leaf l {
+    type iyv1:myInt;
+  }
+}

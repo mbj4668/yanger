@@ -1,0 +1,13 @@
+module impyv2 {
+  namespace urn:impyv2;
+  yang-version 1.1;
+  prefix iyv2;
+
+  revision 2020-08-30 {
+    description "test";
+  }
+
+  leaf unkown {
+    type empty;
+  } 
+}
