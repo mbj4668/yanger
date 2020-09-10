@@ -4734,7 +4734,7 @@ chk_mandatory(#sn{config = Config},
   when Config /= true ->
     false;
 chk_mandatory(#sn{kind = Kind, stmt = Stmt}, _PruneAugment, _PruneConfigFalse)
-  when Kind == 'leaf'; Kind == 'choice' ->
+  when Kind == 'leaf'; Kind == 'choice'; Kind == 'anyxml'; Kind == 'anydata' ->
     case yang:search_one_substmt('mandatory', Stmt) of
         {_, true, _, _} ->
             {true, stmt_pos(Stmt)};
