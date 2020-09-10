@@ -50,6 +50,22 @@ module h {
     choice d {
       default e; // LINE: YANG_ERR_DEFAULT_CASE_NOT_FOUND
     }
+    choice e {
+      default a;
+      case a {
+        anyxml any { // LINE: YANG_ERR_MANDATORY_NODE_IN_DEFAULT_CASE
+          mandatory true;
+        }
+      }
+    }
+    choice f {
+      default a;
+      case a {
+        anydata anydata { // LINE: YANG_ERR_MANDATORY_NODE_IN_DEFAULT_CASE
+          mandatory true;
+        }
+      }
+    }
     action doit {
       input {
         leaf aref {
