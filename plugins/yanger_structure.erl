@@ -11,8 +11,12 @@
 
 init(Ctx) ->
     yanger_plugin:install_grammar(?SX_MODULE_NAME, grammar()),
-    yanger_plugin:register_data_definition_stmt(
-      Ctx, {?SX_MODULE_NAME, 'structure'}, 'structure').
+    Ctx1 = yanger_plugin:register_data_definition_stmt(
+             Ctx, {?SX_MODULE_NAME, 'structure'}, 'structure'),
+    Ctx2 = yanger_plugin:register_conditional_hook(
+             Ctx1, #hooks.pre_mk_sn, [{imports, ?SX_MODULE_NAME}],
+             fun pre_mk_sn/5),
+    Ctx2.
 
 grammar() ->
     %% {<keyword>,<argument type name | []>,
@@ -37,3 +41,8 @@ grammar() ->
       ],
       {'*', ['module', 'submodule']}}
     ].
+
+pre_mk_sn(Ctx, #sn{kind = 'structure'} = Sn, _, _, _) ->
+    {Ctx, Sn#sn{config = ignore}};
+pre_mk_sn(Ctx, Sn, _, _, _) ->
+    {Ctx, Sn}.

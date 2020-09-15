@@ -1,0 +1,7 @@
+[doc test structure]
+
+[shell test]
+    !yanger a.yang
+    !echo ==$$?==
+    ?==0==
+
