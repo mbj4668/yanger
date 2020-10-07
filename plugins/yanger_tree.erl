@@ -2,6 +2,7 @@
 %%% @doc Yanger Tree Output Plugin                                 %%%
 %%% @author kris@tail-f.com (summer intern 2014)                   %%%
 %%% Prints schema nodes (children) of the YANG data tree in ascii. %%%
+%%% The tree is printed according to the rules in RFC 8340.        %%%
 %%%----------------------------------------------------------------%%%
 
 -module(yanger_tree).
