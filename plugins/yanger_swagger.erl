@@ -16,6 +16,7 @@
 -define(stmt_kw,       yang:stmt_keyword).
 -define(stmt_substmts, yang:stmt_substmts).
 -define(in,            lists:member).
+-define(rev,           lists:reverse).
 
 -define(SWAGGER_VERSION, <<"2.0">>).
 
@@ -38,7 +39,7 @@ possible.
 init(Ctx0) ->
     Ctx1 = yanger_plugin:register_output_format(Ctx0,
                                                 swagger,
-                                                _AllowErrors = true,
+                                                _AllowErrors = false,
                                                 fun emit/3),
     Ctx2 = yanger_plugin:register_hook(
              Ctx1, #hooks.post_init_ctx, fun post_init_ctx/1),
@@ -266,7 +267,7 @@ has_data_sns(Ctx, Mod) ->
 
 -type io_device() :: pid() | integer().
 -spec emit(#yctx{}, [#module{}], io_device()) -> [#yerror{}].
-emit(#yctx{errors = []} = Ctx, Mods, Fd) ->
+emit(Ctx, Mods, Fd) ->
     DataSnsMods = [M || M <- Mods, has_data_sns(Ctx, M)],
 
     %% Verify that we are only supplied with one data module.
@@ -289,7 +290,7 @@ emit(#yctx{errors = []} = Ctx, Mods, Fd) ->
        true ->
             %% Create tables for collecting definitions, parameters, and
             %% responses.
-            ets:new(?SWAGGER_DEFS,   [ordered_set, public, named_table]),
+            ets:new(?SWAGGER_DEFS,[ordered_set,public,named_table,compressed]),
             ets:new(?SWAGGER_PARAMS, [ordered_set, public, named_table]),
             ets:new(?SWAGGER_RESPS,  [ordered_set, public, named_table]),
 
@@ -298,11 +299,53 @@ emit(#yctx{errors = []} = Ctx, Mods, Fd) ->
             ok = emit_tree(Ctx, Mods, Mods, Fd, Opts),
             %% No errors
             []
-    end;
-emit(_Ctx, _Mods, _Fd) ->
-    %% Errors already present in Ctx, stop here.
-    [].
+    end.
 
+
+data_sns_partition(Children, Ctx) ->
+    Chs = [],
+    Rpcs = [],
+    Actions = [],
+    Notifs = [],
+    data_sns_partition(Children, Ctx, Chs, Rpcs, Actions, Notifs).
+
+data_sns_partition([#sn{kind = Kind} = Child|Cs], Ctx,
+                  Chs, Rpcs, Actions, Notifs) ->
+    if
+        Kind == 'operation' ->
+            case element(1, Child#sn.stmt) of
+                'rpc' ->
+                    data_sns_partition(Cs, Ctx,
+                                       Chs, [Child|Rpcs], Actions, Notifs);
+                'action' ->
+                    data_sns_partition(Cs, Ctx,
+                                       Chs, Rpcs, [Child|Actions], Notifs);
+                _ ->
+                    data_sns_partition(Cs, Ctx,
+                                       Chs, Rpcs, Actions, Notifs)
+            end;
+        Kind == 'notification' ->
+            data_sns_partition(Cs, Ctx, Chs, Rpcs, Actions, [Child|Notifs]);
+        true ->
+            IsDataDef = is_data_def(Kind, Ctx),
+            if
+                IsDataDef ->
+                    data_sns_partition(Cs, Ctx,
+                                       [Child|Chs], Rpcs, Actions, Notifs);
+                true  ->
+                    data_sns_partition(Cs, Ctx, Chs, Rpcs, Actions, Notifs)
+            end
+    end;
+data_sns_partition([], _Ctx, ChsRev, RpcsRev, ActionsRev, NotifsRev) ->
+    ActionNotifs = ?rev(ActionsRev, ?rev(NotifsRev)),
+    {Rpcs, RpcsActionNotifs} = rpcs_partition(RpcsRev, ActionNotifs, []),
+    DataSns = ?rev(ChsRev, RpcsActionNotifs),
+    {DataSns, Rpcs}.
+
+rpcs_partition([Rpc|RpcsRev], ActionNotifs, Rpcs) ->
+    rpcs_partition(RpcsRev, [Rpc|ActionNotifs], [Rpc|Rpcs]);
+rpcs_partition([], RpcsActionNotifs, Rpcs) ->
+    {Rpcs, RpcsActionNotifs}.
 
 -spec emit_tree(#yctx{}, [#module{}], [#module{}], io_device(),
                 #options{}) -> ok.
@@ -315,14 +358,7 @@ emit_tree(Ctx, [Mod|Mods], AllMods, Fd, Opts) ->
     Lvl = 1,
     Indent2 = indent(Lvl),
 
-    Chs     = [C || C <- Mod#module.children, is_data_def(C#sn.kind, Ctx)],
-    Rpcs    = [C || C <- Mod#module.children, C#sn.kind == 'operation',
-                    element(1, C#sn.stmt) == 'rpc'],
-    Actions = [C || C <- Mod#module.children, C#sn.kind == 'operation',
-                    element(1, C#sn.stmt) == 'action'],
-    Notifs  = [C || C <- Mod#module.children, C#sn.kind == 'notification'],
-
-    DataSns = Chs ++ Rpcs ++ Actions ++ Notifs,
+    {DataSns, Rpcs} = data_sns_partition(Mod#module.children, Ctx),
 
     %% At the moment we only allow one YANG module to be compiled at the time,
     %% it is possible to augment this module. If we already have emitted the
@@ -421,35 +457,50 @@ emit_tree(Ctx, [Mod|Mods], AllMods, Fd, Opts) ->
 
     emit_tree(Ctx, Mods, AllMods, Fd, Opts).
 
+-define(no_leading_comma, false).
+-define(leading_comma, true).
+
 print_parameters(Fd, Opts) ->
     Lvl = 1,
     Indent2 = indent(Lvl),
+    io:format(Fd, "~s\"parameters\": {", [Indent2]),
+
+    Params = query_param_defs(Lvl + 1),
+    io:format(Fd, "~s", [lists:join($, , Params)]),
+
     F = fun ({_N, P}, Acc) ->
-                [P|Acc];
+                io:format(Fd, "~s", [[$,|P]]),
+                Acc;
             ({_N, Path, P}, Acc) ->
                 case match_path(Opts#options.path_filter, Path) of
                     true ->
-                        [P|Acc];
+                        io:format(Fd, "~s", [[$,|P]]),
+                        Acc;
                     _ ->
                         Acc
                 end
         end,
-    Params = query_param_defs(Lvl + 1) ++ ets:foldl(F, [], ?SWAGGER_PARAMS),
-    io:format(Fd, "~s\"parameters\": {", [Indent2]),
-    io:format(Fd, "~s", [lists:join($,, Params)]),
+    ets:foldl(F, true, ?SWAGGER_PARAMS),
+
     io:format(Fd, "\n~s}", [Indent2]).
 
 
 print_responses(Fd) ->
     Lvl = 1,
     Indent2 = indent(Lvl),
-    F = fun({_N,R}, Acc) -> [R|Acc] end,
+
+    io:format(Fd, "~s\"responses\": {", [Indent2]),
     Resps =
         standard_success_defs(Lvl + 1) ++
-        standard_error_defs(Lvl + 1) ++
-        ets:foldl(F, [], ?SWAGGER_RESPS),
-    io:format(Fd, "~s\"responses\": {", [Indent2]),
-    io:format(Fd, "~s", [lists:join($,, Resps)]),
+        standard_error_defs(Lvl + 1),
+    io:format(Fd, "~s", [lists:join($, , Resps)]),
+
+    F = fun({_N,R}, Acc) ->
+                io:format(Fd, "~s", [[$,|R]]),
+                Acc
+        end,
+    ets:foldl(F, true, ?SWAGGER_RESPS),
+
     io:format(Fd, "\n~s}", [Indent2]).
 
 
@@ -459,14 +510,19 @@ print_definitions(Fd, Opts) ->
     F = fun({_N, Path, D}, Acc) ->
                 case match_path(Opts#options.path_filter, Path) of
                     true ->
-                        [D|Acc];
+                        if (Acc == ?no_leading_comma) ->
+                                io:format(Fd, "~s", [D]),
+                                ?leading_comma;
+                           true ->
+                                io:format(Fd, "~s", [[$,|D]]),
+                                Acc
+                        end;
                     _ ->
                         Acc
                 end
         end,
-    Defs = ets:foldl(F, [], ?SWAGGER_DEFS),
     io:format(Fd, "~s\"definitions\": {", [Indent2]),
-    io:format(Fd, "~s", [lists:join($,, Defs)]),
+    ets:foldl(F, ?no_leading_comma, ?SWAGGER_DEFS),
     io:format(Fd, "\n~s}", [Indent2]).
 
 
@@ -484,7 +540,7 @@ print_security_definitions(Fd) ->
          ]
         ],
     io:format(Fd, "~s\"securityDefinitions\": {\n", [Indent2]),
-    io:format(Fd, "~s", [lists:join($,, SecDefs)]),
+    io:format(Fd, "~s", [lists:join($, , SecDefs)]),
     io:format(Fd, "\n~s}", [Indent2]).
 
 
@@ -580,7 +636,7 @@ print_header(Module, Fd, Opts) ->
          Indent2, "},\n",
          HostHdr,
          Indent2, "\"basePath\": \"", BasePathBin, "\",\n",
-         Indent2, "\"tags\": [", lists:join($,, Tags), "\n", Indent2, "],\n",
+         Indent2, "\"tags\": [", lists:join($, , Tags), "\n", Indent2, "],\n",
          Indent2, "\"schemes\": [\n",
          Indent4, "\"http\",\n",
          Indent4, "\"https\"\n",
@@ -842,7 +898,7 @@ delimiter_nl(_)  ->    ",\n".
 print_methods(Methods, Path, Fd, Lvl) ->
     Indent2 = indent(Lvl),
     io:format(Fd, "~s\"~s\": {", [Indent2, Path]),
-    io:format(Fd, "~s\n~s}", [lists:join($,, Methods), Indent2]).
+    io:format(Fd, "~s\n~s}", [lists:join($, , Methods), Indent2]).
 
 
 base_path(Child, Mod, Path, IsTopNode) ->
@@ -890,12 +946,11 @@ is_data_def(Keyword, #yctx{env = #env{data_definition_stmts = D}}) ->
         andalso yang:map_is_key(Keyword, D).
 
 
-% In case of a submodule we need to use modulename not name.
+%% In case of a submodule we need to use modulename not name.
 name(true = _IsTopNode, #sn{module = Module} = Sn, _Mod) ->
     ModuleName = Module#module.modulename,
     LocalName = local_name(Sn),
     ?a2l(ModuleName) ++ ":" ++ LocalName;
-
 name(false = _IsTopNode, #sn{module = Module} = Sn, Mod) ->
     LocalName = local_name(Sn),
     if Module#module.modulename == Mod#module.modulename ->
@@ -1037,7 +1092,7 @@ methods(HttpMethods, Summary, Description,
                 [
                  "\n",
                  Indent2, "\"", ?a2l(HttpMethod), "\": {\n",
-                 Indent4, "\"tags\": [", lists:join($,, Tags), "\n",
+                 Indent4, "\"tags\": [", lists:join($, , Tags), "\n",
                  Indent4, "],\n",
                  Indent4, "\"summary\": \"", Summary, "\",\n",
                  Indent4, "\"description\": \"", Description, "\",\n",
@@ -1045,10 +1100,10 @@ methods(HttpMethods, Summary, Description,
                  fmt_produces(Lvl + 1), ",\n",
                  fmt_params(Lvl + 1, ConcatParams), ",\n",
                  Indent4, "\"responses\": {",
-                 lists:join($,, Responses),
+                 lists:join($, , Responses),
                  "\n", Indent4, "},\n",
                  Indent4, "\"security\": [\n",
-                 lists:join($,, Security),
+                 lists:join($, , Security),
                  Indent4, "]\n",
                  Indent2, "}"
                 ]
@@ -1234,7 +1289,7 @@ responses(HttpMethod, _Path, PathType, _Mode, Opts, SnOrMod, _Mod, Lvl) ->
 
 fmt_params(Lvl, Params) ->
     Indent2 = indent(Lvl),
-    [Indent2, "\"parameters\": [", lists:join($,, Params), "\n", Indent2, "]"].
+    [Indent2, "\"parameters\": [", lists:join($, , Params), "\n", Indent2, "]"].
 
 
 operation_id(Path, HttpMethod) ->
@@ -1431,7 +1486,7 @@ fmt_format(Lvl, {enumeration = Format, Enums}) ->
         end,
     EnumsStr =
         lists:join(
-          $,, [["\n", Indent4, "\"", E, "\""] ||
+          $, , [["\n", Indent4, "\"", E, "\""] ||
                   {E,_V} <- lists:keysort(2, Enums)]),
     [Indent2, "\"format\": \"", ?a2l(Format), "\",\n",
      DefaultStr,
@@ -1607,7 +1662,7 @@ body_param(HttpMethod, Path, PathType, Mode, SnOrMod, Mod, Lvl) ->
     Body = case HttpMethod of
                post ->
                    lists:join(
-                     $,,
+                     $, ,
                      [C2 || C2 <- [body(json, _IsTop = true, param, HttpMethod,
                                         PathType, Mode, C, Mod, DefLvl + 2) ||
                                       C <- Chs], C2 /= []]);
@@ -1684,7 +1739,7 @@ body(json, IsTop, Context, HttpMethod, PathType, Mode,
     CaseProps =
         [C || C <- [body(json, IsTop, Context, HttpMethod, PathType,
                          Mode, Child, Mod, Lvl)  || Child <- Chs], C /= []],
-    lists:join($,, CaseProps);
+    lists:join($, , CaseProps);
 body(json, IsTop, _Context, _HttpMethod, _PathType, _Mode,
      #sn{kind = leaf,
          type = #type{} = T,
@@ -1762,7 +1817,7 @@ body(json, IsTop, Context, HttpMethod, PathType, Mode,
      fmt_type(Lvl + 2, {object, undefined}), ",\n",
      Indent6, "\"properties\": {",
      %% child properties
-     lists:join($,, lists:usort(ChildProperties)), "\n",
+     lists:join($, , ChildProperties), "\n",
      Indent6, "}\n",
      Indent4, "}\n",
      Indent2, "}"
@@ -1797,7 +1852,7 @@ body(json, IsTop, Context, HttpMethod, PathType, Mode,
      %% children
      Indent4, "\"properties\": {",
      %% child properties
-     lists:join($,, ChildProperties), "\n",
+     lists:join($, , ChildProperties), "\n",
      Indent4, "}\n",
      Indent2, "}"
     ];
@@ -1829,26 +1884,26 @@ body(json, IsTop, response = Context, post = HttpMethod, PathType, Mode,
     OutPs = [C || C <- [body(json, IsTop, Context, HttpMethod, PathType,
                              Mode, OutC, Mod, Lvl) || OutC <- OutputChs],
                   C /= []],
-    lists:join($,, OutPs);
+    lists:join($, , OutPs);
 body(json, IsTop, param = Context, post = HttpMethod, PathType, Mode,
      #sn{kind = operation, children = Chs}, Mod, Lvl) ->
     %% body param operation for a POST method - continue with 'input' children
     InputChs = [C || C <- Chs, C#sn.kind == input],
     InPs = [C || C <- [body(json, IsTop, Context, HttpMethod, PathType,
                             Mode, InC, Mod, Lvl) || InC <- InputChs], C /= []],
-    lists:join($,, InPs);
+    lists:join($, , InPs);
 body(json, IsTop, response = Context, post = HttpMethod, PathType, Mode,
      #sn{kind = output, children = Chs}, Mod, Lvl) ->
     %% output for POST method - continue with children
     Ps = [C || C <- [body(json, IsTop, Context, HttpMethod, PathType,
                           Mode, P, Mod, Lvl) || P <- Chs], C /= []],
-    lists:join($,, Ps);
+    lists:join($, , Ps);
 body(json, IsTop, param = Context, post = HttpMethod, PathType, Mode,
      #sn{kind = input, children = Chs}, Mod, Lvl) ->
     %% input for POST method - continue with children
     Ps = [C || C <- [body(json, IsTop, Context, HttpMethod, PathType,
                           Mode, P, Mod, Lvl) || P <- Chs], C /= []],
-    lists:join($,, Ps);
+    lists:join($, , Ps);
 body(json, _IsTop, _Context, post, _PathType, _Mode, #sn{kind = Kind},
      _Mod, _Lvl)
   when Kind == input; Kind == output ->
@@ -1947,7 +2002,7 @@ body(json, IsTop, response = Context, get = HttpMethod, PathType,
      Indent4, "\"description\": \"", Description, "\",\n",
      Indent4, "\"properties\": {\n",
      %% child properties
-     lists:join($,, ChildProperties), "\n",
+     lists:join($, , ChildProperties), "\n",
      Indent4, "}\n",
      Indent2, "}"
     ];
@@ -2025,7 +2080,7 @@ body(json, IsTop, param = Context, HttpMethod, PathType, data = Mode,
      %% children
      Indent4, "\"properties\": {",
      %% child properties
-     lists:join($,, ChildProperties), "\n",
+     lists:join($, , ChildProperties), "\n",
      Indent4, "}\n",
      Indent2, "}"
     ].
