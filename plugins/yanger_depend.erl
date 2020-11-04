@@ -22,6 +22,8 @@ option_specs() ->
         "YANG module file name extension"},
        {depend_include_path, undefined, "depend-include-path", boolean,
         "Include file path in the prerequisites"},
+       {depend_double_colon, undefined, "depend-double-colon", boolean,
+        "Use double colon (::) for the rule"},
        {depend_ignore, undefined, "depend-ignore-module", string,
         "(sub)module to ignore in the prerequisites."
         " This option can be given multiple times."}]
@@ -34,8 +36,13 @@ emit(Ctx, Mods, Fd) ->
 
 emit_mods(Ctx, Opts, [M | T], Fd) ->
     DepTgt = proplists:get_value(depend_target, Opts, yang:get_filename(M)),
+    ColonStr =
+        case proplists:get_value(depend_double_colon, Opts, false) of
+            true -> "::";
+            false -> ":"
+        end,
     PreReqs = get_prereqs(Opts, M),
-    io:format(Fd, "~s :", [DepTgt]),
+    io:format(Fd, "~s ~s", [DepTgt, ColonStr]),
     emit_prereqs(Ctx, Opts, PreReqs, Fd),
     emit_mods(Ctx, Opts, T, Fd);
 emit_mods(_Ctx, _Opts, [], _Fd) ->
