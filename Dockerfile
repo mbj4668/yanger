@@ -1,4 +1,4 @@
-FROM erlang:22-alpine
+FROM erlang:23-alpine
 
 # src/Makefile expects parent directory to be called yanger
 ARG YANGER_LOCATION=/yanger
@@ -8,11 +8,10 @@ ENV YANG_MODPATH="${YANGER_LOCATION}/modules"
 WORKDIR ${YANGER_LOCATION}
 COPY ./ ${YANGER_LOCATION}
 
-# emacs required for etags
 # -virtual used to remove build deps as part of single layer, keep image small
 RUN set -xe \
     && apk add --no-cache coreutils libxml2-dev \
-    && apk add --no-cache --virtual build-dependencies make gcc libc-dev emacs perl \
+    && apk add --no-cache --virtual build-dependencies make gcc libc-dev \
     && make clean all \
     && apk del build-dependencies
 

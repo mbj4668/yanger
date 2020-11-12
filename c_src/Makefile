@@ -57,11 +57,7 @@ C_SOURCES := $(wildcard yang*.c)
 C_HEADERS := $(wildcard yang*.h)
 OBJS := $(C_SOURCES:%.c=./%.o)
 
-
-all: $(PRIV_FILES) TAGS
-
-TAGS: $(C_SOURCES) $(C_HEADERS)
-	-etags $^
+all: $(PRIV_FILES)
 
 $(OBJS): $(C_HEADERS)
 
@@ -78,4 +74,4 @@ debug:
 .PRECIOUS: $(OBJS)
 
 clean:
-	rm -f ../priv/*.so ./*.so ./*.o *.o TAGS
+	rm -f ../priv/*.so ./*.so ./*.o *.o
