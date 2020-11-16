@@ -1,4 +1,4 @@
-include ../../support/*_testcases.mk
+include ../../../support/*_testcases.mk
 
 build:
 
