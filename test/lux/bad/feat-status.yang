@@ -1,0 +1,54 @@
+module feat-status {
+  yang-version 1.1;
+  namespace urn:feat-status;
+  prefix fs;
+
+  feature f;
+
+  feature f1 {
+    status obsolete;
+  }
+
+  feature f2 {
+    if-feature "f";
+  }
+
+  feature f3 {
+    if-feature "no"; // LINE: YANG_ERR_DEFINITION_NOT_FOUND
+  }
+
+  feature f4 {
+    if-feature "fs:f1"; // LINE: YANG_BAD_STATUS_REFERENCE
+  }
+
+  feature f5 {
+    if-feature "not fs:f1 or f"; // LINE: YANG_BAD_STATUS_REFERENCE
+  }
+
+  feature f6 {
+    status deprecated;
+    if-feature f1; // LINE: YANG_BAD_STATUS_REFERENCE
+  }
+
+  leaf l {
+    type empty;
+    if-feature "f";
+  }
+
+  leaf l2 {
+    type empty;
+    if-feature "no"; // LINE: YANG_ERR_DEFINITION_NOT_FOUND
+  }
+
+  leaf l3 {
+    type empty;
+    if-feature "f1"; // LINE: YANG_BAD_STATUS_REFERENCE
+  }
+
+  container c {
+    if-feature "f1"; // LINE: YANG_BAD_STATUS_REFERENCE
+    leaf l3 {
+      type empty;
+    }
+  }
+}

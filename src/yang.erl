@@ -1322,7 +1322,7 @@ mk_module_maps([{Kwd, Arg, _, Substmts} = S | Stmts],
                 add_to_definitions_map(Arg, I, #identity.stmt, Is, Ctx0),
             mk_module_maps(Stmts, Ts, Gs, Is1, Fs, Es, M, Ctx1);
         'feature' ->
-            F = #feature{name = Arg, stmt = S, moduleref = MRef},
+            F = #feature{name = Arg, stmt = S, status = Status, moduleref = MRef},
             {Fs1, Ctx1} =
                 add_to_definitions_map(Arg, F, #feature.stmt, Fs, Ctx0),
             mk_module_maps(Stmts, Ts, Gs, Is, Fs1, Es, M, Ctx1);
@@ -1553,17 +1553,18 @@ add_feature(F0, Map0, M, Ctx0) ->
         undefined ->
             %% unhandled statement
             Map1 = map_update(Name, F0#feature{v_status = processing}, Map0),
+            Status = get_stmts_arg(Substmts, 'status', 'current'),
             {Map2, Ctx1} =
                 iterate_stmt(
                   fun(RefStmt, {Map, Ctx}) ->
-                          {continue, chk_if_feature(RefStmt, Map, M, Ctx)}
+                          {continue, chk_if_feature(RefStmt, Map, M, Status, Ctx)}
                   end, 'if-feature', {Map1, Ctx0}, Substmts),
             F1 = F0#feature{v_status = done},
             Map3 = map_update(Name, F1, Map2),
             {Map3, Ctx1}
     end.
 
-chk_if_feature({_, RefArg, Pos, _}, Map0, M, Ctx0) ->
+chk_if_feature({_, RefArg, Pos, _}, Map0, M, Status, Ctx0) ->
     case
         get_feature_expr0(RefArg, Pos, M#module{features = Map0}, Ctx0,
                          _DoResolve = false)
@@ -1576,7 +1577,16 @@ chk_if_feature({_, RefArg, Pos, _}, Map0, M, Ctx0) ->
               fun(Ref, {Map1, Ctx2}) ->
                       case get_feature(Ref, Pos, Map1, M, Ctx2) of
                           {Feature, Ctx3} when is_record(Feature, feature) ->
-                              add_feature(Feature, Map1, M, Ctx3);
+                              case resolve_raw_idref(Ref, Pos, M, Ctx2) of
+                                  {self, _, _} ->
+                                      RefStatus = Feature#feature.status,
+                                      Ctx4 =
+                                          chk_status(Status, RefStatus, 'feature', 'feature',
+                                                     Pos, Ctx3),
+                                          add_feature(Feature, Map1, M, Ctx4);
+                                  _ ->
+                                      add_feature(Feature, Map1, M, Ctx3)
+                              end;
                           {undefined, Ctx3} ->
                               {Map1, Ctx3}
                       end
@@ -2152,7 +2162,12 @@ mk_children([{Kwd, Arg, Pos, Substmts} = Stmt | T], GroupingMap0,
                    end,
             {FeatureL, WhenL, MustL, Status, Ctx1} =
                 common_substmts(Substmts, 'local', M, Ctx0),
-            {IfFeatureRes, Ctx2} = check_if_features(FeatureL, M, Ctx1),
+            {IfFeatureRes, Ctx1_1} = check_if_features(FeatureL, M, Ctx1),
+            if IfFeatureRes == error ->
+                    Ctx2 = Ctx1_1;
+               true ->
+                    Ctx2 = validate_features_status(FeatureL, M, Status, Ctx1_1, Kind)
+            end,
             Sn0 = #sn{name = Name,
                       kind = Kind,
                       module = M,
@@ -2501,6 +2516,28 @@ check_if_features(Features, M, #yctx{features = FMap} = Ctx) ->
             end;
         {error, _Ctx1} = Error ->
             Error
+    end.
+
+validate_features_status([{Expr, _, Stmt} | T], M, Status, Ctx, Kind) ->
+    Ctx1 =
+        lists:foldl(
+          fun(Feature, Acc) ->
+                  validate_feature_status(Feature, Stmt, M, Status, Acc, Kind)
+          end, Ctx,
+          yang_if_feature:get_features(Expr)),
+    validate_features_status(T, M, Status, Ctx1, Kind);
+
+validate_features_status([], _, _, Ctx1, _) ->
+    Ctx1.
+
+validate_feature_status({ModName, Name}, Stmt, M, Status, Ctx, Kind) ->
+    if ModName == M#module.modulename ->
+           Map = M#module.features,
+           {value, Definition} = map_lookup(Name, Map),
+           chk_status(Status, Definition#feature.status,
+                      Kind, 'feature', stmt_pos(Stmt), Ctx);
+       true ->
+            Ctx
     end.
 
 validate_features_exist(Features, M, Ctx) ->
