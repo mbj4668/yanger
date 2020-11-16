@@ -1,0 +1,8 @@
+[doc Test RFC 7950, 6.1.3, Quoting]
+
+[shell yanger]
+    !yanger --print-error-code mod1.yang
+    ?mod1.yang:6:16: YANG_ERR_PARSE_INCOMPLETE_STATEMENT
+
+    !yanger --print-error-code mod2.yang
+    ?mod2.yang:7:12: YANG_ERR_PARSE_INCOMPLETE_STATEMENT

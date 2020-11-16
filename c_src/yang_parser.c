@@ -229,7 +229,8 @@ tok_get_string(struct toks *toks, char **str)
     if (*p != '"' && *p != '\'') {
         // unquoted string
         s = toks->p;
-        while (!looking_at_separator(toks->p) && *toks->p != '}') {
+        while (!looking_at_separator(toks->p)
+               && *toks->p != '}' && *toks->p != '"' && *toks->p != '\'') {
             toks->p++;
         }
         len = toks->p - s;
