@@ -846,11 +846,11 @@ yang_init_core_stmt_grammar(void)
       "|::(%s:){5}%s"
       "|(%s)?::(%s:){4}%s"
       "|((%s:)?%s)?::(%s:){3}%s"
-      "|((%s:){,2}%s)?::(%s:){2}%s"
-      "|((%s:){,3}%s)?::%s:%s"
-      "|((%s:){,4}%s)?::%s"
-      "|((%s:){,5}%s)?::%s"
-      "|((%s:){,6}%s)?::)",
+      "|((%s:){0,2}%s)?::(%s:){2}%s"
+      "|((%s:){0,3}%s)?::%s:%s"
+      "|((%s:){0,4}%s)?::%s"
+      "|((%s:){0,5}%s)?::%s"
+      "|((%s:){0,6}%s)?::)",
       h16, ls32,
       h16, ls32,
       h16, h16, ls32,
@@ -875,7 +875,6 @@ yang_init_core_stmt_grammar(void)
     fragment = query;
     S(uri, "%s:%s(\\?%s)?(#%s)?",
       scheme, hier_part, query, fragment);
-
 
     /* Install the core types */
     memset(types, 0, sizeof(types));

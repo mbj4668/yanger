@@ -33,7 +33,7 @@ ifneq ($(findstring /, $(ERL_ROOTDIR)),)
   CFLAGS += -I$(ERL_ROOTDIR)/usr/include
 endif
 
-XML_CFLAGS = $(shell pkg-config --cflags libxml-2.0)
+XML_CFLAGS ?= $(shell pkg-config --cflags libxml-2.0)
 ifeq ($(XML_CFLAGS),)
   XML_CFLAGS = -I/usr/include/libxml2
 endif
