@@ -89,7 +89,8 @@ do_main(Name, Args) ->
             chk_interactive_options(Name, Options, Ctx0),
             try
                 {Ctx1, Opts} = convert_options(Ctx0, Options),
-                run(Ctx1, Opts, Files),
+                Ctx2 = yang:ctx_add_files(Ctx1, Files),
+                run(Ctx2, Opts, Files),
                 ok
             catch
                 throw:{error, Error} ->

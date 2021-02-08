@@ -2,7 +2,7 @@
 
 -compile({no_auto_import,[map_get/2]}).
 
--export([load_plugins/1, new_ctx/1, init_ctx/2,
+-export([load_plugins/1, new_ctx/1, init_ctx/2, ctx_add_files/2,
          add_file/2, add_file/3, post_add_modules/1]).
 -export([add_llerrors/2]).
 
@@ -385,6 +385,25 @@ init_ctx(Ctx0, ExtraSearchPath) ->
                     },
     Ctx2 = yang_types:register_builtin_types(Ctx1),
     run_hooks(#hooks.post_init_ctx, Ctx2).
+
+%% @doc Add the yang files in `Files` to the known yang files
+%% as if they were part of search_path.
+ctx_add_files(Ctx, Files) ->
+    Fm = lists:foldl(
+           fun(FName, M) ->
+                   case filename:extension(FName) of
+                       ".yang" ->
+                           case parse_file_name(FName) of
+                               {ok, Modname, Revision} ->
+                                   add_mod(M, Modname, Revision, FName);
+                               _ ->
+                                   M
+                           end;
+                       _ ->
+                           M
+                   end
+           end, Ctx#yctx.files, Files),
+    Ctx#yctx{files = Fm}.
 
 add_mod(M0, Modname, Revision, FName) ->
     M1 =
