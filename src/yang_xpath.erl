@@ -77,7 +77,11 @@ compile(Str, Pos, M, Strict, Ctx0) ->
             Prefixes = xpath_rewrite:fold_expr(fun prefix/2, [], Q),
             Ctx2 = lists:foldl(
                      fun(P, Ctx1) ->
-                             yang:mark_import_as_used(Name, P, Ctx1)
+                             %% The prefix must be marked as used in
+                             %% the target module also.
+                             T = Ctx1#yctx.target_name,
+                             Ctx2 = yang:mark_import_as_used(T, P, Ctx1),
+                             yang:mark_import_as_used(Name, P, Ctx2)
                      end, Ctx0, Prefixes),
             case xpath_compile1(Q, PrefixNsMap) of
                 {ok, CompiledXPath} ->

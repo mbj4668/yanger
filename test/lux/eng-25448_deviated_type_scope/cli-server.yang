@@ -1,0 +1,73 @@
+module cli-server {
+
+  yang-version 1.1;
+
+  namespace "urn:example";
+  prefix x;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import ietf-tcp-server {
+    prefix tcps;
+  }
+
+  typedef ssh-port-number {
+    type inet:port-number {
+      range "22 | 1024..49151 | 49500..max";
+    }
+  }
+
+  grouping ssh-server-stack-grouping {
+    container ssh {
+      container tcp-server-parameters {
+        uses tcps:tcp-server-grouping {
+          refine "local-port" {
+            default "22";
+          }
+        }
+      }
+    } /* container ssh */
+  } /* grouping ssh-server-stack-grouping */
+
+  grouping cli-server-listen-stack-grouping {
+    leaf enabled {
+      type boolean;
+      default false;
+    }
+    choice transport {
+      case ssh {
+        uses ssh-server-stack-grouping;
+      }
+    }
+  } /* cli-server-listen-stack-grouping */
+
+  grouping cli-server-app-grouping {
+    container listen {
+      leaf idle-timeout {
+        type uint32;
+        units "seconds";
+        default 900;
+      }
+      list endpoint {
+        key name;
+        leaf name {
+          type string {
+            length "1 .. 32";
+          }
+        }
+        uses cli-server-listen-stack-grouping;
+      }
+    }
+  } /* grouping cli-server-app-grouping */
+
+  container cli-server {
+    uses cli-server-app-grouping;
+  } /* container cli-server */
+
+  deviation "/cli-server/listen/endpoint/transport/ssh/ssh/tcp-server-parameters/local-port" {
+    deviate replace {
+      type ssh-port-number;
+    }
+  }
+}
