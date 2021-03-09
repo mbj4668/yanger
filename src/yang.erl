@@ -1073,7 +1073,7 @@ parse_body(Stmts, M0, Ctx0) ->
     %% Do the validation even if not actually applying
     {DeviatedChildren, Ignored, Ctx13} =
         deviate_children(SubModuleDeviations ++ LocalDeviations,
-                         AugmentedChildren, [], [M3], Ctx12),
+                         AugmentedChildren, [], [M3], M3, Ctx12),
     M4 = M3#module{local_deviations = LocalDeviations,
                    remote_deviations = RemoteDeviations},
     M5 = if Conformance == import ->
@@ -2753,15 +2753,12 @@ pre_mk_sn_config(Ctx, Sn, _Mode, _UsesPos, Ancestors) ->
 %% A deviation that changes the type can set .type to 'undefined' in order
 %% for this function to run again.
 post_mk_sn_type(Ctx0,
-                #sn{stmt = Stmt, kind = Kind, type = PrevType,
-                    typedefs = Typedefs, status = Status, module = M} = Sn,
+                #sn{stmt = Stmt, kind = Kind, type = PrevType} = Sn,
                 _Mode, _UsesPos, _Ancestors)
   when (Kind == 'leaf' orelse Kind == 'leaf-list') andalso
        PrevType == undefined ->
     TypeStmt = search_one_substmt('type', Stmt),
-    {undefined, Ctx1, Type} =
-        mk_type(TypeStmt, undefined, Typedefs, M,
-                undefined, Kind, Status, Ctx0),
+    {undefined, Ctx1, Type} = mk_type_for_sn(Sn, Ctx0),
     Ctx2 =
         if Kind == 'leaf-list',
            is_record(Type#type.type_spec, empty_type_spec) ->
@@ -2776,6 +2773,87 @@ post_mk_sn_type(Ctx0,
     {Ctx2, Sn#sn{type = Type, default = undefined}};
 post_mk_sn_type(Ctx, Sn, _, _, _) ->
     {Ctx, Sn}.
+
+mk_type_for_sn(Sn, Ctx0) ->
+    TypeStmt = search_one_substmt('type', Sn#sn.stmt),
+    case has_deviating_resolve_data(Sn) of
+        true -> mk_type_deviating(TypeStmt, Sn, Ctx0);
+        _ -> mk_type_normal(TypeStmt, Sn, Ctx0)
+    end.
+
+%% mk_type with normal (legacy) data
+mk_type_normal(TypeStmt, Sn, Ctx0) ->
+    #sn{typedefs = Typedefs, module = M, kind = Kind, status = Status} = Sn,
+    mk_type(TypeStmt, undefined, Typedefs, M, undefined, Kind, Status, Ctx0).
+
+%% mk_type with deviating data
+mk_type_deviating(TypeStmt, Sn, Ctx0) ->
+    {Typedefs, M} = Sn#sn.deviating_resolve_data,
+    #sn{kind = Kind, status = Status} = Sn,
+    {undefined, Ctx1, Type} =
+        mk_type(TypeStmt, undefined, Typedefs, M, undefined, Kind, Status,
+                set_ctx_target_name(Sn, Ctx0)),
+    case is_new_error(Ctx1, Ctx0) of
+        true ->
+            Err = get_top_error(Ctx1),
+            %% Note: we must use Ctx0 because Ctx1 should be forgotten
+            mk_type_deviating_fallback(TypeStmt, Sn, Err, Ctx0);
+        false ->
+            Ctx2 = reset_ctx_target_name(Ctx1),
+            {undefined, Ctx2, Type}
+    end.
+
+mk_type_deviating_fallback(TypeStmt, Sn, PrevErr, Ctx0) ->
+    Res = {undefined, Ctx1, Type} =
+        mk_type_normal(TypeStmt, Sn, Ctx0),
+    case is_new_error(Ctx1, Ctx0) of
+        true ->
+            %% If there are errors here in legacy too, then we just return those
+            Res;
+        false ->
+            %% If the legacy deviation went well, then we potentially add a
+            %% warning for the error (PrevErr) we encountered during the
+            %% new code
+            Ctx2 = convert_error_to_warning_and_add(PrevErr, Ctx1),
+            {undefined, Ctx2, Type}
+    end.
+
+
+is_new_error(#yctx{errors = Errs}, #yctx{errors = Errs}) ->
+    %% The error list before and after mk_type are equal, which means
+    %% all went fine, hence no new error.
+    false;
+is_new_error(_, _) ->
+    true.
+
+get_top_error(#yctx{errors = [E | _]}) -> E;
+get_top_error(_) -> undefined.
+
+convert_error_to_warning_and_add(Err, Ctx) ->
+    #yerror{pos = Pos, args = Args, code = ErrCode} = Err,
+    add_error(warning, Ctx, Pos, ErrCode, Args).
+
+pick_target_module_name_for_type_resolve(Sn) ->
+    case has_deviating_resolve_data(Sn) of
+        true ->
+            %% If there is deviating data then the #sn.module is the
+            %% target module.
+            Sn#sn.module#module.name;
+        _ ->
+            undefined
+    end.
+
+has_deviating_resolve_data(#sn{deviating_resolve_data = X}) ->
+    X /= undefined.
+
+%% The temporal target_name field in #yctx{} is used during deviation type
+%% resolving. This enables the imports to be marked as used both for type
+%% lookups but also for xpath validation.
+set_ctx_target_name(Sn, Ctx) ->
+    Ctx#yctx{target_name = pick_target_module_name_for_type_resolve(Sn)}.
+
+reset_ctx_target_name(Ctx) ->
+    Ctx#yctx{target_name = undefined}.
 
 %% This is a builtin post_mk_sn hook.
 %% Will be called for the first definition and every uses.  Make sure
@@ -3526,7 +3604,7 @@ apply_remote_deviations([{TargetModuleName, Deviations0} | T], M,
                 deviate_children(Deviations1,
                                  TargetM#module.children,
                                  TargetM#module.ignored,
-                                 [TargetM], Ctx2),
+                                 [TargetM], M, Ctx2),
             Ctx4 = if Ctx3#yctx.apply_deviations ->
                            %% Record the deviation.
                            %% Update the modules in the context.
@@ -3573,54 +3651,29 @@ update_prefix_maps(DeviatedModuleNames, TargetM, M, Ctx) ->
       {[], TargetM, Ctx},
       DeviatedModuleNames).
 
-deviation_update_modules(DeviatedModules,
-                         #module{modulename = DeviatingModuleName,
-                                 revision = DeviatingModuleRev} = DeviatingM,
-                         #module{modulename = TargetModuleName} = TargetM,
-                         DeviatedChildren, Ignored,
-                         #yctx{modrevs = ModRevs} = Ctx) ->
-    deviation_update_modules(DeviatedModules, TargetModuleName, ModRevs,
-                             [{DeviatingModuleName, DeviatingModuleRev}],
-                             TargetM#module{children = DeviatedChildren,
-                                            ignored = Ignored},
-                             DeviatingM, Ctx).
+deviation_update_modules(_DeviatedModules = [_ | Rest],
+                         DeviatingM,
+                         TargetM0,
+                         DeviatedChildren,
+                         Ignored,
+                         Ctx) ->
+    %% This function updates the TargetM with ignored and children. All
+    %% modules must then have their deviated_by set and stored in Ctx modrevs.
+    TargetM = TargetM0#module{ignored = Ignored, children = DeviatedChildren},
+    DeviatedBy = [{DeviatingM#module.modulename, DeviatingM#module.revision}],
+    ModRevs = update_modrevs([TargetM | Rest], DeviatedBy, Ctx#yctx.modrevs),
+    Ctx#yctx{modrevs = ModRevs}.
 
-deviation_update_modules([#module{modulename = TargetModuleName} | T],
-                         TargetModuleName, ModRevs,
-                         DeviatingModRevL, TargetM, M, Ctx) ->
-    NewModRevs = update_deviated_by(TargetModuleName, TargetM,
-                                    DeviatingModRevL, ModRevs),
-    deviation_update_modules(T, '$done', NewModRevs,
-                             DeviatingModRevL, TargetM, M, Ctx);
-deviation_update_modules([DeviatedM | T],
-                         TargetModuleName, ModRevs,
-                         DeviatingModRevL, TargetM, M, Ctx) ->
-    #module{modulename = DeviatedModuleName} = DeviatedM,
-    NewModRevs = update_deviated_by(DeviatedModuleName, DeviatedM,
-                                    DeviatingModRevL, ModRevs),
-    deviation_update_modules(T, TargetModuleName, NewModRevs,
-                             DeviatingModRevL, TargetM, M, Ctx);
-deviation_update_modules([], '$done', ModRevs,
-                         _DeviatingModRevL, _TargetM, _M, Ctx) ->
-    Ctx#yctx{modrevs = ModRevs};
-deviation_update_modules([], TargetModuleName, ModRevs,
-                         _DeviatingModRevL,
-                         #module{revision = TargetModuleRev} = TargetM,
-                         _M, Ctx) ->
-    %% target module wasn't deviated, but it must be updated in modrevs
-    NewModRevs = map_update({TargetModuleName, TargetModuleRev},
-                            TargetM, ModRevs),
-    Ctx#yctx{modrevs = NewModRevs}.
+update_modrevs(DeviatedModules, DeviatedBy, ModRevs) ->
+    lists:foldl(fun(M, A) -> update_deviated_by(M, DeviatedBy, A) end,
+        ModRevs, DeviatedModules).
 
-update_deviated_by(DeviatedModuleName,
-                   #module{revision = DeviatedModuleRev,
-                           deviated_by = DeviatedBy} = DeviatedM,
-                   DeviatingModRevL, ModRevs) ->
-    NewDeviatedBy = lists:umerge(DeviatingModRevL, DeviatedBy),
-    map_update({DeviatedModuleName, DeviatedModuleRev},
-               DeviatedM#module{deviated_by = NewDeviatedBy},
+
+update_deviated_by(M, DeviatedBy, ModRevs) ->
+    ModDeviatedBy = lists:umerge(DeviatedBy, M#module.deviated_by),
+    map_update({M#module.name, M#module.revision},
+               M#module{deviated_by = ModDeviatedBy},
                ModRevs).
-
 
 %% This is a builtin post_expand_module hook.
 post_expand_module_after_remote_augments_and_deviations(
@@ -3885,13 +3938,13 @@ merge_prefix_maps(#module{prefix_map = SnPrefixMap} = SnMod,
 
 %% Deviate 'Children' with the statements from 'Deviations'.
 %% Return the deviated 'Children'.
-deviate_children(Deviations, Children, Ignored0, Ancestors, Ctx0) ->
+deviate_children(Deviations, Children, Ignored0, Ancestors, M, Ctx0) ->
     {DeviatedChildren, Ignored2, Ctx1} =
         lists:foldl(
           fun(Deviation, {AccChildren, Ignored1, Ctx00}) ->
                   deviate_children0(Deviation#deviation.target_node,
                                     AccChildren, [], Ignored1, Ancestors,
-                                    Deviation, Ctx00)
+                                    Deviation, M, Ctx00)
           end, {Children,Ignored0, Ctx0}, Deviations),
     {DeviatedChildren, Ignored2, Ctx1}.
 
@@ -3902,7 +3955,7 @@ deviate_children(Deviations, Children, Ignored0, Ancestors, Ctx0) ->
 deviate_children0([{child, Name}],
                   [#sn{name = Name} = Sn | Sns],
                   Acc, IgnAcc, Ancestors, Deviation,
-                  Ctx) ->
+                  M, Ctx) ->
     %% This is the node to deviate
     case lists:member(not_supported, Deviation#deviation.deviates) of
         true ->
@@ -3934,24 +3987,25 @@ deviate_children0([{child, Name}],
             {lists:reverse(Acc, Sns), [Sn | IgnAcc], Ctx1};
         false ->
             {Ctx1, Sn1} = apply_deviation_sn(Sn, Deviation,
-                                             Ancestors, Ctx),
+                                             Ancestors, M, Ctx),
             {lists:reverse(Acc, [Sn1 | Sns]), IgnAcc, Ctx1}
     end;
 deviate_children0([{child, Name} | Ids],
                   [#sn{name = Name, children = Children,
                        ignored = Ignored0} = Sn | Sns],
                   Acc, IgnAcc, Ancestors, Deviation,
-                  Ctx) ->
+                  M, Ctx) ->
     %% We found a node in the deviation path,
     %% we must update it with new children
     {DeviatedChildren, Ignored1, Ctx1} =
         deviate_children0(Ids, Children, [], Ignored0,
-                          [Sn | Ancestors], Deviation, Ctx),
+                          [Sn | Ancestors], Deviation, M, Ctx),
     Sn1 = Sn#sn{children = DeviatedChildren, ignored = Ignored1},
     {lists:reverse(Acc, [Sn1 | Sns]), IgnAcc, Ctx1};
-deviate_children0(Ids, [Sn | Sns], Acc, IgnAcc, Ancestors, Deviation, Ctx) ->
-    deviate_children0(Ids, Sns, [Sn | Acc],  IgnAcc, Ancestors, Deviation, Ctx);
-deviate_children0([{child, Id} | _], [], Acc, IgnAcc, _, Deviation, Ctx0) ->
+deviate_children0(Ids, [Sn | Sns], Acc, IgnAcc, Ancestors, Deviation, M, Ctx) ->
+    deviate_children0(Ids, Sns, [Sn | Acc],  IgnAcc, Ancestors, Deviation,
+                      M, Ctx);
+deviate_children0([{child, Id} | _], [], Acc, IgnAcc, _, Deviation, _M, Ctx0) ->
     %% We didn't find the node, report error.
     case lists:keymember(Id, #sn.name, IgnAcc) of
         false ->
@@ -3964,9 +4018,10 @@ deviate_children0([{child, Id} | _], [], Acc, IgnAcc, _, Deviation, Ctx0) ->
             {lists:reverse(Acc), IgnAcc, Ctx0}
     end.
 
-apply_deviation_sn(Sn0, #deviation{deviates = Deviates}, Ancestors, Ctx0) ->
+apply_deviation_sn(Sn0, #deviation{deviates = Deviates}, Ancestors, M, Ctx0) ->
     {Ctx1, Sn1} =
-        lists:foldl(fun apply_deviate/2, {Ctx0, Sn0}, Deviates),
+        lists:foldl(fun(Dev, Acc) -> apply_deviate(Dev, Acc, M) end,
+                    {Ctx0, Sn0}, Deviates),
     {Ctx2, Sn2} =
         run_mk_sn_hooks(Ctx1, Sn1, #hooks.pre_mk_sn, final,
                         undefined, Ancestors),
@@ -3986,12 +4041,12 @@ apply_deviation_sn(Sn0, #deviation{deviates = Deviates}, Ancestors, Ctx0) ->
     run_mk_sn_hooks(Ctx4, Sn4, #hooks.post_mk_sn, final,
                     undefined, Ancestors).
 
-apply_deviate({How, Stmts}, Acc0) ->
-    lists:foldl(fun(Stmt, Acc) -> apply_deviate2(How, Stmt, Acc) end,
+apply_deviate({How, Stmts}, Acc0, M) ->
+    lists:foldl(fun(Stmt, Acc) -> apply_deviate2(How, Stmt, Acc, M) end,
                 Acc0, Stmts).
 
 apply_deviate2(How, {Kwd, Arg, Pos, _} = Stmt,
-               {Ctx, #sn{kind = Kind, stmt = SnStmt} = Sn}) ->
+               {Ctx, #sn{kind = Kind, stmt = SnStmt} = Sn}, M) ->
     Substmts = stmt_substmts(SnStmt),
     case {chk_valid_deviation(Kwd, stmt_keyword(SnStmt), Ctx#yctx.env), How} of
         {{true, IsSingleton}, add} ->
@@ -4004,10 +4059,10 @@ apply_deviate2(How, {Kwd, Arg, Pos, _} = Stmt,
                                        [yang_error:fmt_keyword(Kwd)]),
                              Sn};
                         false ->
-                            add_stmt(Stmt, Sn, Ctx)
+                            add_stmt(Stmt, Sn, M, Ctx)
                     end;
                 false ->
-                    add_stmt(Stmt, Sn, Ctx)
+                    add_stmt(Stmt, Sn, M, Ctx)
             end;
         {{true, IsSingleton}, replace} ->
             case IsSingleton of
@@ -4015,14 +4070,14 @@ apply_deviate2(How, {Kwd, Arg, Pos, _} = Stmt,
                     case lists:keytake(Kwd, 1, Substmts) of
                         {value, _, L} ->
                             SnStmt1 = set_substmts(SnStmt, L),
-                            add_stmt(Stmt, Sn#sn{stmt = SnStmt1}, Ctx);
+                            add_stmt(Stmt, Sn#sn{stmt = SnStmt1}, M, Ctx);
                         false when Kwd == 'config' ->
                             %% config is special - all nodes have a
                             %% config property; thus it can always be
                             %% replaced.  FIXME: pyang and 6020 allows
                             %% to add a config, so we do that as well.
                             %% This should be clarified.
-                            add_stmt(Stmt, Sn, Ctx);
+                            add_stmt(Stmt, Sn, M, Ctx);
                         false ->
                             {add_error(Ctx, Pos,
                                        'YANG_ERR_BAD_DEVIATE_REPLACE_NOT_FOUND',
@@ -4064,18 +4119,21 @@ apply_deviate2(How, {Kwd, Arg, Pos, _} = Stmt,
             Sn}
     end.
 
-add_stmt(Stmt, #sn{stmt = SnStmt, must = MustL, module = M} = Sn, Ctx0) ->
+add_stmt(Stmt, Sn, DeviatingM, Ctx0) ->
+    #sn{stmt = SnStmt, must = MustL, module = TargetM} = Sn,
     {_, Arg, Pos, _} = Stmt,
     Substmts = stmt_substmts(SnStmt),
     Sn1 = Sn#sn{stmt = set_substmts(SnStmt, [Stmt | Substmts])},
     case stmt_keyword(Stmt) of
         'type' ->
-            {Ctx0, Sn1#sn{type = undefined}};
+            Data = {DeviatingM#module.typedefs, DeviatingM},
+            {Ctx0, Sn1#sn{type = undefined,
+                          deviating_resolve_data = Data}};
         'default' ->
             {Ctx0, Sn1#sn{default = undefined}};
         'must' ->
             case
-                yang_xpath:compile(Arg, Pos, M, Ctx0#yctx.strict, Ctx0)
+                yang_xpath:compile(Arg, Pos, TargetM, Ctx0#yctx.strict, Ctx0)
             of
                 {ok, CompiledXPath, Ctx1} ->
                     {Ctx1,
@@ -4671,23 +4729,31 @@ resolve_raw_idref({Prefix, Name}, Pos,
                           name = MyModuleName} = M, Ctx0) ->
     case map_lookup(Prefix, PrefixMap) of
         {value, '$self'} ->
-            {self, Name, Ctx0};
+            %% A prefixed local idref is still an import in target
+            Ctx1 = mark_import_as_used(Ctx0#yctx.target_name, Prefix, Ctx0),
+            {self, Name, Ctx1};
         {value, ModuleName} ->
             Ctx1 = mark_import_as_used(MyModuleName, Prefix, Ctx0),
-            case get_imported_module(ModuleName, M, Ctx1) of
+            %% Mark the import as used in the deviation target module
+            Ctx2 = mark_import_as_used(Ctx0#yctx.target_name, Prefix, Ctx1),
+            case get_imported_module(ModuleName, M, Ctx2) of
                 {value, Module} ->
-                    {{imported, Module}, Name, Ctx1};
+                    {{imported, Module}, Name, Ctx2};
                 none ->
                     %% error already reported in import
-                    {undefined, Name, Ctx1}
+                    {undefined, Name, Ctx2}
             end;
         none ->
             {undefined, Name, add_error(Ctx0, Pos, 'YANG_ERR_PREFIX_NOT_FOUND',
                                         [Prefix])}
     end;
-resolve_raw_idref(Name, _Pos, _M, Ctx) ->
-    {self, Name, Ctx}.
+resolve_raw_idref(Name, _Pos, M, Ctx0) ->
+    %% A local idref may still be an import in target
+    Ctx1 = mark_import_as_used(Ctx0#yctx.target_name, M#module.prefix, Ctx0),
+    {self, Name, Ctx1}.
 
+mark_import_as_used(undefined, _Prefix, Ctx) ->
+    Ctx;
 mark_import_as_used(MyModuleName, Prefix, #yctx{unused_imports = U0} = Ctx) ->
     case U0 of
         [{MyModuleName, L} | T] ->
