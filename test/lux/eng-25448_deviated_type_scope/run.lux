@@ -1,0 +1,7 @@
+[doc Test local typedef can be found in deviation]
+
+[shell yanger]
+    -error
+    !yanger cli-server.yang
+    !echo ==$$?==
+    ?==0==

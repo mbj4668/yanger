@@ -113,6 +113,9 @@
           %% pointer to our module.  NOTE: the module record is not
           %% yet complete; specifically its .children is [].
           module :: 'undefined' | yang:module_rec(),
+          %% pointer to deviating module. Used for type scope resolve.
+          deviating_resolve_data :: 'undefined' |
+                                    {#typedefs{}, yang:module_rec()},
           %% 'ignore' means that the config statement should be ignored
           %% for this subtree.
           config :: 'undefined' | 'ignore' | 'true' | 'false',
@@ -562,7 +565,9 @@
           %% using them.
           bad_typedefs :: yang:map({Name :: atom(), yang:modrev()}, #yerror{}),
           max_status :: 'undefined' | yang:yang_status(),
-          pmap = yang:map_new() :: yang:map0() % used by plugins
+          pmap = yang:map_new() :: yang:map0(), % used by plugins
+          %% Used during deviation type resolving
+          target_name :: atom() | undefined
          }).
 
 %% See yang:cursor_move()
