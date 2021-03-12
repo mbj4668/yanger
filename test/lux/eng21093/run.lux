@@ -15,4 +15,4 @@
     ?==1==
 
     !exit
-    [endshell]
+    [endshell 0]

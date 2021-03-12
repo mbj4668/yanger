@@ -6,4 +6,4 @@
     ?SH-PROMPT
 
     !exit
-    [endshell]
+    [endshell 0]
