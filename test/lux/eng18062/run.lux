@@ -1,6 +1,5 @@
 [doc Test that typedef in submodule is properly validated]
 
-
 [shell compilation]
     -==1==
     !yanger --print-error-code x.yang 2>&1
