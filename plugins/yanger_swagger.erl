@@ -1728,11 +1728,13 @@ body_param(HttpMethod, Path, PathType, Mode, SnOrMod, Mod, Lvl) ->
 %% generate a body from a schema node. Used in body/form params and responses
 %%
 body(json, IsTop, Context, HttpMethod, PathType, Mode,
-     #sn{kind = choice, children = [FirstChild | _]}, Mod, Lvl) ->
-    %% choice - continue with first 'case'
-    %% FIXME: ok, or use 'allOf', hmmm?
-    body(json, IsTop, Context, HttpMethod, PathType, Mode,
-         FirstChild, Mod, Lvl);
+     #sn{kind = choice, children = Chs}, Mod, Lvl) ->
+    %% choice - include all cases, even though only one is valid
+    ChoiceProps =
+        [C || C <- [body(json, IsTop, Context, HttpMethod, PathType,
+                         Mode, Child, Mod, Lvl)  || Child <- Chs], C /= []],
+    lists:join($, , ChoiceProps);
+
 body(json, IsTop, Context, HttpMethod, PathType, Mode,
      #sn{kind = 'case', children = Chs}, Mod, Lvl) ->
     %% case - continue with case children
