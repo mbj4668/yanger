@@ -1,0 +1,50 @@
+[doc test depend plugin]
+
+[shell test]
+    !yanger -f depend a.yang
+    """??
+    a.yang : b c d f
+    SH-PROMPT
+    """
+
+    !yanger -f depend --depend-no-submodules a.yang
+    """??
+    a.yang : b c
+    SH-PROMPT
+    """
+
+    !yanger -f depend --depend-no-submodules --depend-recurse a.yang
+    """??
+    a.yang : b c e
+    SH-PROMPT
+    """
+
+    !yanger -f depend --depend-recurse a.yang
+    """??
+    a.yang : b c d e f g
+    SH-PROMPT
+    """
+
+    !yanger -f depend --depend-recurse --depend-ignore-module b a.yang
+    """??
+    a.yang : c d e f g
+    SH-PROMPT
+    """
+    
+    !yanger -f depend --depend-recurse --depend-extension _test a.yang
+    """??
+    a.yang : b_test c_test d_test e_test f_test g_test
+    SH-PROMPT
+    """
+    
+    !yanger -f depend --depend-recurse --depend-include-path --depend-double-colon a.yang
+    """??
+    a.yang :: ./b.yang ./c.yang ./d.yang ./e.yang ./f.yang ./g.yang
+    SH-PROMPT
+    """
+   
+    !yanger -f depend --depend-target test_target --depend-double-colon --depend-recurse --depend-extension _test a.yang
+    """??
+    test_target :: b_test c_test d_test e_test f_test g_test
+    SH-PROMPT
+    """
