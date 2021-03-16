@@ -1,0 +1,8 @@
+module e {
+  namespace urn:e;
+  prefix e;
+
+  import c {
+    prefix c; // NOTE: different prefix than in a.yang when b:b is used.
+  }
+}
