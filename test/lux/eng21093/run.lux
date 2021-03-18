@@ -14,5 +14,5 @@
     ?YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD
     ?==1==
 
-    !exit
-    [endshell]
+[cleanup]
+    !rm -f *.fxs

@@ -7,5 +7,5 @@
     !echo ==$$?==
     ?==0==
 
-    !exit
-    [endshell]
+[cleanup]
+    !rm -f *.fxs

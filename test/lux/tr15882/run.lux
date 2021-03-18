@@ -5,5 +5,5 @@
     !yanger x.yang
     ?SH-PROMPT
 
-    !exit
-    [endshell]
+[cleanup]
+    !rm -f *.fxs
