@@ -6,6 +6,3 @@
     !echo ==$$?==
     ?YANG_ERR_GRAMMAR_MISSING_ARGUMENT
     ?==1==
-
-    !exit
-    [endshell]

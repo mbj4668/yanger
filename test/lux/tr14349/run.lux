@@ -40,7 +40,3 @@
 
     !echo ==$$?==
     ?==0==
-
-
-    !exit
-    [endshell]
