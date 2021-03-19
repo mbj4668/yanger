@@ -13,6 +13,3 @@
     !echo ==$$?==
     ?YANG_ERR_GRAMMAR_UNEXPECTED_KEYWORD
     ?==1==
-
-    !exit
-    [endshell]
