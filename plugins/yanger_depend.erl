@@ -63,11 +63,12 @@ emit_prereqs(Ctx, Opts, [PreReq | T], Fd) ->
                     true ->
                         {value, M} = yang:get_module(PreReq, undefined, Ctx),
                         FName = yang:get_filename(M),
+                        {ok, Cwd} = file:get_cwd(),
                         case proplists:get_value(depend_extension, Opts) of
                             undefined ->
-                                FName;
+                                filelib:safe_relative_path(FName, Cwd);
                             Ext ->
-                                filename:rootname(FName) ++ Ext
+                                filelib:safe_relative_path(filename:rootname(FName) ++ Ext, Cwd)
                         end;
                     false ->
                         case proplists:get_value(depend_extension, Opts) of
