@@ -1,0 +1,7 @@
+submodule d {
+  belongs-to a {
+    prefix a;
+  }
+
+  include f;
+}

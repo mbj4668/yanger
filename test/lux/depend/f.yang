@@ -1,0 +1,5 @@
+submodule f {
+  belongs-to a {
+    prefix a;
+  }
+}

@@ -4,6 +4,3 @@
     -internal
     !yanger x.yang
     ?SH-PROMPT
-
-    !exit
-    [endshell 0]
