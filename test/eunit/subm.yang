@@ -1,0 +1,16 @@
+
+// This module is used in deviation_update_modules_tests.erl
+
+submodule subm {
+  belongs-to deviating {
+      prefix dev;
+  }
+
+  import target {
+      prefix target;
+  }
+
+  deviation "/target:master/target:item" {
+      deviate replace {type int32;}
+ }
+}
