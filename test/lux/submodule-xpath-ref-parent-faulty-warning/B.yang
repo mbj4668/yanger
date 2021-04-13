@@ -1,0 +1,13 @@
+submodule B {
+
+  belongs-to A {
+    prefix A;
+  }
+
+  container new-test-features {
+    when "/A:test/A:feature = 'true'";
+    leaf foo {
+      type string;
+    }
+  }
+}

@@ -1,0 +1,16 @@
+[doc]
+submodule with XPath referencing owning module, false warning
+
+We have a module and a submodule, where the submodule has a node with
+a when expression to the module. This should not give a warning that
+the target of the when expression does not exist.
+[enddoc]
+
+[shell compilation]
+    -warning
+    !yanger A.yang
+    !echo "==$$?=="
+    ?==0==
+    !yanger B.yang
+    !echo "==$$?=="
+    ?==0==

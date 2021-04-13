@@ -1,0 +1,12 @@
+module A {
+  namespace "yang:err";
+  prefix "A";
+  include "B";
+
+  container test {
+    leaf feature {
+      type boolean;
+      default false;
+    }
+  }
+}

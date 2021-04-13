@@ -4935,7 +4935,17 @@ cursor_move({child, {Mod, Name}}, #cursor{cur = {top, OtherMod}} = C, Ctx)
                         [yang_error:fmt_yang_identifier(Name), Mod])};
 cursor_move({child, {Mod, Name} = Id}, C, Ctx) ->
     %% move down from the top-level
-    if (C#cursor.module)#module.modulename == Mod ->
+    if (C#cursor.module)#module.modulename == Mod andalso
+       (C#cursor.module)#module.kind == submodule ->
+            #module{children = SubModChs} = C#cursor.module,
+            %% FromBelongsTo are children *defined in* the module
+            %% that this submodule belongs to.
+            %% SubModChs are children defined in this submodule,
+            %% or defined in any module this submodule
+            %% includes or imports.
+            FromBelongsTo = chs_from_belongs_to_mod(Mod, C, Ctx),
+            Chs = FromBelongsTo ++ SubModChs;
+       (C#cursor.module)#module.modulename == Mod ->
             #module{children = Chs} = C#cursor.module;
        true ->
             case get_module(Mod, _Revision = undefined, Ctx) of
@@ -4959,6 +4969,23 @@ cursor_move({child, {Mod, Name} = Id}, C, Ctx) ->
 cursor_move({child, Name}, C, Ctx) ->
     %% move down from top-level in current module
     cursor_move({child, {C#cursor.init_modulename, Name}}, C, Ctx).
+
+%% pre: cursor is pointing to a submodule
+%% Then, pick out children defined in the module this submodule belongs to.
+chs_from_belongs_to_mod(BelongsToModuleName,
+                        #cursor{module=#module{revision=Revision}},
+                        Ctx) ->
+    %% Revision is the same for module as for submodule.
+    %% * search_module since if you give a submodule only to yanger,
+    %%   yanger will not automatically load the belongs-to module.
+    Chs = case search_module(Ctx, BelongsToModuleName, Revision) of
+              {true, _NewCtx, #module{children=SearchChildren}} ->
+                  SearchChildren;
+              {false, _Error} ->
+                  []
+          end,
+    [Sn || #sn{module=Module} = Sn <- Chs,
+           Module#module.name == BelongsToModuleName].
 
 %% FIXME: is this really the right solution?  The problem occurs when
 %% we call yanger_fxs:find_final_target_sn(), which tries to follow all
