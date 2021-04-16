@@ -1,4 +1,4 @@
-##include ../../../support/include.mk
+
 ERL=erl
 ERLC=erlc
 
@@ -17,16 +17,16 @@ SRC_DIRS=$(shell pwd)
 # Use absolute path for yanger/ebin using pwd to ensure 
 # that code:priv_dir resolves correct.
 TEST_EXTRA_ERL_FLAGS=-pa $(shell cd ../../ebin && pwd) $(EXTRA_ERL_FLAGS) \
-						-pa ebin/test -pa ebin/app
+                        -pa ebin/test -pa ebin/app
 
 test: build $(APP_BEAM) $(TEST_BEAM)
 	@$(ERL) $(TEST_EXTRA_ERL_FLAGS) -noinput \
-            -eval "eunit:test([$(TEST_MODULES)], [verbose])" \
-            -s init stop
+                -eval "eunit:test([$(TEST_MODULES)], [verbose])" \
+                -s init stop
 
 test-%: build $(APP_BEAM) $(TEST_BEAM)
 	env ERL="$(ERL)" EXTRA_ERL_FLAGS="$(TEST_EXTRA_ERL_FLAGS)" \
-	    ../support/run_eunit.sh test-single $(subst test-,,$@)
+                ../support/run_eunit.sh test-single $(subst test-,,$@)
 
 # Mandatory targets
 build:  ebin/test ebin/app $(EXTRA_EUNIT_BUILD) $(TEST_BEAM)
@@ -45,7 +45,9 @@ ebin/app:
 	mkdir -p ebin/app
 
 ebin/test/%.beam: %.erl
-	$(ERLC) -DTEST -I ../../../ -I ../../include $(EXTRA_ERLC_FLAGS) +debug_info -o ebin/test $<
+	$(ERLC) -DTEST -I ../../../ -I ../../include $(EXTRA_ERLC_FLAGS) \
+                +debug_info -o ebin/test $<
 
 ebin/app/%.beam: ../../src/%.erl
-	$(ERLC) -DTEST -I ../../../ -I ../../include $(EXTRA_ERLC_FLAGS) +export_all +debug_info -o ebin/app $<
+	$(ERLC) -DTEST -I ../../../ -I ../../include $(EXTRA_ERLC_FLAGS) \
+                +export_all +debug_info -o ebin/app $<

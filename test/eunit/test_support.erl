@@ -22,7 +22,8 @@ get_imports(ModName, Ctx) ->
     first_of_all(M#module.imports).
 
 get_unused_imports(ModName, Ctx) ->
-    {_, Unused} = lists:keyfind(list_to_atom(ModName), 1, Ctx#yctx.unused_imports),
+    Mod = list_to_atom(ModName),
+    {_, Unused} = lists:keyfind(Mod, 1, Ctx#yctx.unused_imports),
     first_of_all(Unused).
 
 first_of_all(L) when is_list(L) -> lists:sort([element(1, X) || X <- L]);

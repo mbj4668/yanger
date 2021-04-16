@@ -12,7 +12,7 @@
                        get_unused_imports/2,
                        get_imports/2,
                        get_default/3,
-                       dummy_pos/1]).
+                       dummy_pos/1]). 
 
 
 %% This module contains tests for ENG-25448, i.e., that deviated types should
@@ -84,7 +84,7 @@ can_deviate_replace_typedef_from_target_test() ->
     %% in target scope. We emit a warning for that because it should really
     %% be solved with an import in the deviating module.
     {true, Ctx0, _} = add_stmt_tree(undefined, "imported",
-				    [{typedef, the_type, [{type, int32}]}]),
+                                    [{typedef, the_type, [{type, int32}]}]),
 
     {true, Ctx1, _} = add_stmt_tree(Ctx0, "target",
                                     [{imports, ["imported"]}],
@@ -99,8 +99,9 @@ can_deviate_replace_typedef_from_target_test() ->
                                     [{imports, ["target"]}],
                                     Code),
 
-    ?assertMatch([#yerror{level = warning, code = 'YANG_ERR_PREFIX_NOT_FOUND'}],
-		 Ctx2#yctx.errors),
+    ?assertMatch([#yerror{level = warning,
+                          code = 'YANG_ERR_PREFIX_NOT_FOUND'}],
+                 Ctx2#yctx.errors),
     ?assertEqual(['builtin-dev', imported], get_imports("target", Ctx2)),
     ?assertEqual(['builtin-dev'], get_unused_imports("target", Ctx2)),
     ?assertEqual(int32, get_canonical_type("target", item, Ctx2)),
@@ -125,8 +126,8 @@ true_prefix_not_found_test() ->
 
     ?assertMatch([#yerror{level = error, code = ErrCode,
                           pos = {"./builtin-dev.yang", _}}
-                          ],
-		 Ctx2#yctx.errors),
+                 ],
+                 Ctx2#yctx.errors),
     ?assertEqual(['builtin-dev'], get_imports("target", Ctx2)),
     ?assertEqual(['builtin-dev'], get_unused_imports("target", Ctx2)),
     ok.
@@ -219,8 +220,9 @@ can_deviate_replace_local_typedef_in_target_test() ->
                                     [{imports, ["target"]}],
                                     Code),
 
-    ?assertMatch([#yerror{level = warning, code = 'YANG_ERR_DEFINITION_NOT_FOUND'}],
-		 Ctx2#yctx.errors),
+    ?assertMatch([#yerror{level = warning,
+                          code = 'YANG_ERR_DEFINITION_NOT_FOUND'}],
+                 Ctx2#yctx.errors),
     ?assertEqual(['builtin-dev'], get_imports("target", Ctx2)),
     ?assertEqual(['builtin-dev'], get_unused_imports("target", Ctx2)),
     ?assertEqual(int32, get_canonical_type("target", item, Ctx2)),
@@ -250,8 +252,8 @@ true_typedef_cannot_be_found_test() ->
                           pos = {"./builtin-dev.yang", _}},
                   #yerror{level = error, code = ErrCode,
                           pos = {"./target.yang", _}}
-                          ],
-		 Ctx2#yctx.errors),
+                 ],
+                 Ctx2#yctx.errors),
     ?assertEqual(['builtin-dev'], get_imports("target", Ctx2)),
     ?assertEqual(['builtin-dev'], get_unused_imports("target", Ctx2)),
     ok.
@@ -293,7 +295,7 @@ can_deviate_replace_imported_nested_typedef_type_test() ->
 
     Code = [{typedef, the_type, [{type, {imported, the_type}}]},
             {deviation, <<"/target:master/target:item">>,
-	     [{deviate, replace, [{type, the_type}]}]}],
+             [{deviate, replace, [{type, the_type}]}]}],
 
     {true, Ctx2, _} = add_stmt_tree(Ctx1b, "builtin-dev",
                                     [{imports, ["target", "imported"]}],
@@ -334,7 +336,7 @@ can_deviate_replace_local_typedef_through_imported_grouping_test() ->
             {container, master, [{uses, {imported, master}}]},
 
             {deviation, <<"/master/item">>,
-	     [{deviate, replace, [{type, the_type}]}]}],
+             [{deviate, replace, [{type, the_type}]}]}],
 
     {true, Ctx2, _} = add_stmt_tree(Ctx1, "builtin-dev",
                                     [{imports, ["imported"]}],
@@ -391,12 +393,12 @@ can_follow_leafref_test() ->
 
     {true, Ctx1b, _} = add_stmt_tree(Ctx1, "imported",
                                      [{container, top,
-				       [{leaf, thing, [{type, int32}]}]}]),
+                                       [{leaf, thing, [{type, int32}]}]}]),
 
     Code = [{deviation, <<"/target:master/target:item">>,
-	     [{deviate, replace,
-	       [{type, leafref,
-		 [{path, <<"/imported:top/imported:thing">>}]}]}]}],
+             [{deviate, replace,
+               [{type, leafref,
+                 [{path, <<"/imported:top/imported:thing">>}]}]}]}],
 
     {true, Ctx2, _} = add_stmt_tree(Ctx1b, "builtin-dev",
                                     [{imports, ["target", "imported"]}],
@@ -544,11 +546,11 @@ can_NOT_deviate_non_deviatable_property_test() ->
 
 can_NOT_deviate_default_case_in_choice_test() ->
     TargetCode = [{container, master,
-		   [{choice, pick_one,
-		     [{default, <<"two">>},
-		      {'case', one, [{leaf, one, [{type, int32}]}]},
-		      {'case', two, [{leaf, two, [{type, string}]}]}
-		     ]}]}],
+                   [{choice, pick_one,
+                     [{default, <<"two">>},
+                      {'case', one, [{leaf, one, [{type, int32}]}]},
+                      {'case', two, [{leaf, two, [{type, string}]}]}
+                     ]}]}],
     {true, Ctx1, _} = add_stmt_tree(undefined, "target", TargetCode),
 
     Code = [{deviation, <<"/target:master/target:pick_one/target:two">>,
@@ -568,8 +570,10 @@ can_deviate_default_case_in_choice_if_default_removed_first_test() ->
                                     [{container, master,
                                       [{choice, pick_one,
                                         [{default, <<"two">>},
-                                         {'case', one, [{leaf, one, [{type, int32}]}]},
-                                         {'case', two, [{leaf, two, [{type, string}]}]}
+                                         {'case', one, [{leaf, one,
+                                                         [{type, int32}]}]},
+                                         {'case', two, [{leaf, two,
+                                                         [{type, string}]}]}
                                         ]}]}]),
 
     Code = [{deviation, <<"/target:master/target:pick_one">>,
@@ -596,17 +600,17 @@ can_NOT_deviate_replace_same_prefix_scope_test() ->
                                     [{imports, [{"types1", "types"}]}],
                                     [{container, master,
                                       [{leaf, item, [{type, {types, the_type}}]
-				       }]}]),
+                                       }]}]),
 
     Code = [
             {deviation, <<"/target:master/target:item">>,
              [{deviate, replace, [{type, {types, the_type}}]}]}],
 
     {true, Ctx2, _} = add_stmt_tree(Ctx1, "builtin-dev",
-                                    [{imports, ["target", {"types2", "types"}]}],
+                                    [{imports, ["target",
+                                                {"types2", "types"}]}],
                                     Code),
 
     ?assertMatch([{yerror, error, _, 'YANG_ERR_PREFIX_MOD_MISMATCH',
                    _}], Ctx2#yctx.errors),
     ok.
-
