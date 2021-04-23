@@ -3,6 +3,7 @@
 -export([mk_ns_map/1,
          compile/2, compile/5,
          set_default_namespace/2,
+         shift_xp_current/2,
          get_dep_paths/2, v_dep_path/6]).
 
 -export_type([ns_map/0]).
@@ -409,6 +410,10 @@ dep_path_to_cursor_path0([], _) ->
 is_dep_path_absolute(['..' | _]) -> false;
 is_dep_path_absolute(['.' | _]) -> false;
 is_dep_path_absolute(_) -> true.
+
+
+shift_xp_current(XPath, 0) -> XPath;
+shift_xp_current(XPath, N) -> xpath_rewrite:shift_current_expr(XPath, N).
 
 
 -ifdef(debug).

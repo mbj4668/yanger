@@ -2651,7 +2651,7 @@ run_mk_sn_hooks(#yctx{hooks = Hooks} = Ctx0, Sn0, HookField,
 %% names refer to current module.
 pre_mk_sn_xpath(Ctx0, Sn = #sn{must = MustL0, 'when' = WhenL0,
                                kind = Kind, module = M},
-                final, _UsesPos, _Ancestors)
+                final, _UsesPos, Ancestors)
   when MustL0 /= [] orelse WhenL0 /= [] ->
     {MustL1, Ctx1} =
         lists:foldl(
@@ -2696,7 +2696,20 @@ pre_mk_sn_xpath(Ctx0, Sn = #sn{must = MustL0, 'when' = WhenL0,
                                  true ->
                                       Deps0
                               end,
-                          {[{CompiledXPath, Deps, Origin, Stmt} | Acc], Ctx1_0}
+                          ShiftedCompiledXPath =
+                              case Origin of
+                                  'augment' ->
+                                      DepPath =
+                                          dep_path_to_closest_config_ancestor(
+                                            Ancestors),
+                                      yang_xpath:shift_xp_current(CompiledXPath,
+                                                                  length(
+                                                                    DepPath));
+                                  _ ->
+                                      CompiledXPath
+                              end,
+                          {[{ShiftedCompiledXPath, Deps, Origin, Stmt} | Acc],
+                           Ctx1_0}
                   end
           end, {[], Ctx1}, WhenL0),
     {Ctx2, Sn#sn{must = MustL1, 'when' = WhenL1}};
@@ -5057,6 +5070,21 @@ can_skip_node('choice', _) -> true;
 can_skip_node('case',   _) -> true;
 can_skip_node(LastSkipped, LastSkipped) -> true;
 can_skip_node(_, _) -> false.
+
+
+-spec dep_path_to_closest_config_ancestor(AncestorL :: [#module{}|#sn{}]) ->
+          list().
+%% @doc Returns a 'dependecy'-path to the closest ancestor.
+dep_path_to_closest_config_ancestor([#module{}]) ->
+    ['..'];
+dep_path_to_closest_config_ancestor([#sn{kind=Kind}|Ancestors]) ->
+    case is_data_node(Kind) of
+        true ->
+            ['..'];
+        false ->
+            ['..'|dep_path_to_closest_config_ancestor(Ancestors)]
+    end.
+
 
 -spec map_new() -> map(term(), term()).
 map_new() ->

@@ -20,7 +20,8 @@
          rewrite_expr/2,
          find_variables_expr/1, find_variables_expr/2,
          is_node_set/1,
-         map_expr/2, fold_expr/3
+         map_expr/2, fold_expr/3,
+         shift_current_expr/2
         ]).
 
 -define(xp_exit(Tag, Rsn), exit({(Tag), ?MODULE, ?LINE, (Rsn)})).
@@ -816,7 +817,7 @@ map_expr(F, Expr) ->
         {path, filter, {E, Pred}} ->
             F({path, filter, {map_expr(F, E), map_expr(F, Pred)}});
         [E | Steps] ->
-            [map_expr(F, E) | map_path(F, Steps)];
+            F([map_expr(F, E) | map_path(F, Steps)]);
         _ -> % literal, number, ...
             F(Expr)
     end.
@@ -832,6 +833,22 @@ map_preds(F, [H | T]) -> % can be 'fail'
     [H | map_preds(F, T)];
 map_preds(_, []) ->
     [].
+
+
+-spec shift_current_expr(Expr :: any(), N :: pos_integer()) -> any().
+%% @doc Scan the Expr and shift all xp_current expressions 'up', via
+%% adding 'step' in the parent direction.
+shift_current_expr(Expr, 0) -> Expr;
+shift_current_expr(Expr, N) when N > 0 ->
+    StepUps = [ {step,parent,{node_type,node},[]} ||
+                  _ <-  lists:seq(1,N)],
+    F = fun([{function_call, xp_current, []} = CurrentExpr | Steps ]) ->
+                [CurrentExpr | StepUps] ++ Steps;
+           (OtherExpr) ->
+                OtherExpr
+        end,
+    map_expr(F, Expr).
+
 
 %% F :: fun(Expr, Acc) -> Acc'
 fold_expr(F, Acc, Expr) ->
