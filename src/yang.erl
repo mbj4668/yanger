@@ -2054,11 +2054,11 @@ mk_grouping_children(Stmts, GroupingMap, ParentTypedefs, ParentGroupings,
                      M, Ctx0) ->
     {Typedefs, Groupings, Ctx1} =
         mk_typedefs_and_groupings(Stmts, ParentTypedefs, ParentGroupings,
-                                  M, _IsInGrouping = true, Ctx0),
+                                  M, _IsInGrouping1 = true, Ctx0),
     {Children, XSubstmts, GroupingMap1, Ctx2} =
         mk_children(Stmts, GroupingMap, Typedefs, Groupings,
                     ParentTypedefs, ParentGroupings,
-                    M, _IsInGrouping = true, Ctx1,
+                    M, _IsInGrouping2 = true, Ctx1,
                     _Mode = grouping, _Ancestors = [], _Acc = [], _XAcc = []),
     {Children, XSubstmts, GroupingMap1, Typedefs, Groupings, Ctx2}.
 
