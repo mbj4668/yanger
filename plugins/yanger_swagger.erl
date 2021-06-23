@@ -411,7 +411,9 @@ emit_tree(Ctx, [Mod|Mods], AllMods, Fd, Opts) ->
                               [delimiter_nl((MatchVer orelse
                                              HasDataNode orelse MatchData)
                                             andalso
-                                            (MatchOp orelse HasOpNode))]);
+                                            (MatchOp orelse HasOpNode)
+                                            andalso
+                                            (Opts#options.top_resource == all))]);
                true ->
                     skip
             end,
@@ -424,7 +426,9 @@ emit_tree(Ctx, [Mod|Mods], AllMods, Fd, Opts) ->
                                    'yang-library-version', Opts),
                     io:format(Fd, "~s",
                               [delimiter_nl((HasDataNode orelse MatchData)
-                                            andalso MatchVer)]);
+                                            andalso MatchVer
+                                            andalso
+                                            (Opts#options.top_resource == all))]);
                true ->
                     skip
             end,
