@@ -1499,8 +1499,10 @@ fmt_format(_Lvl, _Format) ->
 %%
 %% NOTE: argument is #type.base
 %%
+type_and_format(boolean) ->                {boolean, undefined};
 type_and_format(leafref) ->                {string, leafref};
 type_and_format(union) ->                  {string, union};
+type_and_format(int32) ->                  {integer, int32};
 type_and_format(int16) ->                  {integer, inte16};
 type_and_format(int8) ->                   {integer, byte};
 type_and_format('instance-identifier') ->  {string, 'instance-identifier'};
