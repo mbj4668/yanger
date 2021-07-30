@@ -1,0 +1,36 @@
+module small6 {
+  namespace urn:r;
+  prefix rprefix;
+
+  import parent {
+    prefix parentPrefix;
+  }
+
+  augment "/parentPrefix:parent-container" {
+    list test-list {
+      key test-key;
+
+      leaf test-key {
+        type string;
+      }
+
+      leaf dummy {
+        type uint16;
+      }
+    }
+  }
+
+  augment "/parentPrefix:parent-container-2" {
+    list test-list {
+      key test-key;
+
+      leaf test-key {
+        type string;
+      }
+
+      leaf dummy {
+        type uint16;
+      }
+    }
+  }
+}
