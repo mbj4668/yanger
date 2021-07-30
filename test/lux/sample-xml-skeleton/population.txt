@@ -1,0 +1,5 @@
+{string, "populate type string"}.
+{unit8, "16"}.
+{unit32, "32"}.
+{{yang, 'date-and-time'}, "1985-04-12T23:20:50.52Z"}.
+{{inet,'ip-address'}, "192.168.1.5"}.
