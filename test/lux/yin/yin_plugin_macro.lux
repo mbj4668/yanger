@@ -1,0 +1,57 @@
+# author: lbevemyr@cisco.com
+[doc Test of the yanger yin plugin. Comparing it to the predecessor pyang yin.]
+
+[macro yin_compare FILE]
+    ~yanger -f yin -p ${DIR} ${DIR}/${FILE}
+    ! | sed 's/ *$//' > test.yanger.yin
+    !echo ==$?==
+    ?==0==
+
+    ~pyang --ignore-errors -f yin -p ${DIR} ${DIR}/${FILE}
+    ! | sed 's/ *$//' > test.pyang.yin
+    !echo ==$?==
+    ?==0==
+
+    !diff -u test.pyang.yin test.yanger.yin
+    !echo ==$?==
+    ?==0==
+    -
+[endmacro]
+
+
+[shell test_yanger_yin]
+    [timeout 20]
+
+    [global DIR=../tree]
+    [invoke yin_compare small2.yang]
+    [invoke yin_compare small3.yang]
+    [invoke yin_compare small4.yang]
+    [invoke yin_compare small5.yang]
+    [invoke yin_compare a.yang]
+
+    # use pyang test modules
+    [global DIR=./test_good]
+    [invoke yin_compare yt5.yang]
+    [invoke yin_compare yt6.yang]
+    [invoke yin_compare yt7.yang]
+    [invoke yin_compare yt8.yang]
+    [invoke yin_compare yt9.yang]
+    [invoke yin_compare yt10.yang]
+    [invoke yin_compare qs.yang]
+    [invoke yin_compare q.yang]
+    [invoke yin_compare w.yang]
+    [invoke yin_compare xt5.yang]
+    [invoke yin_compare xt6.yang]
+    [invoke yin_compare xt7.yang]
+    [invoke yin_compare xt10.yang]
+    [invoke yin_compare a.yang]
+    [invoke yin_compare b.yang]
+
+    # use some test modules
+    [global DIR=.]
+    [invoke yin_compare small6.yang]
+
+[cleanup]
+    !rm -f test.yanger.yin
+    !rm -f test.pyang.yin
+
