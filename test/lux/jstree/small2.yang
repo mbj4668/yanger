@@ -1,0 +1,45 @@
+module small2 {
+
+  namespace "http://xml.juniper.net/junos/10.0R3/junos";
+  prefix junos;
+
+  typedef key-attribute-string-type {
+     type string;
+  }
+
+
+  list dynamic-profiles {
+     key name;
+     uses juniper-dynamic-profile-object;
+  }
+
+  grouping juniper-dynamic-variable-object {
+     leaf name {
+        description "Name of variable";
+        type string;
+     }
+     leaf default-value {
+        type string;
+        description "Default value for variable";
+     }
+     leaf mandatory {
+        description "Variable must be supplied by external server";
+        type empty;
+     }
+  }
+
+  grouping juniper-dynamic-profile-object {
+     leaf name {
+        description "Name for dynamic profile";
+        type key-attribute-string-type {
+           length "1 .. 80";
+        }
+     }
+
+     list variables {
+        key name;
+        uses juniper-dynamic-variable-object;
+     }
+
+  }
+}
