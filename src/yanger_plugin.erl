@@ -34,6 +34,8 @@
 
 -include_lib("yanger/include/yang.hrl").
 
+-optional_callbacks([dependencies/0]).
+
 %% @doc Optional plugin dependencies
 %% Returns a list of other plugin modules that this module is
 %% dependent upon.
