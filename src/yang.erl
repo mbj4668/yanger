@@ -242,7 +242,30 @@ load_plugins_from_path(PluginPath) ->
                           Acc
                   end
           end, [], PluginPath),
-    Plugins.
+    {Deps, NoDeps} =
+        lists:foldl(
+          fun(M, {Deps0, NoDeps0}) ->
+                  case erlang:function_exported(M, dependencies, 0) of
+                      true ->
+                          DepMods = M:dependencies(),
+                          Deps1 =
+                              lists:map(
+                                fun(DepMod) ->
+                                        case lists:member(DepMod, Plugins) of
+                                            false ->
+                                                erlang:error({module_not_found,
+                                                              DepMod});
+                                            true ->
+                                                {DepMod, M}
+                                        end
+                                end, DepMods),
+                          {Deps1 ++ Deps0, NoDeps0};
+                      false ->
+                          {Deps0, [M | NoDeps0]}
+                  end
+          end, {[], []}, Plugins),
+    {ok, Sorted} = topo_sort(Deps),
+    Sorted ++ (NoDeps -- Sorted).
 
 load_file(Dir, FName) ->
     case filename:extension(FName) of
