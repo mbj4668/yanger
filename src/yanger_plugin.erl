@@ -34,6 +34,11 @@
 
 -include_lib("yanger/include/yang.hrl").
 
+%% @doc Optional plugin dependencies
+%% Returns a list of other plugin modules that this module is
+%% dependent upon.
+-callback dependencies() -> [atom()].
+
 %% @doc Initialize the plugin.
 %% This function is called to let the plugin register its options,
 %% grammar, etc.  Note that the Ctx is not yet completely initialized.
