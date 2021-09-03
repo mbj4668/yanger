@@ -3,25 +3,18 @@ module types {
   prefix t;
   yang-version 1.1;
 
-  import tailf-common {
-    prefix tailf;
-  }
-
   feature foo;
   feature bar;
 
   typedef e1 {
     type enumeration {
       enum one {
-        tailf:info "original one";
       }
       enum two {
         value 4;
-        tailf:code-name enum_two;
         description "original two";
       }
       enum three {
-        tailf:info "original three";
         if-feature foo;
       }
     }
@@ -29,7 +22,6 @@ module types {
   typedef e2 {
     type e1 {
       enum one {
-        tailf:info "derived one";
         if-feature bar;
       }
       enum two;
@@ -40,15 +32,12 @@ module types {
   typedef b1 {
     type bits {
       bit one {
-        tailf:info "original one";
       }
       bit two {
         position 4;
-        tailf:code-name bit_two;
         description "original two";
       }
       bit three {
-        tailf:info "original three";
         if-feature foo;
       }
     }
@@ -56,7 +45,6 @@ module types {
   typedef b2 {
     type b1 {
       bit one {
-        tailf:info "derived one";
         if-feature bar;
       }
       bit two;
@@ -99,11 +87,8 @@ module types {
     leaf e2 {
       type enumeration {
         enum one {
-          tailf:info "inline one";
         }
         enum two {
-          tailf:info "inline two";
-          tailf:code-name inline_two;
           if-feature foo;
         }
       }
@@ -130,10 +115,8 @@ module types {
     leaf b2 {
       type bits {
         bit one {
-          tailf:info "inline one";
         }
         bit two {
-          tailf:info "inline two";
           if-feature foo;
         }
       }
@@ -179,11 +162,6 @@ module types {
       type l2 {
         require-instance false;
       }
-    }
-
-    // conflict avoided by tailf:code-name
-    leaf two {
-      type string;
     }
 
     /* FIXME: test leafref-in-union workaround

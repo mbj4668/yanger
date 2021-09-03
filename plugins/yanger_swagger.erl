@@ -75,7 +75,7 @@ init(Ctx0) ->
           omit_standard_statuses,
           methods,
           path_filter,
-          rfc7951
+          int64_as_string
          }).
 
 option_specs() ->
@@ -177,8 +177,8 @@ option_specs() ->
         "Filter out paths matching a path filter. "
         "Example: --swagger-path-filter \"/data/example-jukebox/jukebox\""},
 
-       %% --swagger-rfc7951 <boolean>
-       {rfc7951, undefined, "swagger-rfc7951",
+       %% --swagger-int64-as-string <boolean>
+       {int64_as_string, undefined, "swagger-int64-as-string",
         {boolean, false},
         "Format 64-bit integer types as JSON strings"}
 
@@ -219,7 +219,7 @@ mk_options(Ctx) ->
     Methods = parse_input_methods(
                 proplists:get_value(methods, Ctx#yctx.options)),
     PathFilter = proplists:get_value(path_filter, Ctx#yctx.options),
-    RFC7951 = proplists:get_value(rfc7951, Ctx#yctx.options),
+    Int64AsString = proplists:get_value(int64_as_string, Ctx#yctx.options),
     #options{host                   = Host,
              path                   = Path,
              version                = Version,
@@ -239,7 +239,7 @@ mk_options(Ctx) ->
              omit_standard_statuses = OmitStatuses,
              methods                = Methods,
              path_filter            = PathFilter,
-             rfc7951                = RFC7951}.
+             int64_as_string        = Int64AsString}.
 
 
 %% parse a comma separated HTTP method string, eg: "post, get"
@@ -1507,25 +1507,22 @@ fmt_format(_Lvl, _Format) ->
 %%
 %% NOTE: argument is #type.base
 %%
-type_and_format(#typedef{type = #type{} = T}, _RFC7951) -> type_and_format(T);
-type_and_format(T = #type{base = enumeration}, _RFC7951) -> type_and_format_enum(T);
-type_and_format(#type{base = Base}, RFC7951) ->
-    Tmp = case RFC7951 of
-        true ->
-            case Base of
-                int64 -> 'int64-rfc7951';
-                uint64 -> 'uint64-rfc7951';
-                _ -> Base
-            end;
-        false -> Base
-    end,
-    type_and_format(Tmp);
-type_and_format(YangType, _RFC7951) ->     {string, YangType}.
+type_and_format(Type, false) ->
+    type_and_format(Type);
+type_and_format(Type, true) ->
+    case type_and_format(Type) of
+        {integer, int64} ->
+            {string, int64};
+        {integer, uint64} ->
+            {string, uint64};
+        Else ->
+            Else
+    end.
+
 type_and_format(boolean) ->                {boolean, undefined};
 type_and_format(leafref) ->                {string, leafref};
 type_and_format(union) ->                  {string, union};
 type_and_format(int64) ->                  {integer, int64};
-type_and_format('int64-rfc7951') ->        {string, int64};
 type_and_format(int32) ->                  {integer, int32};
 type_and_format(int16) ->                  {integer, inte16};
 type_and_format(int8) ->                   {integer, byte};
@@ -1539,12 +1536,10 @@ type_and_format(uint8) ->                  {integer, byte};
 type_and_format(uint16) ->                 {integer, uint16};
 type_and_format(uint32) ->                 {integer, uint32};
 type_and_format(uint64) ->                 {integer, uint64};
-type_and_format('uint64-rfc7951') ->       {string, uint64};
 type_and_format(#typedef{type = #type{} = T}) ->  type_and_format(T);
 type_and_format(T = #type{base = enumeration}) -> type_and_format_enum(T);
 type_and_format(#type{base = Base}) ->            type_and_format(Base);
 type_and_format(YangType) ->                      {string, YangType}.
-
 
 type_and_format_enum(#type{base = enumeration,
                            type_spec = #enumeration_type_spec{
@@ -1570,7 +1565,8 @@ path_params(#sn{name = Name, kind = 'list', keys = Keys, children = Chs,
                 module = Mod},
             child = _PathType, _Mode, Lvl, Opts) ->
     %% Find list key children; filter out 'false', i.e. not found nodes.
-    [P || P <- [path_param(Name, find_sn(Key, Mod, Chs), Lvl, Opts) || Key <- Keys],
+    [P || P <- [path_param(Name, find_sn(Key, Mod, Chs), Lvl, Opts) ||
+                   Key <- Keys],
           P /= false];
 path_params(Sn = #sn{name = Name, kind = 'leaf-list'},
             child = _PathType, _Mode, Lvl, Opts) ->
@@ -1619,7 +1615,8 @@ path_param(ParentName,
          DIndent4, "\"in\": \"path\",\n",
          DIndent4, "\"description\": \"", description(StmtL), "\",\n",
          DIndent4, "\"required\": true,\n",
-         fmt_type(DefLvl + 1, type_and_format(T, Opts#options.rfc7951)), "\n",
+         fmt_type(DefLvl + 1,
+                  type_and_format(T, Opts#options.int64_as_string)), "\n",
          DIndent2, "}"
         ],
     store_defs(?SWAGGER_PARAMS, [{ParamName, PathParam}]),
@@ -1654,14 +1651,16 @@ body_params(HttpMethod, _Path, _PathType, _Mode, _Sn, _Mod, _Lvl, _Opts)
        HttpMethod == head; HttpMethod == delete ->
     %% NOTE: exclude body from OPTIONS, GET, HEAD and DELETE
     [];
-body_params(HttpMethod, _Path, _PathType, _Mode, #sn{kind = Kind}, _Mod, _Lvl, _Opts)
+body_params(HttpMethod, _Path, _PathType, _Mode, #sn{kind = Kind},
+            _Mod, _Lvl, _Opts)
   when Kind == leaf, HttpMethod == post ->
     %% NOTE: exclude POST on leaf
     [];
 body_params(HttpMethod, Path, PathType, Mode, #sn{} = Sn, Mod, Lvl, Opts)
   when HttpMethod == patch; HttpMethod == put; HttpMethod == post ->
     [body_param(HttpMethod, Path, PathType, Mode, Sn, Mod, Lvl, Opts)];
-body_params(HttpMethod, Path, PathType, data = Mode, #module{} = Mod, Mod, Lvl, Opts)
+body_params(HttpMethod, Path, PathType, data = Mode, #module{} = Mod,
+            Mod, Lvl, Opts)
   when HttpMethod == patch; HttpMethod == put; HttpMethod == post ->
     [body_param(HttpMethod, Path, PathType, Mode, Mod, Mod, Lvl, Opts)];
 body_params(_HttpMethod, _Path, _PathType, _Mode, _Sn, _Mod, _Lvl, _Opts) ->
@@ -1691,7 +1690,8 @@ body_param(HttpMethod, Path, PathType, Mode, SnOrMod, Mod, Lvl, Opts) ->
                    lists:join(
                      $, ,
                      [C2 || C2 <- [body(json, _IsTop = true, param, HttpMethod,
-                                        PathType, Mode, C, Mod, DefLvl + 2, Opts) ||
+                                        PathType, Mode, C, Mod, DefLvl + 2,
+                                        Opts) ||
                                       C <- Chs], C2 /= []]);
                _ ->
                    body(json, _IsTop = true, param, HttpMethod, PathType, Mode,
@@ -1759,7 +1759,8 @@ body(json, IsTop, Context, HttpMethod, PathType, Mode,
     %% choice - include all cases, even though only one is valid
     ChoiceProps =
         [C || C <- [body(json, IsTop, Context, HttpMethod, PathType,
-                         Mode, Child, Mod, Lvl, Opts)  || Child <- Chs], C /= []],
+                         Mode, Child, Mod, Lvl, Opts) ||
+                       Child <- Chs], C /= []],
     lists:join($, , ChoiceProps);
 
 body(json, IsTop, Context, HttpMethod, PathType, Mode,
@@ -1767,7 +1768,8 @@ body(json, IsTop, Context, HttpMethod, PathType, Mode,
     %% case - continue with case children
     CaseProps =
         [C || C <- [body(json, IsTop, Context, HttpMethod, PathType,
-                         Mode, Child, Mod, Lvl, Opts)  || Child <- Chs], C /= []],
+                         Mode, Child, Mod, Lvl, Opts) ||
+                       Child <- Chs], C /= []],
     lists:join($, , CaseProps);
 body(json, IsTop, _Context, _HttpMethod, _PathType, _Mode,
      #sn{kind = leaf,
@@ -1777,7 +1779,7 @@ body(json, IsTop, _Context, _HttpMethod, _PathType, _Mode,
     Indent2 = indent(Lvl),
     Indent4 = indent(Lvl + 1),
     Indent6 = indent(Lvl + 2),
-    TypeAndFormat = {_Type, _Format} = type_and_format(T, Opts#options.rfc7951),
+    TypeAndFormat = type_and_format(T, Opts#options.int64_as_string),
     Desc = case description(StmtL) of
                [] -> ["(leaf)"];
                D ->  [D, " (leaf)"]
@@ -1800,7 +1802,7 @@ body(json, IsTop, _Context, _HttpMethod, _PathType, _Mode,
     Indent2 = indent(Lvl),
     Indent4 = indent(Lvl + 1),
     Indent6 = indent(Lvl + 2),
-    TypeAndFormat = {_Type, _Format} = type_and_format(T, Opts#options.rfc7951),
+    TypeAndFormat = type_and_format(T, Opts#options.int64_as_string),
     Desc = case description(StmtL) of
                [] -> ["(leaf-list)"];
                D ->  [D, " (leaf-list)"]
@@ -1832,7 +1834,8 @@ body(json, IsTop, Context, HttpMethod, PathType, Mode,
            end,
     ChildProperties =
         [C || C <- [body(json, false, Context, HttpMethod, PathType,
-                         Mode, Child, Mod, Lvl + 3, Opts) || Child <- Chs], C /= []],
+                         Mode, Child, Mod, Lvl + 3, Opts) ||
+                       Child <- Chs], C /= []],
     [
      "\n",
      Indent2, "\"", name(IsTop, Sn, Mod), "\": {\n",
@@ -1868,7 +1871,8 @@ body(json, IsTop, Context, HttpMethod, PathType, Mode,
     %% container - json format of container with children
     ChildProperties =
         [C || C <- [body(json, false, Context, HttpMethod, PathType,
-                         Mode, Child, Mod, Lvl + 2, Opts) || Child <- Chs], C /= []],
+                         Mode, Child, Mod, Lvl + 2, Opts) ||
+                       Child <- Chs], C /= []],
     [
      "\n",
      Indent2, "\"", name(IsTop, Sn, Mod), "\": {\n",
@@ -1919,7 +1923,8 @@ body(json, IsTop, param = Context, post = HttpMethod, PathType, Mode,
     %% body param operation for a POST method - continue with 'input' children
     InputChs = [C || C <- Chs, C#sn.kind == input],
     InPs = [C || C <- [body(json, IsTop, Context, HttpMethod, PathType,
-                            Mode, InC, Mod, Lvl, Opts) || InC <- InputChs], C /= []],
+                            Mode, InC, Mod, Lvl, Opts) ||
+                          InC <- InputChs], C /= []],
     lists:join($, , InPs);
 body(json, IsTop, response = Context, post = HttpMethod, PathType, Mode,
      #sn{kind = output, children = Chs}, Mod, Lvl, Opts) ->
@@ -2016,7 +2021,8 @@ body(json, IsTop, response = Context, get = HttpMethod, PathType,
                  element(1, C#sn.stmt) == 'rpc'],
     ChildProperties =
         [C || C <- [body(json, IsTop, Context, HttpMethod, PathType,
-                         Mode, Child, Mod, Lvl + 2, Opts) || Child <- Rpcs], C /= []],
+                         Mode, Child, Mod, Lvl + 2, Opts) ||
+                       Child <- Rpcs], C /= []],
     Description =
         "This resource is a container that provides access to the "
         "data-model-specific RPC operations supported by the server. See "
@@ -2097,7 +2103,8 @@ body(json, IsTop, param = Context, HttpMethod, PathType, data = Mode,
     Desc = description(StmtL),
     ChildProperties =
         [C || C <- [body(json, IsTop, Context, HttpMethod, PathType,
-                         Mode, Child, Mod, Lvl + 2, Opts) || Child <- Chs], C /= []],
+                         Mode, Child, Mod, Lvl + 2, Opts) ||
+                       Child <- Chs], C /= []],
     [
      "\n",
      Indent2, "\"", Name, "\": {\n",
