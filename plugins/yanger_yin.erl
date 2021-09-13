@@ -104,6 +104,7 @@ emit_stmts([], _Lvl, _S) ->
     ok;
 emit_stmts([Stmt|Stmts], Lvl, S) ->
     OutF = S#state.outf,
+    Ctx = S#state.ctx,
     Keyword = yang:stmt_keyword(Stmt),
     emit_stmt_keyword(Keyword, Lvl, S),
     YinElement = emit_stmt_arg(yang:stmt_arg(Stmt), Lvl, S, Keyword),
@@ -121,7 +122,14 @@ emit_stmts([Stmt|Stmts], Lvl, S) ->
                         {S, SubStmts0}
                 end,
             emit_stmts(SubStmts, Lvl+1, NewS),
-            KeywordStr = make_str(Keyword),
+            KeywordStr = case is_tuple(Keyword) of
+                true ->
+                    {ModuleName, Key} = Keyword,
+                    Prefix  = search_for_prefix(ModuleName,Ctx),
+                    make_str({Prefix,Key});
+                _ ->
+                    make_str(Keyword)
+            end,
             OutF([indent(Lvl),ot(),fs(),KeywordStr,ct(),nl()])
     end,
     emit_stmts(Stmts, Lvl, NewS).
@@ -146,7 +154,8 @@ emit_stmt_arg(Arg, Lvl, S, Keyword) ->
     if is_tuple(Keyword) ->
             {Type, YinElement} = search_for_extension(Keyword, Ctx),
             if YinElement ->
-                    {Prefix, _} = Keyword,
+                    {ModuleName, _} = Keyword,
+                    Prefix  = search_for_prefix(ModuleName,Ctx),
                     TypeStr = make_str({Prefix, Type});
                true ->
                     TypeStr = make_str(Type)
@@ -242,6 +251,20 @@ search_for_namespace(undefined, Mod, Ctx) ->
 
 search_for_namespace(Namespace, _Mod, _Ctx) ->
     Namespace.
+
+
+search_for_prefix(ModuleName, Ctx) ->
+    Target = yang:search_module(Ctx, ModuleName, undefined),
+    case Target of
+        {true, _, TargetMod} ->
+            make_str(TargetMod#module.prefix);
+        _ ->
+            undefined
+    end.
+
+
+
+
 
 module_arg_imports(_S, _Ctx, [], _Indent) ->
     skip;

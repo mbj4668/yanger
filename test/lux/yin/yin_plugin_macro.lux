@@ -47,6 +47,11 @@
     [invoke yin_compare a.yang]
     [invoke yin_compare b.yang]
 
+
+    # test tailf-modules
+    [global DIR=./test_tailf_info]
+    [invoke yin_compare config.yang]
+
     # use some test modules
     [global DIR=.]
     [invoke yin_compare small6.yang]
