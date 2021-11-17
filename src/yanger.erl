@@ -457,7 +457,8 @@ run(Ctx0, Opts, Files) ->
             HasFormatErrors =
                 yang_error:print_errors(Ctx4, Opts#opts.print_error_code),
             if OutFd /= standard_io ->
-                    _ = file:close(OutFd);
+                    _ = file:close(OutFd),
+                    ok;
                true ->
                     ok
             end,
@@ -470,7 +471,8 @@ run(Ctx0, Opts, Files) ->
                         undefined ->
                             ok;
                         OutfileEmit ->
-                            _ = file:delete(OutfileEmit)
+                            _ = file:delete(OutfileEmit),
+                            ok
                     end,
                     throw({error, errors_printed});
                 false ->
