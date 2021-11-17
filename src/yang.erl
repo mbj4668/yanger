@@ -4928,7 +4928,7 @@ cursor_reset(Sn, Cursor) ->
 
 -spec cursor_follow_path(cursor_path(), #cursor{}, #yctx{}) ->
           {true, #cursor{}}
-        | {false, #yctx{}}.
+        | {false, #yerror{}}.
 %% Nodes with with if_feature_result == false are
 %% considered to *not* exist, see find_child/5.
 cursor_follow_path([H | T], Cursor0, Ctx) ->

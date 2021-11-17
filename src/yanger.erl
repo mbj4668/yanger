@@ -389,7 +389,7 @@ run(Ctx0, Opts, Files) ->
                   TransformFun(Ctx3, Modules1)
           end, Modules0, Opts#opts.transform),
 
-    validate_features(Opts#opts.ignore_unknown_features, Ctx3),
+    _ = validate_features(Opts#opts.ignore_unknown_features, Ctx3),
 
     if Opts#opts.emit == undefined ->
             case Opts#opts.debug_print of
@@ -443,7 +443,7 @@ run(Ctx0, Opts, Files) ->
                     ?CATCH_STACKTRACE_WHEN(Class, Reason, Stacktrace,
                                            OutFd /= standard_io)
                         %% don't leave the file behind on error/throw
-                        file:delete(Opts#opts.outfile),
+                        _ = file:delete(Opts#opts.outfile),
                         erlang:raise(Class, Reason, Stacktrace);
                     ?CATCH_STACKTRACE(_Class, Reason, Stacktrace)
                         EmitError = {emit_crash,
@@ -457,7 +457,7 @@ run(Ctx0, Opts, Files) ->
             HasFormatErrors =
                 yang_error:print_errors(Ctx4, Opts#opts.print_error_code),
             if OutFd /= standard_io ->
-                    file:close(OutFd);
+                    _ = file:close(OutFd);
                true ->
                     ok
             end,
@@ -470,7 +470,7 @@ run(Ctx0, Opts, Files) ->
                         undefined ->
                             ok;
                         OutfileEmit ->
-                            file:delete(OutfileEmit)
+                            _ = file:delete(OutfileEmit)
                     end,
                     throw({error, errors_printed});
                 false ->
