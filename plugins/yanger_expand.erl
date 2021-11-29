@@ -288,12 +288,14 @@ sn2(#sn{kind = Kind, name = Name, children = Ch, stmt = Stmt} = SN, P, S) ->
     F11 = fun () -> mandatory(SN, S, F10) end,
     F12 = fun () -> min_elements(SN, S, F11) end,
     F13 = fun () -> max_elements(SN, S, F12) end,
+    F14 = fun () -> description(SN, S, F13) end,
+
     Arg = if Kind == 'input' orelse Kind == 'output' ->
                   [];
              true ->
                   Name
           end,
-    {yang:stmt_keyword(Stmt), Arg, pos(S), F13()}.
+    {yang:stmt_keyword(Stmt), Arg, pos(S), F14()}.
 
 update_path(SN = #sn{kind = NodeType}, P)
   when (NodeType == 'leaf') orelse
@@ -342,6 +344,10 @@ presence(SN, _State, NxtF) ->
 
 mandatory(SN, _State, NxtF) ->
     yang:search_all_stmts(mandatory, SN#sn.stmt) ++ NxtF().
+
+description(SN, _State, NxtF) ->
+    yang:search_all_stmts(description, SN#sn.stmt) ++ NxtF().
+
 
 min_elements(SN, _State, NxtF) ->
     yang:search_all_stmts('min-elements', SN#sn.stmt) ++ NxtF().
