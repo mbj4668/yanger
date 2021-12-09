@@ -30,25 +30,25 @@
     a.yang : c d e f g
     SH-PROMPT
     """
-    
+
     !yanger -f depend --depend-recurse --depend-extension .test a.yang
     """??
     a.yang : b.test c.test d.test e.test f.test g.test
     SH-PROMPT
     """
-    
+
     !yanger -f depend --depend-recurse --depend-include-path --depend-double-colon a.yang
     """??
-    a.yang :: ./b.yang ./c.yang ./d.yang ./e.yang ./f.yang ./g.yang
+    a.yang :: b.yang c.yang d.yang e.yang f.yang g.yang
     SH-PROMPT
     """
 
     !yanger -f depend --depend-recurse --depend-include-path --depend-extension .test a.yang
     """??
-    a.yang : ./b.test ./c.test ./d.test ./e.test ./f.test ./g.test
+    a.yang : b.test c.test d.test e.test f.test g.test
     SH-PROMPT
     """
-   
+
     !yanger -f depend --depend-target test_target a.yang
     """??
     test_target : b c d f

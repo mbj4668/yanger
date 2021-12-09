@@ -62,7 +62,13 @@ emit_prereqs(Ctx, Opts, [PreReq | T], Fd) ->
                 case proplists:get_value(depend_include_path, Opts, false) of
                     true ->
                         {value, M} = yang:get_module(PreReq, undefined, Ctx),
-                        FName = yang:get_filename(M),
+                        FName0 = yang:get_filename(M),
+                        {ok, Cwd} = file:get_cwd(),
+                        FName =
+                            case filelib:safe_relative_path(FName0, Cwd) of
+                                unsafe -> FName0;
+                                FName1 -> FName1
+                            end,
                         case proplists:get_value(depend_extension, Opts) of
                             undefined ->
                                 FName;
@@ -92,11 +98,14 @@ get_prereqs(Ctx, Opts, #module{stmt = Stmt}, PreReqs) ->
             false ->
                 yang:search_all_stmts('include', Stmt)
         end,
-    NewPreReqs = [ T || T <- [yang:stmt_arg(S) || S <- Imports ++ Includes], lists:member(T, PreReqs) == false],
+    NewPreReqs = [ T || T <- [yang:stmt_arg(S) || S <- Imports ++ Includes],
+                        lists:member(T, PreReqs) == false],
     case proplists:get_value(depend_recurse, Opts, false) of
         true ->
-            Models = [ yang:get_module(S, undefined, Ctx) || S <- NewPreReqs ], 
-            usort(PreReqs ++ merge([get_prereqs(Ctx, Opts, M, PreReqs ++ NewPreReqs) || {value, M}  <- Models]));
+            Models = [ yang:get_module(S, undefined, Ctx) || S <- NewPreReqs ],
+            usort(PreReqs ++
+                      merge([get_prereqs(Ctx, Opts, M, PreReqs ++ NewPreReqs) ||
+                                {value, M}  <- Models]));
         false ->
             PreReqs ++ NewPreReqs
     end.
