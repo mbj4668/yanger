@@ -1,0 +1,805 @@
+# author: lbevemyr@cisco.com
+[doc Test of the yanger yin plugin with canonical option.]
+
+[shell test_yanger_yin]
+    [timeout 20]
+
+    # use some test modules
+    [global DIR=.]
+    !yanger -f yin -p ${DIR} ${DIR}/small6.yang --yin-canonical
+    """???
+    <?xml version="1.0" encoding="UTF-8"?>
+    <module name="small6"
+            xmlns="urn:ietf:params:xml:ns:yang:yin:1"
+            xmlns:rprefix="urn:r"
+            xmlns:parentPrefix="urn:parent">
+      <namespace uri="urn:r"/>
+      <prefix value="rprefix"/>
+      <import module="parent">
+        <prefix value="parentPrefix"/>
+      </import>
+      <augment target-node="/parentPrefix:parent-container">
+        <list name="test-list">
+          <key value="test-key"/>
+          <leaf name="test-key">
+            <type name="string"/>
+          </leaf>
+          <leaf name="dummy">
+            <type name="uint16"/>
+          </leaf>
+        </list>
+      </augment>
+      <augment target-node="/parentPrefix:parent-container-2">
+        <list name="test-list">
+          <key value="test-key"/>
+          <leaf name="test-key">
+            <type name="string"/>
+          </leaf>
+          <leaf name="dummy">
+            <type name="uint16"/>
+          </leaf>
+        </list>
+      </augment>
+    </module>
+    """
+
+    [global DIR=../tree]
+    !yanger -f yin -p ${DIR} ${DIR}/small2.yang --yin-canonical
+    """???
+    <?xml version="1.0" encoding="UTF-8"?>
+    <module name="small2"
+            xmlns="urn:ietf:params:xml:ns:yang:yin:1"
+            xmlns:junos="http://xml.juniper.net/junos/10.0R3/junos">
+      <namespace uri="http://xml.juniper.net/junos/10.0R3/junos"/>
+      <prefix value="junos"/>
+      <typedef name="key-attribute-string-type">
+        <type name="string"/>
+      </typedef>
+      <list name="dynamic-profiles">
+        <key value="name"/>
+        <uses name="juniper-dynamic-profile-object"/>
+      </list>
+      <grouping name="juniper-dynamic-variable-object">
+        <leaf name="name">
+          <type name="string"/>
+          <description>
+            <text>Name of variable</text>
+          </description>
+        </leaf>
+        <leaf name="default-value">
+          <type name="string"/>
+          <description>
+            <text>Default value for variable</text>
+          </description>
+        </leaf>
+        <leaf name="mandatory">
+          <type name="empty"/>
+          <description>
+            <text>Variable must be supplied by external server</text>
+          </description>
+        </leaf>
+      </grouping>
+      <grouping name="juniper-dynamic-profile-object">
+        <leaf name="name">
+          <type name="key-attribute-string-type">
+            <length value="1 .. 80"/>
+          </type>
+          <description>
+            <text>Name for dynamic profile</text>
+          </description>
+        </leaf>
+        <list name="variables">
+          <key value="name"/>
+          <uses name="juniper-dynamic-variable-object"/>
+        </list>
+      </grouping>
+    </module>
+    """
+    !yanger -f yin -p ${DIR} ${DIR}/small5.yang --yin-canonical
+    """???
+    <?xml version="1.0" encoding="UTF-8"?>
+    <module name="small5"
+            xmlns="urn:ietf:params:xml:ns:yang:yin:1"
+            xmlns:q="urn:q">
+      <namespace uri="urn:q"/>
+      <prefix value="q"/>
+      <grouping name="a">
+        <grouping name="b">
+          <uses name="c">
+            <augment target-node="d">
+              <container name="e"/>
+            </augment>
+          </uses>
+        </grouping>
+        <uses name="b"/>
+      </grouping>
+      <grouping name="c">
+        <container name="d"/>
+      </grouping>
+      <uses name="a"/>
+    </module>
+    """
+
+    # use pyang test modules
+    [global DIR=../yin/test_good]
+    !yanger -f yin -p ${DIR} ${DIR}/yt5.yang --yin-canonical
+    """???
+    <?xml version="1.0" encoding="UTF-8"?>
+    <module name="yt5"
+            xmlns="urn:ietf:params:xml:ns:yang:yin:1"
+            xmlns:yt5="urn:ietf:params:xml:ns:yang:yt5">
+      <namespace uri="urn:ietf:params:xml:ns:yang:yt5"/>
+      <prefix value="yt5"/>
+      <organization>
+        <text>YANG Language Design Team</text>
+      </organization>
+      <contact>
+        <text>ietf@andybierman.com</text>
+      </contact>
+      <description>
+        <text>YANG test module 5.</text>
+      </description>
+      <revision date="2008-02-12">
+        <description>
+          <text>Update test cases.</text>
+        </description>
+      </revision>
+      <revision date="2007-12-26">
+        <description>
+          <text>Initial revision.</text>
+        </description>
+      </revision>
+      <grouping name="G_one">
+        <typedef name="local_1">
+          <type name="int32"/>
+          <units name="meters"/>
+          <default value="0"/>
+        </typedef>
+        <leaf name="G_aaa">
+          <type name="int8"/>
+        </leaf>
+        <uses name="G_two"/>
+        <leaf name="G_bbb">
+          <type name="uint8"/>
+        </leaf>
+        <leaf name="test_leaf">
+          <type name="local_1"/>
+        </leaf>
+      </grouping>
+      <grouping name="G_two">
+        <typedef name="local_1">
+          <type name="string"/>
+          <default value="fred"/>
+        </typedef>
+        <leaf name="G_ccc">
+          <type name="binary"/>
+        </leaf>
+        <container name="G_ddd">
+          <leaf name="G_eee">
+            <type name="uint8"/>
+            <mandatory value="true"/>
+            <reference>
+              <text>RFC 2021</text>
+            </reference>
+          </leaf>
+        </container>
+        <leaf name="test_leaf2">
+          <type name="local_1"/>
+        </leaf>
+      </grouping>
+      <container name="con2">
+        <grouping name="AA">
+          <leaf name="a">
+            <type name="A_typ"/>
+          </leaf>
+          <container name="b">
+            <container name="bb">
+              <uses name="AAA"/>
+            </container>
+            <grouping name="AAA">
+              <uses name="AAAA"/>
+              <leaf name="d">
+                <type name="int8"/>
+              </leaf>
+            </grouping>
+          </container>
+          <grouping name="AAAA">
+            <container name="e">
+              <container name="f">
+                <typedef name="con2">
+                  <type name="int16"/>
+                  <description>
+                    <text>duplicate test</text>
+                  </description>
+                </typedef>
+                <leaf name="g">
+                  <type name="int64"/>
+                </leaf>
+                <leaf name="h">
+                  <type name="con2"/>
+                </leaf>
+                <leaf name="i">
+                  <type name="con2"/>
+                </leaf>
+              </container>
+            </container>
+          </grouping>
+          <typedef name="A_typ">
+            <type name="int32"/>
+            <units name="miles"/>
+            <default value="3"/>
+          </typedef>
+        </grouping>
+        <container name="con3">
+          <uses name="AA"/>
+        </container>
+      </container>
+      <container name="foo">
+        <uses name="foo"/>
+      </container>
+      <grouping name="foo">
+        <leaf name="foo">
+          <type name="foo"/>
+        </leaf>
+      </grouping>
+      <grouping name="bar">
+        <leaf name="bar">
+          <type name="foo"/>
+        </leaf>
+        <leaf-list name="yyy">
+          <type name="binary"/>
+          <min-elements value="2"/>
+          <max-elements value="12"/>
+        </leaf-list>
+        <leaf name="baz">
+          <type name="int16"/>
+        </leaf>
+        <leaf name="goo">
+          <type name="foo"/>
+        </leaf>
+        <container name="zzz">
+          <leaf name="zzzz">
+            <type name="uint32"/>
+          </leaf>
+        </container>
+      </grouping>
+      <container name="foo2">
+        <typedef name="foobar">
+          <type name="uint32"/>
+        </typedef>
+        <grouping name="foobar">
+          <leaf name="foo">
+            <type name="foo"/>
+          </leaf>
+        </grouping>
+        <container name="foo3">
+          <uses name="foobar"/>
+          <leaf-list name="foo4">
+            <type name="foobar"/>
+          </leaf-list>
+        </container>
+        <container name="foo4">
+          <uses name="yt5:foobar"/>
+          <leaf-list name="foo4">
+            <type name="foobar"/>
+          </leaf-list>
+        </container>
+      </container>
+      <typedef name="foo">
+        <type name="int32">
+          <range value="-42 | -2 .. +7 | 8 | 41 | 42"/>
+        </type>
+      </typedef>
+      <list name="foo3">
+        <key value="foo baz bar"/>
+        <unique tag="goo zzz/zzzz"/>
+        <uses name="foo"/>
+        <uses name="bar"/>
+      </list>
+      <rpc name="rpc-one">
+        <input>
+          <leaf name="x">
+            <type name="int8"/>
+          </leaf>
+          <uses name="foo"/>
+        </input>
+        <output>
+          <uses name="bar"/>
+        </output>
+      </rpc>
+      <rpc name="rpc-two"/>
+      <rpc name="rpc-three">
+        <input>
+          <leaf name="a">
+            <type name="foo"/>
+          </leaf>
+          <container name="xx"/>
+        </input>
+      </rpc>
+      <augment target-node="/rpc-two/input">
+        <leaf name="aa">
+          <type name="uint32"/>
+        </leaf>
+      </augment>
+      <augment target-node="/rpc-three/input/xx">
+        <leaf name="aa">
+          <type name="uint32"/>
+        </leaf>
+      </augment>
+      <notification name="notif-one"/>
+      <notification name="notif-two">
+        <leaf name="one">
+          <type name="string"/>
+        </leaf>
+        <anyxml name="two"/>
+      </notification>
+      <notification name="notif-three">
+        <uses name="foo"/>
+      </notification>
+    </module>
+    """
+
+    !yanger -f yin -p ${DIR} ${DIR}/yt6.yang --yin-canonical
+    """???
+    <?xml version="1.0" encoding="UTF-8"?>
+    <module name="yt6"
+            xmlns="urn:ietf:params:xml:ns:yang:yin:1"
+            xmlns:yt6="urn:ietf:params:xml:ns:yang:yt6"
+            xmlns:y="urn:ietf:params:xml:ns:yang:ietf-yang-types">
+      <namespace uri="urn:ietf:params:xml:ns:yang:yt6"/>
+      <prefix value="yt6"/>
+      <import module="ietf-yang-types">
+        <prefix value="y"/>
+      </import>
+      <organization>
+        <text>YANG Language Design Team</text>
+      </organization>
+      <contact>
+        <text>Andy Bierman</text>
+      </contact>
+      <description>
+        <text>YANG test module 6. Container, augment</text>
+      </description>
+      <typedef name="un-1">
+        <type name="union">
+          <type name="union">
+            <type name="int32"/>
+            <type name="binary"/>
+            <type name="union">
+              <type name="string"/>
+              <type name="binary"/>
+              <type name="boolean"/>
+            </type>
+          </type>
+          <type name="int64"/>
+        </type>
+        <default value="9"/>
+      </typedef>
+      <augment target-node="/foo/a/z">
+        <leaf name="xxx">
+          <type name="binary"/>
+        </leaf>
+      </augment>
+      <augment target-node="/foo/a">
+        <case name="zz">
+          <leaf name="zzz">
+            <type name="int64"/>
+          </leaf>
+        </case>
+      </augment>
+      <container name="foo">
+        <leaf name="un">
+          <type name="un-1"/>
+          <default value="forty"/>
+          <config value="false"/>
+        </leaf>
+        <leaf name="bar1">
+          <type name="y:counter32"/>
+        </leaf>
+        <leaf name="bar2">
+          <type name="int32"/>
+          <default value="10"/>
+        </leaf>
+        <leaf name="bar3">
+          <type name="int32"/>
+          <mandatory value="true"/>
+        </leaf>
+        <leaf name="bar4">
+          <type name="int32"/>
+          <mandatory value="false"/>
+        </leaf>
+        <leaf name="bar5">
+          <type name="int32"/>
+          <mandatory value="true"/>
+        </leaf>
+        <leaf name="bar6">
+          <type name="int32"/>
+          <default value="10"/>
+          <mandatory value="false"/>
+        </leaf>
+        <choice name="a">
+          <default value="x"/>
+          <leaf name="x">
+            <type name="int32"/>
+          </leaf>
+          <leaf name="y">
+            <type name="string"/>
+          </leaf>
+          <container name="z"/>
+        </choice>
+      </container>
+      <list name="bar">
+        <key value="bar1"/>
+        <config value="false"/>
+        <unique tag="zz2"/>
+        <leaf name="zz1">
+          <type name="un-1"/>
+          <mandatory value="true"/>
+        </leaf>
+        <leaf name="zz2">
+          <type name="y:zero-based-counter32"/>
+        </leaf>
+        <leaf-list name="zz3">
+          <type name="y:date-and-time"/>
+          <min-elements value="4"/>
+          <max-elements value="14"/>
+          <ordered-by value="user"/>
+          <description>
+            <text>testing-one-two-three</text>
+          </description>
+        </leaf-list>
+        <leaf name="bar1">
+          <type name="un-1"/>
+        </leaf>
+      </list>
+      <notification name="notif1">
+        <status value="deprecated"/>
+        <description>
+          <text>notification test</text>
+        </description>
+        <reference>
+          <text>test-notif-1</text>
+        </reference>
+        <container name="x">
+          <list name="y">
+            <key value="xx"/>
+            <min-elements value="15"/>
+            <max-elements value="77"/>
+            <reference>
+              <text>RFC 4741</text>
+            </reference>
+            <leaf name="xx">
+              <type name="int32"/>
+            </leaf>
+            <leaf name="zz">
+              <type name="zz_type"/>
+            </leaf>
+          </list>
+          <leaf name="yy">
+            <type name="int32"/>
+            <default value="-123"/>
+          </leaf>
+          <typedef name="zz_type">
+            <type name="enumeration">
+              <enum name="x"/>
+              <enum name="y"/>
+            </type>
+          </typedef>
+        </container>
+        <leaf name="x2">
+          <type name="instance-identifier"/>
+        </leaf>
+        <anyxml name="x3">
+          <description>
+            <text>test-any</text>
+          </description>
+        </anyxml>
+      </notification>
+      <notification name="notif2"/>
+    </module>
+    """
+
+    !yanger -f yin -p ${DIR} ${DIR}/yt7.yang --yin-canonical
+    """???
+    <?xml version="1.0" encoding="UTF-8"?>
+    <module name="yt7"
+            xmlns="urn:ietf:params:xml:ns:yang:yin:1"
+            xmlns:yt7="urn:ietf:params:xml:ns:yang:yt7"
+            xmlns:y="urn:ietf:params:xml:ns:yang:ietf-yang-types">
+      <namespace uri="urn:ietf:params:xml:ns:yang:yt7"/>
+      <prefix value="yt7"/>
+      <import module="ietf-yang-types">
+        <prefix value="y"/>
+      </import>
+      <organization>
+        <text>YANG Language Design Team</text>
+      </organization>
+      <contact>
+        <text>ietf@andybierman.com</text>
+      </contact>
+      <description>
+        <text>YANG test module 7.</text>
+      </description>
+      <revision date="2008-02-08">
+        <description>
+          <text>initial version.</text>
+        </description>
+      </revision>
+      <rpc name="rpc1">
+        <description>
+          <text>rpc-test</text>
+        </description>
+        <reference>
+          <text>RFC 4741</text>
+        </reference>
+        <input>
+          <leaf name="a">
+            <type name="y:counter32"/>
+          </leaf>
+          <leaf name="b">
+            <type name="int32"/>
+          </leaf>
+          <container name="foo">
+            <presence value="enable foo service"/>
+          </container>
+        </input>
+        <output>
+          <leaf name="x">
+            <type name="y:zero-based-counter32"/>
+          </leaf>
+          <container name="y">
+            <container name="yy">
+              <leaf name="yyy">
+                <type name="empty"/>
+              </leaf>
+              <anyxml name="zzz"/>
+              <container name="zz"/>
+            </container>
+          </container>
+        </output>
+      </rpc>
+    </module>
+    """
+
+    !yanger -f yin -p ${DIR} ${DIR}/yt8.yang --yin-canonical
+    """???
+    <?xml version="1.0" encoding="UTF-8"?>
+    <module name="yt8"
+            xmlns="urn:ietf:params:xml:ns:yang:yin:1"
+            xmlns:yt8="urn:ietf:params:xml:ns:yang:yt8">
+      <namespace uri="urn:ietf:params:xml:ns:yang:yt8"/>
+      <prefix value="yt8"/>
+      <organization>
+        <text>YANG Language Design Team</text>
+      </organization>
+      <contact>
+        <text>ietf@andybierman.com</text>
+      </contact>
+      <description>
+        <text>YANG test module 8.</text>
+      </description>
+      <revision date="2008-02-12">
+        <description>
+          <text>Initial revision.</text>
+        </description>
+      </revision>
+      <typedef name="foo">
+        <type name="int32">
+          <range value="-42 | -2 .. +7 | 8 | 41 | 42"/>
+        </type>
+      </typedef>
+    </module>
+    """
+
+    !yanger -f yin -p ${DIR} ${DIR}/yt9.yang --yin-canonical
+    """???
+    <?xml version="1.0" encoding="UTF-8"?>
+    <module name="yt9"
+            xmlns="urn:ietf:params:xml:ns:yang:yin:1"
+            xmlns:yt9="urn:ietf:params:xml:ns:yang:yt9">
+      <namespace uri="urn:ietf:params:xml:ns:yang:yt9"/>
+      <prefix value="yt9"/>
+      <organization>
+        <text>Netconf Central</text>
+      </organization>
+      <contact>
+        <text>Andy Bierman</text>
+      </contact>
+      <description>
+        <text>YANG test module 9. augment</text>
+      </description>
+      <revision date="2008-04-11">
+        <description>
+          <text>initial version</text>
+        </description>
+      </revision>
+      <leaf name="a1">
+        <type name="int32"/>
+      </leaf>
+      <container name="con1">
+        <leaf name="a2">
+          <type name="string"/>
+        </leaf>
+      </container>
+    </module>
+    """
+
+    !yanger -f yin -p ${DIR} ${DIR}/yt10.yang --yin-canonical
+    """???
+    <?xml version="1.0" encoding="UTF-8"?>
+    <module name="yt10"
+            xmlns="urn:ietf:params:xml:ns:yang:yin:1"
+            xmlns:yt10="urn:ietf:params:xml:ns:yang:yt10"
+            xmlns:yt9="urn:ietf:params:xml:ns:yang:yt9">
+      <namespace uri="urn:ietf:params:xml:ns:yang:yt10"/>
+      <prefix value="yt10"/>
+      <import module="yt9">
+        <prefix value="yt9"/>
+      </import>
+      <organization>
+        <text>Netconf Central</text>
+      </organization>
+      <contact>
+        <text>Andy Bierman</text>
+      </contact>
+      <description>
+        <text>YANG test module 9. augment</text>
+      </description>
+      <revision date="2008-04-11">
+        <description>
+          <text>initial version</text>
+        </description>
+      </revision>
+      <augment target-node="/yt9:con1">
+        <leaf name="b1">
+          <type name="int32"/>
+        </leaf>
+        <container name="con2">
+          <leaf name="b2">
+            <type name="string"/>
+          </leaf>
+        </container>
+      </augment>
+      <container name="test">
+        <description>
+          <text>Particular configuration to retrieve.</text>
+        </description>
+        <uses name="Foo"/>
+      </container>
+      <grouping name="Foo">
+        <leaf name="X">
+          <type name="int32"/>
+        </leaf>
+        <leaf name="Y">
+          <type name="uint32"/>
+        </leaf>
+      </grouping>
+    </module>
+    """
+
+    !yanger -f yin -p ${DIR} ${DIR}/w.yang --yin-canonical
+    """???
+    <?xml version="1.0" encoding="UTF-8"?>
+    <module name="w"
+            xmlns="urn:ietf:params:xml:ns:yang:yin:1"
+            xmlns:w="urn:w"
+            xmlns:qq="urn:q">
+      <namespace uri="urn:w"/>
+      <prefix value="w"/>
+      <import module="q">
+        <prefix value="qq"/>
+      </import>
+      <identity name="g">
+        <base name="qq:foo"/>
+      </identity>
+      <grouping name="X">
+        <leaf name="y">
+          <type name="uint32"/>
+          <qq:foo id="42"/>
+        </leaf>
+      </grouping>
+      <grouping name="Y">
+        <container name="z">
+          <if-feature name="qq:foo"/>
+          <uses name="X"/>
+        </container>
+      </grouping>
+      <uses name="Y">
+        <refine target-node="z/y">
+          <default value="42"/>
+        </refine>
+      </uses>
+      <container name="q">
+        <uses name="qq:g"/>
+      </container>
+      <leaf name="t">
+        <type name="leafref">
+          <path value="/q/x"/>
+        </type>
+      </leaf>
+    </module>
+    """
+
+    !yanger -f yin -p ${DIR} ${DIR}/xt5.yang --yin-canonical
+    """???
+    <?xml version="1.0" encoding="UTF-8"?>
+    <module name="xt5"
+            xmlns="urn:ietf:params:xml:ns:yang:yin:1"
+            xmlns:xt5="urn:test:xt5">
+      <namespace uri="urn:test:xt5"/>
+      <prefix value="xt5"/>
+      <grouping name="x">
+        <leaf name="foo">
+          <type name="empty"/>
+          <mandatory value="true"/>
+        </leaf>
+      </grouping>
+      <typedef name="xc">
+        <type name="int32"/>
+      </typedef>
+      <extension name="x">
+        <argument name="name"/>
+      </extension>
+      <leaf name="foo">
+        <type name="int16"/>
+      </leaf>
+      <extension name="foo">
+        <argument name="bar">
+          <yin-element value="true"/>
+        </argument>
+      </extension>
+    </module>
+    """
+
+    !yanger -f yin -p ${DIR} ${DIR}/xt6.yang --yin-canonical
+    """???
+    <?xml version="1.0" encoding="UTF-8"?>
+    <module name="xt6"
+            xmlns="urn:ietf:params:xml:ns:yang:yin:1"
+            xmlns:xt6="urn:test:xt6"
+            xmlns:xt5="urn:test:xt5">
+      <namespace uri="urn:test:xt6"/>
+      <prefix value="xt6"/>
+      <import module="xt5">
+        <prefix value="xt5"/>
+      </import>
+      <uses name="xt5:x"/>
+      <leaf name="y">
+        <type name="xt5:xc"/>
+      </leaf>
+      <xt5:foo>
+        <xt5:bar>barbar</xt5:bar>
+      </xt5:foo>
+    </module>
+    """
+
+    !yanger -f yin -p ${DIR} ${DIR}/xt7.yang --yin-canonical
+    """???
+    <?xml version="1.0" encoding="UTF-8"?>
+    <module name="xt7"
+            xmlns="urn:ietf:params:xml:ns:yang:yin:1"
+            xmlns:x="urn:test:xt7">
+      <namespace uri="urn:test:xt7"/>
+      <prefix value="x"/>
+      <leaf name="foo">
+        <type name="int16"/>
+        <x:foo bar="some string"/>
+      </leaf>
+      <extension name="foo">
+        <argument name="bar">
+          <yin-element value="false"/>
+        </argument>
+      </extension>
+      <grouping name="baz">
+        <leaf name="x">
+          <type name="int32"/>
+        </leaf>
+      </grouping>
+      <uses name="baz">
+        <refine target-node="x">
+          <default value="42"/>
+        </refine>
+      </uses>
+      <x:foo bar="another string"/>
+    </module>
+    """
