@@ -721,7 +721,7 @@ parse_enums(Enumstmts, Pos, M, Ctx0, BaseEnumsAndStmts) ->
           'YANG_ERR_ENUM_NAME_MISMATCH', 'YANG_ERR_ENUM_VALUE_MISMATCH',
           'YANG_ERR_DUPLICATE_ENUM_NAME', 'YANG_ERR_DUPLICATE_ENUM_VALUE',
           ?INT32_MIN, ?INT32_MAX, 'YANG_ERR_ENUM_VALUE', []),
-    Ctx2 = if Enums == [] ->
+    Ctx2 = if AllEnums == [] ->
                    add_error(Ctx1, Pos, 'YANG_ERR_MISSING_TYPE_SPEC',
                              ["enumeration", "enum"]);
               true ->
@@ -946,7 +946,7 @@ parse_bits(Bitstmts, Pos, M, Ctx0, BaseBitsAndStmts) ->
           'YANG_ERR_BIT_NAME_MISMATCH', 'YANG_ERR_BIT_POSITION_MISMATCH',
           'YANG_ERR_DUPLICATE_BIT_NAME', 'YANG_ERR_DUPLICATE_BIT_POSITION',
           0, ?UINT32_MAX, 'YANG_ERR_BIT_POSITION', []),
-    Ctx2 = if Bits == [] ->
+    Ctx2 = if AllBits == [] ->
                    add_error(Ctx1, Pos, 'YANG_ERR_MISSING_TYPE_SPEC',
                              ["bits", "bit"]);
               true ->

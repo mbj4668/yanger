@@ -10,7 +10,7 @@ module no-feat-enum-bit {
   feature baz;
 
   typedef enum0 {
-    type enumeration { // LINE: YANG_ERR_MISSING_TYPE_SPEC
+    type enumeration {
       enum foo {
         if-feature foo;
       }
@@ -30,7 +30,7 @@ module no-feat-enum-bit {
   }
 
   typedef enum2 {
-    type enum1 { // LINE: YANG_ERR_MISSING_TYPE_SPEC
+    type enum1 {
       enum foo;
       enum bar {
         if-feature bar;
@@ -44,7 +44,7 @@ module no-feat-enum-bit {
   }
 
   typedef bit0 {
-    type bits { // LINE: YANG_ERR_MISSING_TYPE_SPEC
+    type bits {
       bit foo {
         if-feature foo;
       }
@@ -64,7 +64,7 @@ module no-feat-enum-bit {
   }
 
   typedef bit2 {
-    type bit1 { // LINE: YANG_ERR_MISSING_TYPE_SPEC
+    type bit1 {
       bit foo;
       bit bar {
         if-feature bar;
@@ -79,7 +79,7 @@ module no-feat-enum-bit {
 
 
   leaf enum0 {
-    type enumeration { // LINE: YANG_ERR_MISSING_TYPE_SPEC
+    type enumeration {
       enum foo {
         if-feature foo;
       }
@@ -90,7 +90,7 @@ module no-feat-enum-bit {
   }
 
   leaf enum1 {
-    type enum1 { // LINE: YANG_ERR_MISSING_TYPE_SPEC
+    type enum1 {
       enum foo;
       enum bar {
           if-feature bar;
@@ -108,7 +108,7 @@ module no-feat-enum-bit {
   }
 
   leaf bit0 {
-    type bits { // LINE: YANG_ERR_MISSING_TYPE_SPEC
+    type bits {
       bit foo {
         if-feature foo;
       }
@@ -119,7 +119,7 @@ module no-feat-enum-bit {
   }
 
   leaf bit1 {
-    type bit1 { // LINE: YANG_ERR_MISSING_TYPE_SPEC
+    type bit1 {
       bit foo;
       bit bar {
           if-feature bar;

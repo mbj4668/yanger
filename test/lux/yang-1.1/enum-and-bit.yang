@@ -1,0 +1,24 @@
+module enum-and-bit {
+  yang-version 1.1;
+  namespace urn:a;
+  prefix a;
+
+  // YANGER_EXTRA_FLAGS: -F enum-and-bit:
+
+  feature foo;
+
+  leaf a {
+    type enumeration {
+      enum x {
+        if-feature foo;
+      }
+    }
+  }
+  leaf b {
+    type bits {
+      bit x {
+        if-feature foo;
+      }
+    }
+  }
+}
