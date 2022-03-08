@@ -1,0 +1,11 @@
+[doc test bug leafref of module cannot detect ]
+
+[shell yanger]
+    !yanger example.yang -f tree
+    """???
+    module: example
+      +--rw tam?     string
+      +--rw john?    -> ../tam
+      +--rw foo?     -> /example:nleaf
+      +--rw nleaf?   boolean
+    """

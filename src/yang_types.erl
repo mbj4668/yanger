@@ -572,13 +572,15 @@ is_range_increasing(Val, [{_Min, Max}|_], LengthOrRange, Ctx, Pos) ->
     is_range_increasing(Val, Max, LengthOrRange, Ctx, Pos);
 is_range_increasing(Val, [Single|_], LengthOrRange, Ctx, Pos) ->
     is_range_increasing(Val, Single, LengthOrRange, Ctx, Pos);
+is_range_increasing('infinity', 'infinity', _LengthOrRange, _Ctx, _Pos) ->
+    true;
 is_range_increasing(Val, 'infinity', LengthOrRange, Ctx, Pos) ->
     Ctx1 = add_range_bounds_error(range_val_str(Val), "max",
                                   LengthOrRange, Ctx, Pos),
     {false, Ctx1};
 is_range_increasing('infinity', _Prev, _LengthOrRange, _Ctx, _Pos) ->
     true;
-is_range_increasing(Val, Prev, _LengthOrRange, _Ctx, _Pos) when Val > Prev ->
+is_range_increasing(Val, Prev, _LengthOrRange, _Ctx, _Pos) when Val >= Prev ->
     true;
 is_range_increasing(Val, Prev, LengthOrRange, Ctx, Pos) ->
     Ctx1 = add_range_bounds_error(range_val_str(Val), range_val_str(Prev),

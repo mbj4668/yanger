@@ -1,0 +1,8 @@
+[doc test length setting ]
+
+[shell yanger]
+    !yanger length-setting.yang -f tree
+    """???
+    module: length-setting
+      +--rw short-string?   string
+    """

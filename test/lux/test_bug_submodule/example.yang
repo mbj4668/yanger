@@ -1,0 +1,9 @@
+module example {
+  namespace "http://tail-f.com/test";
+  prefix "test";
+
+  include example-sub;
+  leaf nleaf {
+    type boolean;
+  }
+}

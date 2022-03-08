@@ -2384,14 +2384,24 @@ augment_children0([], Sns, _Acc = [], Mode,
     insert_children(Augment#augment.children, Sns, IsFinal, Ancestors,
                     UndefAugNodes, append, Ctx);
 augment_children0([{child, Id} | Ids],
-                  [#sn{name = Name, children = Children} = Sn | Sns],
+                  [#sn{name = Name, children = Children, module = #module{groupings = Groupings, modulename = ModuleName},
+                  augmented_by = AugmentBy} = Sn | Sns],
                   Acc, Mode, Ancestors, Augment,
                   UndefAugNodes, M, Ctx)
   when Id == Name ->
     %% We found a node in the augment path; we must update it
     %% with new children.
+    Result = find_sn_from_augment(check_child(Ids, Children), AugmentBy, Groupings, Ids, ModuleName),
+    
+    NewChildren = case Result =:= not_found of
+                      true -> 
+                          Children;
+                      _ ->
+                          Result
+                  end,
+
     {AugmentedChildren, UndefAugNodes1, Ctx1} =
-        augment_children0(Ids, Children, [], Mode,
+        augment_children0(Ids, NewChildren, [], Mode,
                           [Sn | Ancestors], Augment, UndefAugNodes, M, Ctx),
     Sn1 = mk_case_from_shorthand(Sn#sn{children = AugmentedChildren}),
     Sn2 = if Ids == [] ->
@@ -3314,7 +3324,7 @@ apply_refinement({Keyword, _Arg, Pos, _Substmts} = Stmt, Sn, M, Ctx) ->
 %% If a certain keyword isn't allowed in 'refine' (according to the grammar),
 %% we won't end up here.  This code checks that the keyword is allowed
 %% in the parent/target node.
-find_refinement(ParentKeyword, Keyword, #yctx{env = Env}) ->
+find_refinement(ParentKeyword, Keyword, Ctx) ->
     IdF = fun(_, _, SnAndCtx) -> SnAndCtx end,
     case yang_parser:get_statement_spec(ParentKeyword) of
         {value, {_, _, Rules, _}} ->
@@ -3326,7 +3336,7 @@ find_refinement(ParentKeyword, Keyword, #yctx{env = Env}) ->
                            true ->
                                 add
                         end,
-                    case map_lookup(Keyword, Env#env.refinements) of
+                    case find_refinement_in_env(Keyword, Ctx) of
                         {value, F} ->
                             {true, Op, F};
                         _ ->
@@ -3335,21 +3345,35 @@ find_refinement(ParentKeyword, Keyword, #yctx{env = Env}) ->
                 _ ->
                     %% We know the grammar of the parent.  If we also know
                     %% the grammar of the child, this is an illegal refinement.
-                    ExtModules = Env#env.extension_modules,
-                    case Keyword of
-                        {OtherModule, _} ->
-                            case lists:member(OtherModule, ExtModules) of
-                                true ->
-                                    false;
-                                false ->
-                                    {true, replace, IdF}
-                            end
+                   case is_grammar_known(Keyword, Ctx) of
+                        true ->
+                            false;
+                        false ->
+                            {true, replace, IdF}
                     end
             end;
         _ ->
             %% We don't know the grammar, accept the refinement
             {true, replace, IdF}
     end.
+
+is_grammar_known(Keyword = {_, _}, Ctx) ->
+    %% Grammar is known for predefined extension modules, not for
+    %% other extensions
+    is_predefined_extension_module_ref(Keyword, Ctx);
+is_grammar_known(_, _) ->
+    %% Grammar is known if it's not an extension
+    true.
+
+%% Some modules are hardcoded as extensions
+is_predefined_extension_module_ref({OtherModule, _}, #yctx{env = Env}) ->
+    ExtModules = Env#env.extension_modules,
+    lists:member(OtherModule, ExtModules);
+is_predefined_extension_module_ref(_, _) ->
+    false.
+
+find_refinement_in_env(Keyword, #yctx{env = Env}) ->
+    map_lookup(Keyword, Env#env.refinements).
 
 add_refinements(Map0) ->
     Map1 = map_insert('default', fun reset_default/3, Map0),
@@ -5023,6 +5047,7 @@ cursor_move({child, {Mod, Name}}, #cursor{cur = {top, OtherMod}} = C, Ctx)
                         'YANG_ERR_NODE_NOT_FOUND2',
                         [yang_error:fmt_yang_identifier(Name), Mod])};
 cursor_move({child, {Mod, Name} = Id}, C, Ctx) ->
+
     %% move down from the top-level
     if (C#cursor.module)#module.modulename == Mod ->
             #module{children = Chs} = C#cursor.module;
@@ -5036,18 +5061,45 @@ cursor_move({child, {Mod, Name} = Id}, C, Ctx) ->
                     Chs = []
             end
     end,
+
     case find_child(Chs, Id, C#cursor.type, '$undefined', undefined) of
         {value, Sn} ->
             {true, C#cursor{cur = Sn, ancestors = [],
                             last_skipped = undefined}};
         false ->
-            {false, build_error(Ctx, C#cursor.pos,
-                                'YANG_ERR_NODE_NOT_FOUND2',
-                                [yang_error:fmt_yang_identifier(Name), Mod])}
+            find_child_again(Ctx, C, Name, Mod, Id)
     end;
 cursor_move({child, Name}, C, Ctx) ->
     %% move down from top-level in current module
     cursor_move({child, {C#cursor.init_modulename, Name}}, C, Ctx).
+
+%% @doc look up child one more time if child does not exist in the submodule
+-spec find_child_again(Ctx, C, Name, Mod, Id) -> Result when
+    Ctx :: #yctx{},
+    C :: #cursor{},
+    Name :: tuple() | atom(),
+    Mod :: atom(),
+    Id :: tuple(),
+    Result :: tuple().
+find_child_again(Ctx, C, Name, Mod, Id) ->
+    ErrorReturn = fun() ->
+        {false, build_error(Ctx, C#cursor.pos,
+                            'YANG_ERR_NODE_NOT_FOUND2',
+                            [yang_error:fmt_yang_identifier(Name), Mod])}
+        end,
+    Result = get_module(Mod, undefined, Ctx),
+    case Result of
+        {value, #module{children = Chs}} ->
+            case find_child(Chs, Id, C#cursor.type, '$undefined', undefined) of
+                {value, Sn} ->
+                    {true, C#cursor{cur = Sn, ancestors = [],
+                            last_skipped = undefined}};
+                false ->
+                    ErrorReturn()
+            end;
+        _ ->
+            ErrorReturn()
+    end.
 
 %% FIXME: is this really the right solution?  The problem occurs when
 %% we call yanger_fxs:find_final_target_sn(), which tries to follow all
@@ -5566,3 +5618,82 @@ pp_default(Default, Indent) ->
 %    pp_children(T, Indent);
 %pp_children([], _Indent) ->
 %    ok.
+
+check_child([{child, Name} | _Ids], [#sn{name = Name} | _Sns]) ->
+    true;
+check_child(Ids, [_Sn | Sns]) ->
+    check_child(Ids, Sns);
+check_child(_, []) ->
+    false.
+
+%% @doc find the childrend when it belongs to augment.
+-spec find_sn_from_augment(ContinueFindOrNot, Augment, Groupings, TargetNode,
+                           ModuleName) -> Result when
+    ContinueFindOrNot :: boolean(),
+    Augment :: [#augment{}],
+    Groupings :: undefined | #groupings{},
+    TargetNode :: [{child, Id :: yang_identifier()}],
+    ModuleName :: atom(),
+    Result :: [#sn{}].
+find_sn_from_augment(false,
+                     [#augment{stmt = {_Keyword, _Arg, _Pos, Substmts}}],
+                     Groupings, [{child, Name} | _Ids], ModuleName) ->
+    NewName = case is_tuple(Name) of
+        true ->
+            {_, SplitName} = Name,
+            SplitName;
+       _  ->
+            Name
+    end,
+    Grouping = grouping_lookup(Substmts, Groupings, NewName),
+    case Grouping =:= not_found of
+        true ->
+            not_found;
+        _ ->
+            #grouping{children = Children} = Grouping,
+            set_module_name(is_tuple(Name), Children, ModuleName)
+    end;
+find_sn_from_augment(_, _, _, _, _) ->
+    not_found.
+
+%% @doc Lookup the group when augment contains multiple groups
+-spec grouping_lookup(Substmts, Groupings, Name) -> Result when
+    Substmts :: [tuple()],
+    Groupings :: undefined | #groupings{},
+    Name ::  atom(),
+    Result :: not_found | #grouping{}.
+grouping_lookup([{_, GroupingName, _, _} | T], Groupings, Name) ->
+    case grouping_lookup(GroupingName, Groupings) of
+        {value, GroupValue} ->
+            get_child_from_group(GroupValue, Groupings, Name, T);
+        none ->
+            not_found
+    end;
+grouping_lookup(_, _, _) ->
+    not_found.
+
+%% @doc Get child from group when compare child's name with remaining target
+%%node from augment.
+-spec get_child_from_group(Grouping, Groupings, Name, Substmts) -> Result when
+    Grouping :: #grouping{},
+    Groupings :: #groupings{},
+    Name ::  yang:sn_name(),
+    Substmts :: [tuple()],
+    Result :: not_found | #grouping{}.
+get_child_from_group(#grouping{children = [#sn{name = Name}]} = Group,
+                     _, Name, _) ->
+    Group;
+get_child_from_group(_ , _, _, []) ->
+    not_found;
+get_child_from_group(_, Groupings, Name, Substmts) ->
+    grouping_lookup(Substmts, Groupings, Name).
+
+set_module_name(false, Children, _) ->
+    Children;
+set_module_name(true, [#sn{name = Name, children = Children} = Sn0 | T],
+                ModuleName) ->
+    [Sn0#sn{name = {ModuleName, Name},
+            children = set_module_name(true, Children, ModuleName)} |
+     set_module_name(true, T, ModuleName)];
+set_module_name(true, [], _) ->
+    [].
