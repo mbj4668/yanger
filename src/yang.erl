@@ -763,8 +763,32 @@ add_parsed_stmt_tree(Ctx00, [{ModKeyword, ModuleName, Pos, Substmts} = Stmt],
                     %% already added, just return the module
                     {true, Ctx1, M};
                 none ->
+                    IncludingModuleRevision1 =
+                        case ModKeyword of
+                            'module' ->
+                                ModuleRevision;
+                            'submodule' ->
+                                IncludingModuleRevision
+                        end,
+                    YangVersion = parse_yang_version(Substmts),
+                    TempM =
+                        case ModKeyword of
+                            'submodule' when YangVersion == '1.1' ->
+                                #module{filename = FileName,
+                                        kind = ModKeyword,
+                                        name = ModuleName,
+                                        modulename = ModuleName,
+                                        stmt = Stmt, %% temporary stmt
+                                        prefix_map = map_new(),
+                                        revision = ModuleRevision,
+                                        modulerevision =
+                                            IncludingModuleRevision1,
+                                        add_cause = AddCause};
+                            _ ->
+                                processing
+                        end,
                     ModRevs = map_insert({ModuleName, ModuleRevision},
-                                         processing, Ctx1#yctx.modrevs),
+                                         TempM, Ctx1#yctx.modrevs),
                     Revs0 = Ctx1#yctx.revs,
                     Revs1 = case map_lookup(ModuleName, Revs0) of
                                 {value, RevList} ->
@@ -780,23 +804,23 @@ add_parsed_stmt_tree(Ctx00, [{ModKeyword, ModuleName, Pos, Substmts} = Stmt],
                     Ctx2 = Ctx1#yctx{modrevs = ModRevs, revs = Revs1},
                     {Ctx3, [Stmt1]} =
                         run_hooks(#hooks.post_parse_stmt_tree, Ctx2, [Stmt]),
-                    IncludingModuleRevision1 =
-                        case ModKeyword of
-                            'module' ->
-                                ModuleRevision;
-                            'submodule' ->
-                                IncludingModuleRevision
-                        end,
                     PrefixMap = mk_prefix_map(substmts(Stmt1), Ctx3),
-                    M0 = #module{filename = FileName,
-                                 kind = ModKeyword,
-                                 name = ModuleName,
-                                 modulename = ModuleName,
-                                 stmt = Stmt1,
-                                 prefix_map = PrefixMap,
-                                 revision = ModuleRevision,
-                                 modulerevision = IncludingModuleRevision1,
-                                 add_cause = AddCause},
+                    M0 =
+                        case TempM of
+                            processing ->
+                                #module{filename = FileName,
+                                        kind = ModKeyword,
+                                        name = ModuleName,
+                                        modulename = ModuleName,
+                                        stmt = Stmt1,
+                                        prefix_map = PrefixMap,
+                                        revision = ModuleRevision,
+                                        modulerevision =
+                                            IncludingModuleRevision1,
+                                        add_cause = AddCause};
+                            #module{} ->
+                                TempM#module{stmt=Stmt1, prefix_map=PrefixMap}
+                        end,
                     {Ctx4, M1} = parse_module(Stmt1, M0, Ctx3),
                     {Ctx5, M2} = post_parse_module(Ctx4, M1),
                     ModRevs2 = map_update({ModuleName, ModuleRevision}, M2,
@@ -804,6 +828,22 @@ add_parsed_stmt_tree(Ctx00, [{ModKeyword, ModuleName, Pos, Substmts} = Stmt],
                     Ctx6 = Ctx5#yctx{modrevs = ModRevs2},
                     {true, Ctx6, M2}
             end
+    end.
+
+
+-spec parse_yang_version([stmt()]) -> yang_version().
+parse_yang_version(Substmts) ->
+    case lists:keyfind('yang-version', 1, Substmts) of
+        false ->
+            '1';
+        {'yang-version', <<"1">>, _Pos, _Substmts} ->
+            '1';
+        {'yang-version', <<"1.1">>, _Pos, _Substmts} ->
+            '1.1';
+        _ ->
+            %% This clause is in place so that in the future,
+            %% nobody forgets to update this function.
+            throw("Unsupported YANG version.")
     end.
 
 %% Pre: All statements are grammatically correct
@@ -953,7 +993,8 @@ v_include(M, Pos, SubM, YangVersion, Ctx1) ->
             {_, _, SubPos, _} = SubM#module.stmt,
             add_error(Ctx1, Pos, 'YANG_ERR_BAD_INCLUDE',
                       [yang_error:fmt_pos(SubPos)]);
-       SubM#module.modulename /= M#module.modulename ->
+       (SubM#module.modulename /= M#module.modulename)
+       andalso M#module.kind /= 'submodule' ->
             {_, _, SubPos, _} = SubM#module.stmt,
             add_error(Ctx1, SubPos, 'YANG_ERR_BAD_BELONGS_TO',
                       [M#module.name, SubM#module.name]);
@@ -965,11 +1006,17 @@ v_include(M, Pos, SubM, YangVersion, Ctx1) ->
 %% included by the module
 v_all_includes(M, Ctx) when M#module.kind == 'module' ->
     MySubmodules = [SubM || {SubM, _Pos} <- M#module.submodules],
+    MySubmodulesIDs = [{SubM#module.namespace,
+                        SubM#module.name,
+                        SubM#module.modulerevision}
+                       || {SubM, _Pos} <- M#module.submodules],
     lists:foldl(
       fun(#module{submodules = SubSubmodules}, Ctx0) ->
               lists:foldl(
-                fun({SubM, Pos}, Ctx1) ->
-                        case lists:member(SubM, MySubmodules) of
+                fun({#module{namespace=NS,
+                             name=Name,
+                             modulerevision=MR}=SubM, Pos}, Ctx1) ->
+                        case lists:member({NS, Name, MR}, MySubmodulesIDs) of
                             false ->
                                 add_error(Ctx1, Pos, 'YANG_ERR_MISSING_INCLUDE',
                                           [SubM#module.name, M#module.name]);

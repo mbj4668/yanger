@@ -1,0 +1,15 @@
+module my-mod {
+
+  namespace "my:nice:conf";
+
+  prefix "mod";
+
+  include my-sub1;
+  include my-sub2;
+
+  container configure {
+    leaf hello {
+      type string;
+    }
+  }
+}
