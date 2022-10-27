@@ -3314,7 +3314,7 @@ apply_refinement({Keyword, _Arg, Pos, _Substmts} = Stmt, Sn, M, Ctx) ->
 %% If a certain keyword isn't allowed in 'refine' (according to the grammar),
 %% we won't end up here.  This code checks that the keyword is allowed
 %% in the parent/target node.
-find_refinement(ParentKeyword, Keyword, #yctx{env = Env}) ->
+find_refinement(ParentKeyword, Keyword, Ctx) ->
     IdF = fun(_, _, SnAndCtx) -> SnAndCtx end,
     case yang_parser:get_statement_spec(ParentKeyword) of
         {value, {_, _, Rules, _}} ->
@@ -3326,7 +3326,7 @@ find_refinement(ParentKeyword, Keyword, #yctx{env = Env}) ->
                            true ->
                                 add
                         end,
-                    case map_lookup(Keyword, Env#env.refinements) of
+                    case find_refinement_in_env(Keyword, Ctx) of
                         {value, F} ->
                             {true, Op, F};
                         _ ->
@@ -3335,21 +3335,35 @@ find_refinement(ParentKeyword, Keyword, #yctx{env = Env}) ->
                 _ ->
                     %% We know the grammar of the parent.  If we also know
                     %% the grammar of the child, this is an illegal refinement.
-                    ExtModules = Env#env.extension_modules,
-                    case Keyword of
-                        {OtherModule, _} ->
-                            case lists:member(OtherModule, ExtModules) of
-                                true ->
-                                    false;
-                                false ->
-                                    {true, replace, IdF}
-                            end
+                   case is_grammar_known(Keyword, Ctx) of
+                        true ->
+                            false;
+                        false ->
+                            {true, replace, IdF}
                     end
             end;
         _ ->
             %% We don't know the grammar, accept the refinement
             {true, replace, IdF}
     end.
+
+is_grammar_known(Keyword = {_, _}, Ctx) ->
+    %% Grammar is known for predefined extension modules, not for
+    %% other extensions
+    is_predefined_extension_module_ref(Keyword, Ctx);
+is_grammar_known(_, _) ->
+    %% Grammar is known if it's not an extension
+    true.
+
+%% Some modules are hardcoded as extensions
+is_predefined_extension_module_ref({OtherModule, _}, #yctx{env = Env}) ->
+    ExtModules = Env#env.extension_modules,
+    lists:member(OtherModule, ExtModules);
+is_predefined_extension_module_ref(_, _) ->
+    false.
+
+find_refinement_in_env(Keyword, #yctx{env = Env}) ->
+    map_lookup(Keyword, Env#env.refinements).
 
 add_refinements(Map0) ->
     Map1 = map_insert('default', fun reset_default/3, Map0),

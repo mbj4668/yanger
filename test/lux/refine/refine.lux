@@ -75,8 +75,9 @@ module ref {
     ??bad.yang:17: (from bad.yang:23): YANG_ERR_INVALID_CONFIG
     ?bad.yang:22: YANG_ERR_TYPE_VALUE
     ?bad.yang:24: YANG_ERR_XPATH
-    ?bad.yang:38: YANG_ERR_TYPE_VALUE
-    ?bad.yang:59: YANG_ERR_TYPE_VALUE
+    ?bad.yang:34: YANG_ERR_ILLEGAL_REFINE
+    ?bad.yang:41: YANG_ERR_TYPE_VALUE
+    ?bad.yang:62: YANG_ERR_TYPE_VALUE
     -bad.yang
     ?SH-PROMPT
 

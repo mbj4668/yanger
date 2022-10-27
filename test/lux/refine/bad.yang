@@ -30,6 +30,9 @@ module bad {
       min-elements 10;
       max-elements 2; // error: max-elements < min-elements
     }
+    refine a {
+      default 32;
+    }
   }
 
   grouping b {
