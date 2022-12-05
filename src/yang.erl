@@ -2384,14 +2384,24 @@ augment_children0([], Sns, _Acc = [], Mode,
     insert_children(Augment#augment.children, Sns, IsFinal, Ancestors,
                     UndefAugNodes, append, Ctx);
 augment_children0([{child, Id} | Ids],
-                  [#sn{name = Name, children = Children} = Sn | Sns],
+                  [#sn{name = Name, children = Children, module = #module{groupings = Groupingss, modulename = ModuleName},
+                  augmented_by = AugmentBy} = Sn | Sns],
                   Acc, Mode, Ancestors, Augment,
                   UndefAugNodes, M, Ctx)
   when Id == Name ->
     %% We found a node in the augment path; we must update it
     %% with new children.
+
+    Result = find_sn_from_augment(Children, AugmentBy, Groupingss, Ids, ModuleName),
+    NewChildren = case Result =:= not_found of
+                      true -> 
+                          Children;
+                      _ ->
+                          Result
+                  end,
+
     {AugmentedChildren, UndefAugNodes1, Ctx1} =
-        augment_children0(Ids, Children, [], Mode,
+        augment_children0(Ids, NewChildren, [], Mode,
                           [Sn | Ancestors], Augment, UndefAugNodes, M, Ctx),
     Sn1 = mk_case_from_shorthand(Sn#sn{children = AugmentedChildren}),
     Sn2 = if Ids == [] ->
@@ -5580,3 +5590,52 @@ pp_default(Default, Indent) ->
 %    pp_children(T, Indent);
 %pp_children([], _Indent) ->
 %    ok.
+
+%% @doc find the childrend when it belongs to augment.
+find_sn_from_augment([#sn{children = []}],
+                     [#augment{stmt = {_Keyword, _Arg, _Pos, Substmts}}],
+                     Groupingss, [{child, {_, Name}} | _Ids], ModuleName) ->
+%find_sn_from_augment([], [#augment{stmt =  {_Keyword, _Arg, _Pos, Substmts}}], Groupingss, [{child, {_, Name}} | Ids], ModuleName) ->
+    Grouping = grouping_lookup(Substmts, Groupingss, Name),
+    case Grouping =:= not_found of
+        true ->
+            not_found;
+        _ ->
+            #grouping{children = Children} = Grouping,
+            set_module_name(Children, ModuleName)
+    end;
+find_sn_from_augment(_, _, _, _, _) ->
+    not_found.
+
+%% @doc Lookup the group when augment contains multiple groups
+grouping_lookup([{_, GroupingName, _, _} | T], Groupings, Name) ->
+    case grouping_lookup(GroupingName, Groupings) of
+        {value, GroupValue} ->
+            get_child_from_group(GroupValue, Groupings, Name, T);
+        none ->
+            not_found
+    end;
+grouping_lookup(_, _, _) ->
+    not_found.
+
+%% @doc Get child from group when compare child's name with remaining target
+%%node from augment
+get_child_from_group(#grouping{children = [#sn{name = Name}]} = Group,
+                     _, Name, _) ->
+    Group;
+get_child_from_group(_ , _, _, []) ->
+    not_found;
+get_child_from_group(_, Groupingss, Name, T) ->
+    grouping_lookup(T, Groupingss, Name).
+
+set_module_name([#sn{name = Name, children = Children} = Sn0 | T],
+                ModuleName) ->
+    io:format("tdbg_~p/~p/~p/___Name_~p__\n", [?MODULE, ?FUNCTION_NAME, ?LINE, Name]),
+    [Sn0#sn{name = {ModuleName, Name},
+            children = set_module_name(Children, ModuleName)} |
+     set_module_name(T, ModuleName)];
+set_module_name([], _) ->
+    [].
+
+
+set_module_name
