@@ -373,7 +373,7 @@ chk_statements(struct yang_statement *stmt,
 }
 
 bool
-yang_init_grammar()
+yang_init_grammar(void)
 {
     am_module = yang_make_atom("module");
     am_submodule = yang_make_atom("submodule");
@@ -891,7 +891,7 @@ yang_grammar_check_module(struct yang_statement *stmt,
 }
 
 void
-yang_print_grammar()
+yang_print_grammar(void)
 {
     int g, s, r;
     struct grammar *gp;

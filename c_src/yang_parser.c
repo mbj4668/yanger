@@ -533,7 +533,7 @@ error:
 }
 
 bool
-yang_init_parser()
+yang_init_parser(void)
 {
     am_yang_version = yang_make_atom("yang-version");
     return true;

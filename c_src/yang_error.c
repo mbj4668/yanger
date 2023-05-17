@@ -6,7 +6,7 @@
 
 
 struct yang_error_ctx *
-yang_alloc_err_ctx()
+yang_alloc_err_ctx(void)
 {
     struct yang_error_ctx *ectx;
 
