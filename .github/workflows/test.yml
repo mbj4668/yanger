@@ -1,0 +1,40 @@
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: OTP ${{matrix.otp}}
+    strategy:
+      matrix:
+        otp: ['24']
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{matrix.otp}}
+
+      - name: Prepare prerequisites
+        run: sudo apt-get update
+
+      - name: Install prerequisites
+        run: sudo apt-get install libxml2-dev python3 python3-pip
+
+      - name: Install pyang
+        run: |
+          pip3 install pyang
+
+      - name: Install lux
+        run: |
+          git clone https://github.com/hawk/lux.git
+          cd lux
+          autoconf
+          ./configure
+          make
+
+      - name: Run tests
+        run: |
+          export PATH=$PATH:$(pwd)/lux/bin
+          source env.sh
+          make
+          make test

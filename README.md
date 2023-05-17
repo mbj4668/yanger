@@ -1,7 +1,7 @@
 yanger
 ======
 
-[![Build Status](https://travis-ci.org/mbj4668/yanger.svg?branch=master)](https://travis-ci.org/mbj4668/yanger)
+[![Build Status](https://github.com/mbj4668/pyang/actions/workflows/test.yml/badge.svg)](https://github.com/mbj4668/yanger/actions)
 
 Extensible YANG validator.
 
