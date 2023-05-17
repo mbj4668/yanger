@@ -1972,11 +1972,11 @@ mk_grouping_order(Iter0, Map, Acc0, RawOrder, M, Ctx) ->
 grouping_deps(Grouping, Map, M, Ctx) ->
     grouping_deps(Grouping, [], Map, M, Ctx).
 grouping_deps([{Kwd, Arg, Pos, Substmts} | T], Deps0, Map, M, Ctx) ->
-    case kwd_body_class(Kwd, Ctx) of
-        'uses' ->
-            case resolve_raw_idref(Arg, Pos, M, Ctx) of
-                {self, GroupingName, _Ctx} ->
-                    Deps1 =
+    Deps1 =
+        case kwd_body_class(Kwd, Ctx) of
+            'uses' ->
+                case resolve_raw_idref(Arg, Pos, M, Ctx) of
+                    {self, GroupingName, _Ctx} ->
                         case map_is_key(GroupingName, Map) of
                             true ->
                                 case lists:member(GroupingName, Deps0) of
@@ -1988,15 +1988,15 @@ grouping_deps([{Kwd, Arg, Pos, Substmts} | T], Deps0, Map, M, Ctx) ->
                             false ->
                                 %% this is not a sibling grouping
                                 Deps0
-                        end,
-                    grouping_deps(T, Deps1, Map, M, Ctx);
-                _ ->
-                    grouping_deps(T, Deps0, Map, M, Ctx)
-            end;
-        _ ->
-            Deps1 = grouping_deps(Substmts, Deps0, Map, M, Ctx),
-            grouping_deps(T, Deps1, Map, M, Ctx)
-    end;
+                        end;
+                    _ ->
+                        Deps0
+                end;
+            _ ->
+                Deps0
+        end,
+    Deps2 = grouping_deps(Substmts, Deps1, Map, M, Ctx),
+    grouping_deps(T, Deps2, Map, M, Ctx);
 grouping_deps([], Deps, _, _, _) ->
     Deps.
 
@@ -2129,7 +2129,7 @@ mk_children([{Kwd, Arg, Pos, Substmts} = Stmt | T], GroupingMap0,
                                                 M, IsInGrouping, Ctx2,
                                                 Mode, Ancestors, Acc, XAcc)
                             end;
-                        _ -> % true or none
+                        _X -> % true or none
                             case grouping_lookup(GroupingName, Groupings) of
                                 {value, G} ->
                                     Status = get_stmts_arg(Substmts, 'status',

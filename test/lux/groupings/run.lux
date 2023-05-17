@@ -8,3 +8,13 @@
          +--rw external-out?   boolean
     SH-PROMPT
     """
+
+    !yanger -f tree b.yang
+    """??
+    module: b
+      +--rw q
+         +--rw xx
+            +--rw uu
+            +--rw vv
+    SH-PROMPT
+    """

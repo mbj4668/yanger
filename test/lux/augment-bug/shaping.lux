@@ -1,0 +1,24 @@
+[doc test bug augment ]
+
+[shell yanger]
+    !yanger bbf-qos-shaping.yang -f tree
+    """???
+    module: bbf-qos-shaping
+
+      augment /if:interfaces/if:interface/bbf-qos-tm:tm-root:
+        +--rw shaper-name?   -> /bbf-qos-tm:tm-profiles/bbf-qos-shap:shaper-profile/name
+      augment /if:interfaces/if:interface/bbf-qos-tm:tm-root/bbf-qos-tm:children-type/bbf-qos-tm:queues/bbf-qos-tm:queue/bbf-qos-tm:queue-scheduling-cfg-type/bbf-qos-tm:inline:
+        +--rw shaper-name?   -> /bbf-qos-tm:tm-profiles/bbf-qos-shap:shaper-profile/name
+      augment /bbf-qos-tm:tm-profiles:
+        +--rw shaper-profile* [name]
+           +--rw name                         bbf-yang:string-ascii64
+           +--rw (shaper-type)
+              +--:(single-token-bucket)
+              |  +--rw single-token-bucket
+              |     +--rw pir?   uint32
+              |     +--rw pbs?   uint32
+              +--:(dual-rate) {dual-rate-shaper}?
+                 +--rw dual-rate
+                    +--rw pir?   uint32
+                    +--rw cir?   uint32
+    """

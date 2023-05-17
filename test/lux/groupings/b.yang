@@ -1,0 +1,31 @@
+module b {
+  yang-version 1.1;
+  namespace "urn:b";
+  prefix b;
+
+  grouping x {
+    container xx;
+  }
+
+  grouping u {
+    container uu;
+  }
+
+  grouping v {
+    uses u;
+    container vv;
+  }
+
+  grouping y {
+    uses x {
+      augment xx {
+        uses v;
+      }
+    }
+  }
+
+  container q {
+    uses y;
+  }
+}
+
