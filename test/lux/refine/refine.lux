@@ -39,6 +39,8 @@ module ref {
       type string;
       min-elements 2;
       max-elements 10;
+      description
+        "hej";
     }
   }
 }
