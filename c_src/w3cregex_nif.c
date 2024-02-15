@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include <libxml/xmlregexp.h>
+#include <libxml/xmlerror.h>
 
 #include "erl_nif.h"
 
