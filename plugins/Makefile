@@ -1,6 +1,6 @@
 include ../vsn.mk
 
-ERL_SOURCES  := $(wildcard *.erl)
+ERL_SOURCES := $(wildcard *.erl)
 ERL_OBJECTS := $(ERL_SOURCES:%.erl=../priv/%.beam)
 
 ERLC_FLAGS += -pa ../../yanger/ebin -Werror

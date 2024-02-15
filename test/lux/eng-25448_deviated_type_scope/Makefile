@@ -1,6 +1,6 @@
+include ../../support/*_testcases.mk
 
 build:
-	lux run.lux
 
 clean:
 	rm -f *.fxs

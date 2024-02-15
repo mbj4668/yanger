@@ -1,4 +1,4 @@
-DIRS = lux eunit
+DIRS = eunit
 
 all: test
 

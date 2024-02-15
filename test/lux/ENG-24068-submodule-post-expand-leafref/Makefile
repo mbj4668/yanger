@@ -2,5 +2,5 @@ include ../../support/*_testcases.mk
 
 build:
 
-clean: iclean
+clean:
 	rm -rf lux_logs

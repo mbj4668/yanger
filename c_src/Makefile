@@ -1,10 +1,16 @@
-
 PARSER_NIF = ../priv/yang_parser_nif.so
 REGEX_NIF = ../priv/w3cregex_nif.so
 
 PRIV_FILES = $(PARSER_NIF) $(REGEX_NIF)
 
-CFLAGS = -std=c99
+all: $(PRIV_FILES)
+
+include c_src.mk
+
+c_src.mk:
+	$(MAKE) -f ../erl.mk $@
+
+CFLAGS += -std=c99
 CWARNINGS = \
        -Werror \
        -Wall   \
@@ -15,8 +21,6 @@ CWARNINGS = \
        -Wwrite-strings \
        -Wnested-externs
 
-CFLAGS += -fpic -DDYNAMIC_DRIVER
-
 ifneq ($(DEBUG),)
   CFLAGS += -g -ggdb
   CWARNINGS += -Wuninitialized
@@ -26,12 +30,6 @@ else
 endif
 
 CFLAGS  += $(CWARNINGS)
-
-ERL_EVAL    = 'io:format("~s", [os:getenv("ROOTDIR")]), erlang:halt(0)'
-ERL_ROOTDIR = $(shell erl -noinput -eval $(ERL_EVAL))
-ifneq ($(findstring /, $(ERL_ROOTDIR)),)
-  CFLAGS += -I$(ERL_ROOTDIR)/usr/include
-endif
 
 XML_CFLAGS ?= $(shell pkg-config --cflags libxml-2.0)
 ifeq ($(XML_CFLAGS),)
@@ -46,26 +44,15 @@ LIBS += $(XML_LIBS)
 
 LD = $(CC)
 
-ifeq ($(shell uname -s), Darwin)
-  LDDRV_FLAGS = -bundle -undefined dynamic_lookup
-else
-  LDDRV_FLAGS = -shared
-endif
+PARSER_SOURCES := $(wildcard yang*.c)
+PARSER_HEADERS := $(wildcard yang*.h)
+PARSER_OBJS := $(PARSER_SOURCES:%.c=./%.o)
 
-
-C_SOURCES := $(wildcard yang*.c)
-C_HEADERS := $(wildcard yang*.h)
-OBJS := $(C_SOURCES:%.c=./%.o)
-
-all: $(PRIV_FILES)
-
-$(OBJS): $(C_HEADERS)
-
-$(PARSER_NIF): $(OBJS)
-	$(LD) $(LDDRV_FLAGS) -o $@ $^ $(LIBS)
+$(PARSER_NIF): $(PARSER_OBJS)
+	$(LD) $(LDFLAGS_NIF) -o $@ $^ $(LIBS)
 
 $(REGEX_NIF): w3cregex_nif.o
-	$(LD) $(LDDRV_FLAGS) -o $@ $^ $(LIBS)
+	$(LD) $(LDFLAGS_NIF) -o $@ $^ $(LIBS)
 
 debug:
 	$(MAKE) DEBUG=true all
