@@ -193,6 +193,6 @@ s()  -> $\ .
 nl() -> $\n.
 
 indent(1) -> "  ";
-indent(2) -> "  ""  ";
-indent(3) -> "  ""  ""  ";
+indent(2) -> "  " "  ";
+indent(3) -> "  " "  " "  ";
 indent(Lvl) -> lists:duplicate(Lvl*2, s()).
