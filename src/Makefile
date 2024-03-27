@@ -13,7 +13,7 @@ APP_OBJECTS := $(APP_SOURCES:%.app.src=../ebin/%.app)
 null  :=
 space := $(null) #
 comma := ,
-MODULES := $(subst $(space),$(comma),$(strip $(ERL_SOURCES:%.erl=%)))
+MODULES := $(subst $(space),$(comma),$(strip $(ERL_OBJECTS:../ebin/%.beam=%)))
 
 ERLC ?= erlc
 
