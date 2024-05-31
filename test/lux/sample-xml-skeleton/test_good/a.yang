@@ -1,0 +1,30 @@
+module a {
+  namespace "urn:a";
+  prefix a;
+
+  grouping a {
+    leaf a {
+      type leafref {
+        path "/a:x/a:y/a:k1";
+      }
+    }
+    leaf b {
+      type leafref {
+        path "deref(../a)/../a:k2";
+//        path "/a:x/a:y[a:k1 = current()/../a]/a:k2";
+      }
+    }
+  }
+
+  container x {
+    list y {
+      key "k1 k2";
+      leaf k1 {
+        type string;
+      }
+      leaf k2 {
+        type string;
+      }
+    }
+  }
+}
