@@ -1,0 +1,53 @@
+[doc]
+YANG 1.1 Submodules including each other should not cause circular \
+dep errors, but YANG 1.0 submodules should.
+
+RFC6020 (YANG 1.0):
+
+   There MUST NOT be any circular chains of imports or includes.  For
+   example, if submodule "a" includes submodule "b", "b" cannot include
+   "a".
+
+RFC7950 (YANG 1.1):
+
+   o  Changed the scoping rules for definitions in submodules. A
+      submodule can now reference all definitions in all submodules that
+      belong to the same module, without using the "include" statement.
+
+   o  For backward compatibility with YANG version 1, a submodule is allowed to
+      include another submodule belonging to the same module, but this is not
+      necessary in YANG version 1.1 (see Section 5.1).
+
+   o  There MUST NOT be any circular chains of imports.  For example, if
+      module "a" imports module "b", "b" cannot import "a".
+
+[enddoc]
+
+[macro ok]
+    !echo $?
+    ???0
+    ?SH-PROMPT:
+[endmacro]
+
+[macro not-ok]
+    !echo $?
+    ???1
+    ?SH-PROMPT:
+[endmacro]
+
+[shell compile-1.1]
+    -circular dependency for submodule
+    !yanger -p indirect-yang-1.1 indirect-yang-1.1/my-mod.yang
+    [invoke ok]
+
+    !yanger -p direct-yang-1.1 direct-yang-1.1/my-mod.yang
+    [invoke ok]
+
+[shell compile-1]
+    !yanger -p indirect-yang-1 indirect-yang-1/my-mod.yang
+    ???indirect-yang-1/my-sub2.yang:5: error: circular dependency for submodule 'my-sub1'
+    [invoke not-ok]
+
+    !yanger -p direct-yang-1 direct-yang-1/my-mod.yang
+    ???direct-yang-1/my-sub2.yang:5: error: circular dependency for submodule 'my-sub1'
+    [invoke not-ok]

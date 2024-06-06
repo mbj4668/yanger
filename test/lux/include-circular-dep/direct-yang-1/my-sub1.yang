@@ -1,0 +1,16 @@
+submodule my-sub1 {
+
+  belongs-to my-mod { prefix "mod"; }
+
+  include my-sub2;
+
+  grouping sub1-grouping {
+    container a {
+      leaf b {
+        type boolean;
+      }
+    }
+  }
+
+  uses sub2-grouping;
+}
