@@ -1,0 +1,103 @@
+module enum-bit-default {
+  yang-version 1.1;
+  namespace urn:enum-bit-default;
+  prefix ebd;
+
+  feature foo;
+  feature bar;
+  feature baz;
+
+  typedef myEnum {
+    type enumeration {
+      enum foo {
+        if-feature "foo";
+      }
+      enum bar {
+        if-feature "not bar";
+      }
+      enum baz;
+    }
+  }
+
+  typedef myBits {
+    type bits {
+      bit foo {
+        if-feature "foo";
+      }
+      bit bar {
+        if-feature "not bar";
+      }
+      bit baz;
+    }
+  }
+
+  leaf enum0 {
+    type myEnum;
+    default "no"; // LINE: YANG_ERR_TYPE_VALUE
+  }
+
+  leaf enum1 {
+    type myEnum;
+    default "foo"; // LINE: YANG_ERR_TYPE_VALUE
+  }
+
+  leaf enum2 {
+    type myEnum;
+    default "bar"; // LINE: YANG_ERR_TYPE_VALUE
+  }
+
+  leaf enum3 {
+    type myEnum;
+    default "baz";
+  }
+
+  leaf bit0 {
+    type myBits;
+    default "no"; // LINE: YANG_ERR_TYPE_VALUE
+  }
+
+  leaf bit1 {
+    type myBits;
+    default "foo"; // LINE: YANG_ERR_TYPE_VALUE
+  }
+
+  leaf bit2 {
+    type myBits;
+    default "bar"; // LINE: YANG_ERR_TYPE_VALUE
+  }
+
+  leaf bit3 {
+    type myBits;
+    default "baz";
+  }
+
+  leaf bit4 {
+    type myBits;
+    default "no foo"; // LINE: YANG_ERR_TYPE_VALUE
+  }
+
+  leaf bit5 {
+    type myBits;
+    default "foo no"; // LINE: YANG_ERR_TYPE_VALUE
+  }
+
+  leaf bit6 {
+    type myBits;
+    default "no baz"; // LINE: YANG_ERR_TYPE_VALUE
+  }
+
+  leaf bit7 {
+    type myBits;
+    default "baz no"; // LINE: YANG_ERR_TYPE_VALUE
+  }
+
+  leaf bit8 {
+    type myBits;
+    default "foo bar baz"; // LINE: YANG_ERR_TYPE_VALUE
+  }
+
+  leaf bit9 {
+    type myBits;
+    default "baz bar foo"; // LINE: YANG_ERR_TYPE_VALUE
+  }
+}
