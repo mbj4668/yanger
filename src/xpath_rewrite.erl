@@ -19,7 +19,7 @@
          get_position_or_last/2,
          rewrite_expr/2,
          find_variables_expr/1, find_variables_expr/2,
-         is_node_set/1,
+         is_node_set/1, is_node_set/2,
          map_expr/2, fold_expr/3
         ]).
 
@@ -28,10 +28,10 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 q(Q) ->
-    q(Q, empty_namespace_map()).
+    q(Q, empty_namespace_opts()).
 
-q(Q, NS_map) ->
-    case rewrite_expr(Q, NS_map) of
+q(Q, Opts) ->
+    case rewrite_expr(Q, Opts) of
         {absolute, _}=Path ->
             Path;
         {relative, _}=Path ->
@@ -57,26 +57,35 @@ q(Q, NS_map) ->
 %% a namespace (or a namespace prefix?)
 %% = which should it be?
 
-rewrite_expr({absolute, Path}, NS_map) ->
-    mk_absolute(rewrite_path(Path, NS_map));
-rewrite_expr({relative, Path}, NS_map) ->
-    mk_relative(rewrite_path(Path, NS_map));
-rewrite_expr({union, Paths}, NS_map) ->
-    mk_union([ rewrite_expr(Path, NS_map) || Path <- Paths ]);
-rewrite_expr({comp, Op, E1, E2}, NS_map) ->
-    mk_comp(Op, rewrite_expr(E1, NS_map), rewrite_expr(E2, NS_map));
-rewrite_expr({arith, Op, E1, E2}, NS_map) ->
-    {arith, Op, rewrite_expr(E1, NS_map), rewrite_expr(E2, NS_map)};
-rewrite_expr({bool, 'or', E1, E2}, NS_map) ->
-    mk_or(rewrite_expr(E1, NS_map), rewrite_expr(E2, NS_map));
-rewrite_expr({bool, 'and', E1, E2}, NS_map) ->
-    mk_and(rewrite_expr(E1, NS_map), rewrite_expr(E2, NS_map));
-rewrite_expr({function_call, 'xp_sort-by', [E1, E2]}, NS_map) ->
+rewrite_expr(Expr, {make_atoms, {Prefixes, DefaultNs}}) ->
+    %% legacy NS_map argumet - convert to Opts map
+    rewrite_expr(Expr, #{prefixes => Prefixes,
+                         default_ns => DefaultNs,
+                         make_atoms => true});
+rewrite_expr(Expr, {Prefixes, DefaultNs}) ->
+    %% legacy NS_map argumet - convert to Opts map
+    rewrite_expr(Expr, #{prefixes => Prefixes,
+                         default_ns => DefaultNs});
+rewrite_expr({absolute, Path}, Opts) ->
+    mk_absolute(rewrite_path(Path, Opts));
+rewrite_expr({relative, Path}, Opts) ->
+    mk_relative(rewrite_path(Path, Opts));
+rewrite_expr({union, Paths}, Opts) ->
+    mk_union([ rewrite_expr(Path, Opts) || Path <- Paths ]);
+rewrite_expr({comp, Op, E1, E2}, Opts) ->
+    mk_comp(Op, rewrite_expr(E1, Opts), rewrite_expr(E2, Opts));
+rewrite_expr({arith, Op, E1, E2}, Opts) ->
+    {arith, Op, rewrite_expr(E1, Opts), rewrite_expr(E2, Opts)};
+rewrite_expr({bool, 'or', E1, E2}, Opts) ->
+    mk_or(rewrite_expr(E1, Opts), rewrite_expr(E2, Opts));
+rewrite_expr({bool, 'and', E1, E2}, Opts) ->
+    mk_and(rewrite_expr(E1, Opts), rewrite_expr(E2, Opts));
+rewrite_expr({function_call, 'xp_sort-by', [E1, E2]}, Opts) ->
     Pred =
         {pred, {comp,'=', {bool, true},
-                {function_call,'xp_sort-by', [rewrite_expr(E2, NS_map)]}}},
-    insert_sort_order_pred(rewrite_expr(E1, NS_map), Pred);
-rewrite_expr({function_call, Fun, [E1, E2]}, NS_map)
+                {function_call,'xp_sort-by', [rewrite_expr(E2, Opts)]}}},
+    insert_sort_order_pred(rewrite_expr(E1, Opts), Pred);
+rewrite_expr({function_call, Fun, [E1, E2]}, Opts)
   when Fun == 'xp_derived-from' orelse Fun == 'xp_derived-from-or-self' ->
     %% This is unfortunate.  If E2 is a string literal (which it will be
     %% in most cases), we resolve the prefix and call xp_derived-from/3.
@@ -86,26 +95,20 @@ rewrite_expr({function_call, Fun, [E1, E2]}, NS_map)
     %%   derived-from(., concat("x:", name))
     %% in order to implement this correctly, we'd have to keep the prefix map
     %% from the YANG module...
-    case rewrite_expr(E2, NS_map) of
+    case rewrite_expr(E2, Opts) of
         {literal, Str} ->
             case xpath_scan:tokens(Str) of
                 [{name, _, {Prefix, LocalName}}, {'$end', _, '$end'}] ->
-                    case NS_map of
-                        {make_atoms, NS_map0} ->
-                            ok;
-                        NS_map0 ->
-                            ok
-                    end,
-                    NS = case NS_map0 of
-                             {_, 0} when Prefix == [] ->
+                    NS = case maps:get(default_ns, Opts, 0) of
+                             0 when Prefix == [] ->
                                  undefined;
-                             {_, DefaultNs} when Prefix == [] ->
+                             DefaultNs when Prefix == [] ->
                                  DefaultNs;
                              _ ->
-                                 prefix_to_namespace(Prefix, NS_map)
+                                 prefix_to_namespace(Prefix, Opts)
                          end,
                     {function_call, Fun,
-                     [rewrite_expr(E1, NS_map),
+                     [rewrite_expr(E1, Opts),
                       {literal, NS},
                       {literal, LocalName}]};
                 _ ->
@@ -114,16 +117,23 @@ rewrite_expr({function_call, Fun, [E1, E2]}, NS_map)
         _E2_RW ->
             ?xp_exit(nyi2,
                      "currently second argument must be a literal string")
-            %{function_call, Fun, [rewrite_expr(E1, NS_map), E2_RW]}
+            %{function_call, Fun, [rewrite_expr(E1, Opts), E2_RW]}
     end;
-rewrite_expr({function_call, F, Xs}, NS_map) ->
+rewrite_expr({function_call, F, Xs}, Opts) ->
     case F of
         {undefined_function, F_name} ->
             %% was fail
             ?xp_exit(undefined_function, {F_name, length(Xs)});
         _ ->
             %% known function
-            case xpath_bif:arity_check(F, length(Xs)) of
+            ArityCheck =
+                case lists:keyfind(F, 1, maps:get(functions, Opts, [])) of
+                    {F, Arity, _Type} ->
+                        Arity == length(Xs);
+                    false ->
+                        xpath_bif:arity_check(F, length(Xs))
+                end,
+            case ArityCheck of
                 true ->
                     ok;
                 false ->
@@ -131,7 +141,7 @@ rewrite_expr({function_call, F, Xs}, NS_map) ->
                     ?xp_exit(invalid_bif_arity,
                              {lists:nthtail(3, atom_to_list(F)), length(Xs)})
             end,
-            NewXs = [ rewrite_expr(X, NS_map) || X <- Xs ],
+            NewXs = [ rewrite_expr(X, Opts) || X <- Xs ],
             if
                 F == 'not' ->
                     case NewXs of
@@ -144,48 +154,55 @@ rewrite_expr({function_call, F, Xs}, NS_map) ->
                     {function_call, F, NewXs}
             end
     end;
-rewrite_expr({negative, X}, NS_map) ->
-    case rewrite_expr(X, NS_map) of
+rewrite_expr({negative, X}, Opts) ->
+    case rewrite_expr(X, Opts) of
         {number, N} ->
             {number, 0 - N};
         E ->
             {arith, '-', {number, 0}, E}
     end;
-rewrite_expr({number, _}=E, _NS_map) ->
+rewrite_expr({number, _}=E, _Opts) ->
     E;
-rewrite_expr({literal, _}=E, _NS_map) ->
+rewrite_expr({literal, _}=E, _Opts) ->
     E;
-rewrite_expr({bool, _}=E, _NS_map) ->
+rewrite_expr({bool, _}=E, _Opts) ->
     E;
-rewrite_expr({var, _}=E, _NS_map) ->
+rewrite_expr({var, _}=E, _Opts) ->
     E;
 rewrite_expr({path_expr, {function_call, {undefined_function, F}, Xs}}, _) ->
     ?xp_exit(undefined_function, {F, length(Xs)});
-rewrite_expr({path_expr, E = {function_call, F, _}}, NS_map) ->
-    case xpath_bif:bif_type(F) of
+rewrite_expr({path_expr, E = {function_call, F, _}}, Opts) ->
+    FunctionType =
+        case lists:keyfind(F, 1, maps:get(functions, Opts, [])) of
+            {F, _Arity, Type} ->
+                Type;
+            false ->
+                xpath_bif:bif_type(F)
+        end,
+    case FunctionType of
         nodeset ->
             %% Make us evaluate this as a path expression
-            rewrite_expr([E], NS_map);
+            rewrite_expr([E], Opts);
         _ ->
-            rewrite_expr(E, NS_map)
+            rewrite_expr(E, Opts)
     end;
-rewrite_expr({path_expr, E}, NS_map) ->
-    rewrite_expr(E, NS_map);
-rewrite_expr([E0|Steps0], NS_map) ->
-    case rewrite_path(Steps0, NS_map) of
+rewrite_expr({path_expr, E}, Opts) ->
+    rewrite_expr(E, Opts);
+rewrite_expr([E0|Steps0], Opts) ->
+    case rewrite_path(Steps0, Opts) of
         fail ->
             fail;
         Steps ->
-            case rewrite_expr(E0, NS_map) of
+            case rewrite_expr(E0, Opts) of
                 fail ->
                     fail;
                 E ->
                     [E | Steps]
             end
     end;
-rewrite_expr({path, filter, {Expr, Pred}}, NS_map) ->
-    {path, filter, {rewrite_expr(Expr, NS_map), rewrite_pred(Pred, NS_map)}};
-rewrite_expr(Other, _NS_map) ->
+rewrite_expr({path, filter, {Expr, Pred}}, Opts) ->
+    {path, filter, {rewrite_expr(Expr, Opts), rewrite_pred(Pred, Opts)}};
+rewrite_expr(Other, _Opts) ->
     ?xp_exit(internal_error, {unhandled_expr, Other}).
 
 %% position or last
@@ -383,8 +400,8 @@ mk_union(Ps) ->
 
 %%
 
-rewrite_path(LocSteps, NS_map) ->
-    try rewrite_location_steps(LocSteps, NS_map) of
+rewrite_path(LocSteps, Opts) ->
+    try rewrite_location_steps(LocSteps, Opts) of
         NewLocSteps ->
             NewLocSteps
     catch
@@ -403,46 +420,43 @@ rewrite_path(LocSteps, NS_map) ->
 %%
 %% NB: this can fail
 
-maybe_list_to_atom(Str, false) ->
-    catch list_to_existing_atom(Str);
-maybe_list_to_atom(Str, true) ->
-    list_to_atom(Str).
+maybe_list_to_atom(Str, Opts) ->
+    case maps:get(make_atoms, Opts, false) of
+        false ->
+            catch list_to_existing_atom(Str);
+        true ->
+            list_to_atom(Str)
+    end.
 
-rewrite_location_steps([{step, attribute, Name, Prs}|Steps], NS_map0) ->
-    case NS_map0 of
-        {make_atoms, NS_map} ->
-            Make = true;
-        NS_map ->
-            Make = false
-    end,
+rewrite_location_steps([{step, attribute, Name, Prs}|Steps], Opts) ->
     NewName =
         case Name of
             {name, NS_prefix, Tag_str} ->
-                case maybe_list_to_atom(Tag_str, Make) of
+                case maybe_list_to_atom(Tag_str, Opts) of
                     Attr when is_atom(Attr) ->
-                        NS = prefix_to_namespace(NS_prefix, NS_map),
+                        NS = prefix_to_namespace(NS_prefix, Opts),
                         {name, NS, Attr};
                     _ ->
                         ?xp_exit(attribute_does_not_exist, Tag_str)
                 end;
             {name, Attr_str} ->
-                case maybe_list_to_atom(Attr_str, Make) of
+                case maybe_list_to_atom(Attr_str, Opts) of
                     A when is_atom(A) ->
                         {name, A};
                     _ ->
                         ?xp_exit(attribute_does_not_exist, Attr_str)
                 end;
             NodeTest ->
-                rewrite_node_test(NodeTest, NS_map)
+                rewrite_node_test(NodeTest, Opts)
         end,
-    case rewrite_preds(Prs, NS_map) of
+    case rewrite_preds(Prs, Opts) of
         fail ->
             ?xp_exit(loc_step_predicates_fail, Prs);
         NewPrs ->
             [{step, attribute, NewName, NewPrs}|
-             rewrite_location_steps(Steps, NS_map0)]
+             rewrite_location_steps(Steps, Opts)]
     end;
-rewrite_location_steps([{step, namespace, Name, Prs}|Steps], NS_map) ->
+rewrite_location_steps([{step, namespace, Name, Prs}|Steps], Opts) ->
     NewName =
         case Name of
             {name, NS_prefix, Tag_str} ->
@@ -452,78 +466,72 @@ rewrite_location_steps([{step, namespace, Name, Prs}|Steps], NS_map) ->
                 %% otherwise ignored, making it equivalent to namespace::ns2.
                 ?xp_exit(namespace_does_not_exist, {name, NS_prefix, Tag_str});
             {name, NS_str} ->
-                NS = prefix_to_namespace(NS_str, NS_map),
+                NS = prefix_to_namespace(NS_str, Opts),
                 {name, NS};
             NodeTest ->
-                rewrite_node_test(NodeTest, NS_map)
+                rewrite_node_test(NodeTest, Opts)
         end,
-    case rewrite_preds(Prs, NS_map) of
+    case rewrite_preds(Prs, Opts) of
         fail ->
             ?xp_exit(loc_step_predicates_fail, Prs);
         NewPrs ->
             [{step, namespace, NewName, NewPrs}|
-             rewrite_location_steps(Steps, NS_map)]
+             rewrite_location_steps(Steps, Opts)]
     end;
 rewrite_location_steps([{step, Axis, {name, NS_prefix, Tag_str}, Prs}|Steps],
-                       NS_map) ->
+                       Opts) ->
     ensure_axis_permitted(Axis),
-    NS = prefix_to_namespace(NS_prefix, NS_map),
+    NS = prefix_to_namespace(NS_prefix, Opts),
     Tag = tag_of(Tag_str),
     NewName = {name, NS, Tag},
-    case rewrite_preds(Prs, NS_map) of
+    case rewrite_preds(Prs, Opts) of
         fail ->
             ?xp_exit(loc_step_predicates_fail, Prs);
         NewPrs ->
             [{step, Axis, NewName, NewPrs}|
-             rewrite_location_steps(Steps, NS_map)]
+             rewrite_location_steps(Steps, Opts)]
     end;
-rewrite_location_steps([{step, Axis, {name, Tag_str}, Prs}|Steps], NS_map0) ->
+rewrite_location_steps([{step, Axis, {name, Tag_str}, Prs}|Steps], Opts) ->
     ensure_axis_permitted(Axis),
-    case NS_map0 of
-        {make_atoms, NS_map} ->
-            Make = true;
-        NS_map ->
-            Make = false
-    end,
     Tag = tag_of(Tag_str),
-    NewName = case NS_map of
-                  {_, 0} ->
+    NewName = case maps:get(default_ns, Opts, 0) of
+                  0 ->
                       {name, Tag};
-                  {_, DefaultNs} ->
-                      {name, maybe_list_to_atom(DefaultNs, Make), Tag}
+                  DefaultNs ->
+                      {name, maybe_list_to_atom(DefaultNs, Opts), Tag}
               end,
-    case rewrite_preds(Prs, NS_map) of
+    case rewrite_preds(Prs, Opts) of
         fail ->
             ?xp_exit(loc_step_predicates_fail, Prs);
         NewPrs ->
             [{step, Axis, NewName, NewPrs}|
-             rewrite_location_steps(Steps, NS_map)]
+             rewrite_location_steps(Steps, Opts)]
     end;
 rewrite_location_steps([{step, descendant_or_self,
-                         {node_type, node} = NodeTest, []}|Steps], NS_map) ->
+                         {node_type, node} = NodeTest, []}|Steps], Opts) ->
     Prs =
         case Steps of
             [{step,child,NodeTest0,_}|_] when element(1,NodeTest0) == name ->
-                NodeTest1 = rewrite_node_test(NodeTest0, NS_map),
+                NodeTest1 = rewrite_node_test(NodeTest0, Opts),
                 [{pred,{relative,[{step,child,NodeTest1,[]}]}}];
             _ ->
                 []
         end,
     [{step, descendant_or_self, NodeTest, Prs}|
-     rewrite_location_steps(Steps, NS_map)];
-rewrite_location_steps([{step, Axis, NodeTest, Prs}|Steps], NS_map) ->
+     rewrite_location_steps(Steps, Opts)];
+rewrite_location_steps([{step, Axis, NodeTest, Prs}|Steps], Opts) ->
     ensure_axis_permitted(Axis),
-    case rewrite_preds(Prs, NS_map) of
+    case rewrite_preds(Prs, Opts) of
         fail ->
             ?xp_exit(loc_step_predicates_fail, Prs);
         NewPrs ->
-            NewNodeTest = rewrite_node_test(NodeTest, NS_map),
+            NewNodeTest = rewrite_node_test(NodeTest, Opts),
             [{step, Axis, NewNodeTest, NewPrs}|
-             rewrite_location_steps(Steps, NS_map)]
+             rewrite_location_steps(Steps, Opts)]
     end;
-rewrite_location_steps([], _NS_map) ->
+rewrite_location_steps([], _Opts) ->
     [];
-rewrite_location_steps([OtherStep|_], _NS_map) ->
+rewrite_location_steps([OtherStep|_], _Opts) ->
     ?xp_exit(internal_error, {unknown_location_step, OtherStep}).
 
 %% The following node tests can appear:
@@ -537,48 +545,55 @@ rewrite_location_steps([OtherStep|_], _NS_map) ->
 %% the "tag" mapping is different (e.g., attribute names are not stored
 %% among the tags).
 
-rewrite_node_test({name, NS_lst, Tag_lst}, NS_map) ->
-    NS = prefix_to_namespace(NS_lst, NS_map),
+rewrite_node_test({name, NS_lst, Tag_lst}, Opts) ->
+    NS = prefix_to_namespace(NS_lst, Opts),
     Tag = tag_of(Tag_lst),
     {name, NS, Tag};
-rewrite_node_test({name, Tag_lst}, _NS_map) ->
+rewrite_node_test({name, Tag_lst}, _Opts) ->
     Tag = tag_of(Tag_lst),
     {name, Tag};
-rewrite_node_test({namespace, NS_lst}, NS_map) ->
-    NS = prefix_to_namespace(NS_lst, NS_map),
+rewrite_node_test({namespace, NS_lst}, Opts) ->
+    NS = prefix_to_namespace(NS_lst, Opts),
     {namespace, NS};
-rewrite_node_test(wildcard, _NS_map) ->
+rewrite_node_test(wildcard, _Opts) ->
     wildcard;
-rewrite_node_test({node_type, _T}=NodeTest, _NS_map) ->
+rewrite_node_test({node_type, _T}=NodeTest, _Opts) ->
     NodeTest;
-rewrite_node_test(NodeTest, _NS_map) ->
+rewrite_node_test(NodeTest, _Opts) ->
     ?xp_exit(unknown_node_test, NodeTest).
 
 %% If any predicate fails, the location step fails.
 
-rewrite_preds([P|Ps], NS_map) ->
-    case rewrite_pred(P, NS_map) of
+rewrite_preds([P|Ps], Opts) ->
+    case rewrite_pred(P, Opts) of
         fail ->
             fail;
         NewP ->
-            case rewrite_preds(Ps, NS_map) of
+            case rewrite_preds(Ps, Opts) of
                 fail ->
                     fail;
                 NewPs ->
                     [NewP|NewPs]
             end
     end;
-rewrite_preds([], _NS_map) ->
+rewrite_preds([], _Opts) ->
     [].
 
 %%
 
-rewrite_pred({pred, P}, NS_map) ->
-    case rewrite_expr(P, NS_map) of
+rewrite_pred({pred, P}, Opts) ->
+    case rewrite_expr(P, Opts) of
         fail ->
             fail;
         {function_call, F, _Args} = NewP ->
-            case xpath_bif:bif_type(F) of
+            FunctionType =
+                case lists:keyfind(F, 1, maps:get(functions, Opts, [])) of
+                    {F, _Arity, Type} ->
+                        Type;
+                    false ->
+                        xpath_bif:bif_type(F)
+                end,
+            case FunctionType of
                 number -> %% mbj: trial-and-error fix
                     {pred, {comp,'=',
                             {function_call,xp_position,[]},
@@ -658,28 +673,14 @@ isop_path([Step|Steps], Pred) ->
 %% The following provides the functions for resolving namespace
 %% prefixes "foo" into actual namespaces 'http://tail-f.com/test/dhcp/1.0'
 
-prefix_to_namespace(Prefix, NS_map0) ->
-    case NS_map0 of
-        {make_atoms, NS_map} ->
-            ok;
-        NS_map ->
-            ok
-    end,
-    {NS_prefixes, _Dflt} = NS_map,
+prefix_to_namespace(Prefix, Opts) ->
+    NS_prefixes = maps:get(prefixes, Opts, #{}),
     case maps:find(Prefix, NS_prefixes) of
         {ok, NS} ->
             NS;
         error ->
             ?xp_exit(invalid_namespace_prefix, Prefix)
     end.
-
--ifdef(not_used).
-has_default_namespace({_, 0}) ->
-    false;
-has_default_namespace({_, A}) when list(A) ->
-    %% otherwise
-    {true, A}.
--endif.
 
 prefixes_with_default_namespace(NS_prefixes, Dflt) when is_list(Dflt) ->
     {NS_prefixes, Dflt}.
@@ -688,9 +689,8 @@ prefixes_with_no_default_namespace(NS_prefixes) ->
     No_dflt = 0,
     {NS_prefixes, No_dflt}.
 
-empty_namespace_map() ->
-    prefixes_with_no_default_namespace([]).
-
+empty_namespace_opts() ->
+    #{}.
 
 %% Find variables in expressions
 find_variables_expr(E) ->
@@ -753,44 +753,54 @@ find_variables_path([], Acc) ->
 find_variables_path([{step, _, _, Preds}|Steps], Acc) ->
     find_variables_path(Steps, find_variables_preds(Preds, Acc)).
 
-is_node_set([{step, _, _, _}|_]) ->
+is_node_set(E) ->
+    is_node_set(E, #{}).
+
+is_node_set([{step, _, _, _}|_], _) ->
     true;
-is_node_set({absolute, _Path}) ->
+is_node_set({absolute, _Path}, _) ->
     true;
-is_node_set({relative, _Path}) ->
+is_node_set({relative, _Path}, _) ->
     true;
-is_node_set({union, _Paths}) ->
+is_node_set({union, _Paths}, _) ->
     true;
-is_node_set({comp, _Op, _E1, _E2}) ->
+is_node_set({comp, _Op, _E1, _E2}, _) ->
     false;
-is_node_set({arith, _Op, _E1, _E2}) ->
+is_node_set({arith, _Op, _E1, _E2}, _) ->
     false;
-is_node_set({bool, _Op, _E1, _E2}) ->
+is_node_set({bool, _Op, _E1, _E2}, _) ->
     false;
-is_node_set({function_call, F, _Xs}) ->
-    case xpath_bif:bif_type(F) of
+is_node_set({function_call, F, _Xs}, Opts) ->
+    FunctionType =
+        case lists:keyfind(F, 1, maps:get(functions, Opts, [])) of
+            {F, _Arity, Type} ->
+                Type;
+            false ->
+                xpath_bif:bif_type(F)
+        end,
+    case FunctionType of
         nodeset ->
             true;
         _ ->
             false
     end;
-is_node_set({negative, _X}) ->
+is_node_set({negative, _X}, _) ->
     false;
-is_node_set({number, _}) ->
+is_node_set({number, _}, _) ->
     false;
-is_node_set({literal, _}) ->
+is_node_set({literal, _}, _) ->
     false;
-is_node_set({bool, _}) ->
+is_node_set({bool, _}, _) ->
     false;
-is_node_set({var, _VariableName}) ->
+is_node_set({var, _VariableName}, _) ->
     false;
-is_node_set({path_expr, _}) ->
+is_node_set({path_expr, _}, _) ->
     true;
-is_node_set([E0|_Steps0]) ->
-    is_node_set(E0);
-is_node_set({path, filter, _}) ->
+is_node_set([E0|_Steps0], Opts) ->
+    is_node_set(E0, Opts);
+is_node_set({path, filter, _}, _) ->
     true;
-is_node_set(_) ->
+is_node_set(_, _) ->
     false.
 
 map_expr(F, Expr) ->

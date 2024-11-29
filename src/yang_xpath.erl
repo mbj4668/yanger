@@ -1,12 +1,13 @@
 -module(yang_xpath).
 
 -export([mk_ns_map/1,
-         compile/2, compile/5,
+         compile/2, compile/3, compile/5,
          set_default_namespace/2,
          get_dep_paths/2, v_dep_path/6]).
 
--export_type([ns_map/0]).
+-export_type([ns_map/0, type/0]).
 -type ns_map() :: term().
+-type type() :: number | literal | nodeset | boolean.
 
 -ifdef(debug).
 -export([prefixes/1]).
@@ -48,14 +49,19 @@ make_prefix_map(PrefixNsList, DefaultNs) ->
       xpath_rewrite:prefixes_with_no_default_namespace(PrefixNsList)},
      DefaultNs}.
 
--spec compile(Str :: binary(), PrefixNsMap :: any()) ->
+-spec compile(Str :: binary(), NsMap :: any()) ->
         {ok, Expr :: any()}
       | {error, ErrStr :: list()}.
 %% Called when an XPath expression is first defined.  Should detect
 %% unknown prefixes, and when unknown functions are called.
 %% This function must not bind un-prefixed names to the default namespace.
-compile(Str, {PrefixNsMap, _DefaultNs}) ->
-    case xpath_compile(?b2l(Str), PrefixNsMap) of
+compile(Str, NsMap) ->
+    compile(Str, NsMap).
+compile(Str, {PrefixNsMap, DefaultNs}, ExtraFunctions) ->
+    Opts = #{prefixes => PrefixNsMap,
+             default_ns => DefaultNs,
+             functions => ExtraFunctions},
+    case xpath_compile(?b2l(Str), Opts) of
         {ok, CompiledXPath} ->
             {ok, CompiledXPath};
         {error, {Mod, Err}} ->
@@ -72,7 +78,13 @@ compile(Str, {PrefixNsMap, _DefaultNs}) ->
 compile(Str, Pos, M, Strict, Ctx0) ->
     #module{name = Name, xpath_ns_map = {PrefixNsMap, _DefaultNs},
             yang_version = YangVersion} = M,
-    case xpath_compile0(?b2l(Str)) of
+    ExtraFunctions =
+        if Strict ->
+                [];
+           true ->
+                Ctx0#yctx.xpath_functions
+        end,
+    case xpath_compile0(?b2l(Str), ExtraFunctions) of
         {ok, Q} ->
             Prefixes = xpath_rewrite:fold_expr(fun prefix/2, [], Q),
             Ctx2 = lists:foldl(
@@ -130,21 +142,29 @@ add_to_list(X, []) ->
 
 -define(err(Rsn), {xpath_error, (Rsn)}).
 
-xpath_compile(String, NS_map) ->
-    case xpath_compile0(String) of
+xpath_compile(String, Opts) ->
+    case xpath_compile0(String, maps:get(functions, Opts, [])) of
         {ok, AbsQuery} ->
-            xpath_compile1(AbsQuery, NS_map);
+            xpath_compile1(AbsQuery, Opts);
         Else ->
             Else
     end.
 
-%% @doc Only first step of compile (no rewriting).
-xpath_compile0(String) ->
+%% Only first step of compile (no rewriting).
+xpath_compile0(String, ExtraFunctions) ->
     try xpath_scan:tokens(String) of
         Tokens ->
             case xpath_parse:parse(Tokens) of
                 {ok, Q} ->
-                    {ok, Q};
+                    Q1 =
+                        if ExtraFunctions /= [] ->
+                                xpath_rewrite:map_expr(
+                                  fun(E) -> add_functions(E, ExtraFunctions) end,
+                                  Q);
+                           true ->
+                                Q
+                        end,
+                    {ok, Q1};
                 {error, Err} ->
                     {error, ?err(Err)}
             end
@@ -152,6 +172,19 @@ xpath_compile0(String) ->
         _:Err ->
             {error, ?err({xpath_scan, Err})}
     end.
+
+add_functions({function_call, {undefined_function, FuncName}, Args} = E, ExtraFunctions) ->
+    try
+        FuncAtom = list_to_existing_atom(FuncName),
+        true = lists:keymember(FuncAtom, 1, ExtraFunctions),
+        {function_call, FuncAtom, Args}
+    catch
+        _:_ ->
+            E
+    end;
+add_functions(E, _) ->
+    E.
+
 
 %% @doc Second step of compile (rewriting)
 xpath_compile1(AbsQuery, NS_map) ->
@@ -417,7 +450,7 @@ is_dep_path_absolute(_) -> true.
 
 -ifdef(debug).
 prefixes(Str) ->
-    case xpath_compile0(Str) of
+    case xpath_compile0(Str, []) of
         {ok, Expr} ->
             {ok, xpath_rewrite:fold_expr(fun prefix/2, [], Expr)};
         Error ->

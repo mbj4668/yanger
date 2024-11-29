@@ -512,7 +512,7 @@
 -record(yctx, {
           search_path = [] :: [DirName :: string()],
           verbosity = ?V_SILENT :: yang:verbosity(),
-          xpath_functions = [] :: [{Name :: atom(), Arity :: integer()}],
+          xpath_functions = [] :: [{Name :: atom(), Arity :: integer(), Type :: yang_xpath:type()}],
           primary_module_names = [] :: [atom()],
           %% contains all modules and submodules found
           modrevs :: yang:map(yang:modrev(), #module{}),
