@@ -56,11 +56,20 @@ make_prefix_map(PrefixNsList, DefaultNs) ->
 %% unknown prefixes, and when unknown functions are called.
 %% This function must not bind un-prefixed names to the default namespace.
 compile(Str, NsMap) ->
-    compile(Str, NsMap).
-compile(Str, {PrefixNsMap, DefaultNs}, ExtraFunctions) ->
-    Opts = #{prefixes => PrefixNsMap,
-             default_ns => DefaultNs,
-             functions => ExtraFunctions},
+     compile(Str, NsMap, []).
+compile(Str, NsMap, ExtraFunctions) ->
+    Opts =
+        case NsMap of
+            {make_atoms, {PrefixNsMap, DefaultNs}} ->
+                #{prefixes => PrefixNsMap,
+                  default_ns => DefaultNs,
+                  make_atoms => true,
+                  functions => ExtraFunctions};
+            {PrefixNsMap, DefaultNs} ->
+                #{prefixes => PrefixNsMap,
+                  default_ns => DefaultNs,
+                  functions => ExtraFunctions}
+        end,
     case xpath_compile(?b2l(Str), Opts) of
         {ok, CompiledXPath} ->
             {ok, CompiledXPath};
