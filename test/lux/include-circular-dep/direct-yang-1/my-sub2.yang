@@ -1,0 +1,20 @@
+submodule my-sub2 {
+
+  belongs-to my-mod { prefix "mod"; }
+
+  include my-sub1;
+
+  grouping sub2-grouping {
+    container c {
+      leaf d {
+        type string;
+      }
+    }
+  }
+
+  // FIXME: Currently not possible to use sub1-grouping, it depends
+  //        on the ordering
+  //        of include statements in the parent module (my-mod.yang)
+  //
+  // uses sub1-grouping;
+}
