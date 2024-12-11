@@ -1,7 +1,9 @@
-module small4 {
+module small4a {
 
    namespace "http://xml.juniper.net/junos/10.0R3/junos";
    prefix junos;
+
+   import small5 { prefix small5; }
 
    list dynamic-profiles {
       key name;
@@ -46,4 +48,6 @@ module small4 {
          type string;
       }
    }
+
+   uses small5:a;
 }
