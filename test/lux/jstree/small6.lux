@@ -1,0 +1,18 @@
+[doc text sx:structure]
+
+[macro tree_compare FILE]
+    !yanger -f jstree ./${FILE} > small6_test.html
+    !echo ==$?==
+    ?==0==
+
+    !diff -u small6.html small6_test.html
+    !echo ==$?==
+    ?==0==
+    -
+[endmacro]
+
+[shell yanger]
+    [invoke tree_compare small6.yang]
+    
+[cleanup]
+    !rm -f small6_test.html
