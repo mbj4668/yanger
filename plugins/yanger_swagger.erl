@@ -41,10 +41,8 @@ init(Ctx0) ->
                                                 swagger,
                                                 _AllowErrors = false,
                                                 fun emit/3),
-    Ctx2 = yanger_plugin:register_hook(
-             Ctx1, #hooks.post_init_ctx, fun post_init_ctx/1),
-    Ctx3 = yanger_plugin:register_error_codes(
-             Ctx2,
+    Ctx2 = yanger_plugin:register_error_codes(
+             Ctx1,
              [{'SWAGGER_NO_DATA_MODULES', error,
                "No data modules given, at least one "
                "data module is required for Swagger."},
@@ -52,7 +50,7 @@ init(Ctx0) ->
                "Too many modules given, only one "
                "data module is supported for Swagger."}]),
 
-    yanger_plugin:register_option_specs(Ctx3, option_specs()).
+    yanger_plugin:register_option_specs(Ctx2, option_specs()).
 
 
 -record(options, {
@@ -184,17 +182,6 @@ option_specs() ->
 
       ]
      }].
-
-post_init_ctx(Ctx) ->
-    case proplists:get_value(tree_help, Ctx#yctx.options, false) of
-        true ->
-            io:put_chars(help()),
-            halt();
-        false ->
-            ok
-    end,
-    Ctx.
-
 
 mk_options(Ctx) ->
     Host = proplists:get_value(host, Ctx#yctx.options),
