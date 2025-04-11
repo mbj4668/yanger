@@ -1,0 +1,14 @@
+submodule my-sub1 {
+
+  belongs-to my-mod { prefix "mod"; }
+
+  include my-sub3;
+
+  grouping sub1-grouping {
+    container a {
+      leaf x {
+        type boolean;
+      }
+    }
+  }
+}
