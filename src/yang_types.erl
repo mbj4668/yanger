@@ -971,9 +971,7 @@ union_type_spec_fun({derive, TypeS},
             if M#module.yang_version == '1' ->
                     reject_invalid_union_types(Typestmts, TypeSpec, Ctx1);
                true ->
-                    %% FIXME: no restriction for 1.1
-                    %% {TypeSpec, Ctx1}
-                    temp_handle_union_types(Typestmts, TypeSpec, Ctx1)
+                    {TypeSpec, Ctx1}
             end
     end;
 union_type_spec_fun({derive, TypeS}, #type{type_spec = TypeSpec}, _M, Ctx0) ->
@@ -1039,36 +1037,6 @@ reject_invalid_union_types(Typestmts, TypeSpec, Ctx0) ->
             RemTypes = [Type || {_Stmt, Type} <- Valid],
             {#union_type_spec{types = RemTypes}, Ctx1}
     end.
-
-%% FIXME: remove for 1.1
-temp_handle_union_types(Typestmts, TypeSpec, Ctx0) ->
-    #union_type_spec{types = Types0} = TypeSpec,
-    {RemTypes, Ctx1} =
-        %% foldr to preserve order
-        lists:foldr(fun ({{_, _, TPos, _},
-                          #type{type_spec = #empty_type_spec{}} = Type},
-                         {Types, Ctx}) ->
-                            Name = 'empty',
-                            DefPos = get_typedef_pos(Name, Type, TPos),
-                            {Types,
-                             add_error(
-                               Ctx, TPos, 'YANG_ERR_BAD_TYPE_IN_UNION',
-                               [Name, yang_error:fmt_pos(DefPos)])};
-                        ({{_, _, TPos, _} = Stmt,
-                          #type{type_spec = #leafref_type_spec{}} = Type},
-                         {Types, Ctx}) ->
-                            {value, StringType} = lookup_type('string', Ctx),
-                            Name = 'leafref',
-                            DefPos = get_typedef_pos(Name, Type, TPos),
-                            {[StringType#type{base = 'string', stmt = Stmt} |
-                              Types],
-                             add_error(
-                               Ctx, TPos, 'YANG_ERR_UNSUPPORTED_TYPE_IN_UNION',
-                               [Name, yang_error:fmt_pos(DefPos)])};
-                        ({_Stmt, Type}, {Types, Ctx}) ->
-                            {[Type | Types], Ctx}
-                    end, {[], Ctx0}, lists:zip(Typestmts, Types0)),
-    {#union_type_spec{types = RemTypes}, Ctx1}.
 
 get_typedef_pos(Base, #type{base = Base}, Pos) ->
     Pos;
