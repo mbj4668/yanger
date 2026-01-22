@@ -703,11 +703,23 @@ enumeration_type_spec_fun({parse, _Val, _Pos},
     {undefined, Ctx};
 enumeration_type_spec_fun({parse, Val, _Pos},
                           #type{type_spec =
-                                  #enumeration_type_spec{enums = Enums}} = Type,
+                                  #enumeration_type_spec{all_enums = AllEnums, all_enum_stmts = AllStmts}} = Type,
                           _M, _Ctx) ->
-    case lists:keyfind(?b2a(Val), 1, Enums) of
+    case lists:keyfind(?b2a(Val), 1, AllEnums) of
         {_, IntVal} ->
-            {ok, IntVal};
+            case lists:keyfind(?b2a(Val), 2, AllStmts) of
+                {_, _, _, IfFeatureStmts} ->
+                    case lists:keyfind('if-feature', 1, IfFeatureStmts) of
+                        {_, _, _, _} ->
+                            {error,
+                             "a 'default' value cannot be given in leaf node when 'if-feature' is existing",
+                             stmt_pos(Type#type.stmt)};
+                        false ->
+                            {ok, IntVal}
+                    end;
+                false ->
+                    {ok, IntVal}
+            end;
         false  ->
             {error,
              "enum not defined for enumeration",
@@ -922,22 +934,37 @@ bits_type_spec_fun({parse, _Val, _Pos},
     %% no bits, parsing will always fail, error already reported
     {undefined, Ctx};
 bits_type_spec_fun({parse, Val, _Pos},
-                   #type{type_spec = #bits_type_spec{bits = Bits}} = Type,
+                   #type{type_spec = #bits_type_spec{all_bits = AllBits, all_bit_stmts = AllStmts}} = Type,
                    _M, _Ctx) ->
     BinNames = re:split(Val, "\\s+", [{return, binary}]),
     F = fun (<<>>, Acc) ->
                 Acc;
             (Name, Acc) ->
-                {_, BitPos} = lists:keyfind(?b2a(Name), 1, Bits),
-                [BitPos | Acc]
+                case lists:keyfind(?b2a(Name), 1, AllBits) of
+                    {_, BitPos} ->
+                        case lists:keyfind(?b2a(Name), 2, AllStmts) of
+                            {_, _, _, BitStmt} ->
+                                case lists:keymember('if-feature', 1, BitStmt) of
+                                    true ->
+                                        throw(default_bit_if_feature_error);
+                                    false ->
+                                        [BitPos | Acc]
+                                end;
+                            false ->
+                                [BitPos | Acc]
+                        end;
+                    false ->
+                        throw(bit_not_defined)
+                end
         end,
     try
         {ok, lists:foldl(F, [], BinNames)}
     catch
-        _:_ ->
+        throw:default_bit_if_feature_error ->
+            {error, "a 'default' value cannot be given in leaf node when 'if-feature' is existing", stmt_pos(Type#type.stmt)};
+        throw:bit_not_defined ->
             {error, "bit not defined for bits type", stmt_pos(Type#type.stmt)}
     end.
-
 
 parse_bits(Bitstmts, Pos, M, Ctx0, BaseBitsAndStmts) ->
     {Bits, Stmts, AllBits, AllStmts, Ctx1} =
