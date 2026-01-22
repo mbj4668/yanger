@@ -1,4 +1,4 @@
-module small3 {
+module small4 {
 
    namespace "http://xml.juniper.net/junos/10.0R3/junos";
    prefix junos;

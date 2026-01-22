@@ -1,0 +1,145 @@
+# author: lbevemyr@cisco.com
+[doc]
+Test of the yanger sample xml skeleton plugin with path option
+
+The tests include the option --sample-xml-skeleton-path which will only include
+the specified path in the output. The option is tested with both config true
+(config) and config false (data).
+[enddoc]
+
+
+[macro sample-xml-skeleton_data FILE PATH]
+    ~yanger -f sample-xml-skeleton -p ${DIR} ${DIR}/${FILE}
+    ! --sample-xml-skeleton-doctype data --sample-xml-skeleton-path ${PATH}
+[endmacro]
+
+[macro sample-xml-skeleton_config FILE PATH]
+    ~yanger -f sample-xml-skeleton -p ${DIR} ${DIR}/${FILE}
+    ! --sample-xml-skeleton-doctype config --sample-xml-skeleton-path ${PATH}
+[endmacro]
+
+[shell test_yanger_sample-xml-skeleton]
+    [timeout 10]
+
+    # use some test modules
+    [global DIR=../tree]
+    [invoke sample-xml-skeleton_data small3.yang /]
+    """???
+    <?xml version='1.0' encoding='UTF-8'?>
+    <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"/>
+    """
+    [invoke sample-xml-skeleton_config small3.yang dynamic-profiles/variables]
+    """???
+    <?xml version='1.0' encoding='UTF-8'?>
+    <config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <dynamic-profiles xmlns="http://xml.juniper.net/junos/10.0R3/junos">
+        <variables>
+          <name/>
+          <default-value/>
+          <mandatory/>
+        </variables>
+      </dynamic-profiles>
+    </config>
+    """
+
+    [invoke sample-xml-skeleton_config small4.yang dynamic-profiles/inget/variables/name]
+    """???
+    <?xml version='1.0' encoding='UTF-8'?>
+    <config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <dynamic-profiles xmlns="http://xml.juniper.net/junos/10.0R3/junos">
+        <inget>
+          <variables>
+            <name/>
+          </variables>
+        </inget>
+      </dynamic-profiles>
+    </config>
+    """
+    [invoke sample-xml-skeleton_config small5.yang d/e]
+    """???
+    <?xml version='1.0' encoding='UTF-8'?>
+    <config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <d xmlns="urn:q">
+        <e/>
+      </d>
+    </config>
+    """
+    # use pyang test modules
+    [global DIR=./test_good]
+    [invoke sample-xml-skeleton_config yt5.yang foo3/yyy]
+    """???
+    <?xml version='1.0' encoding='UTF-8'?>
+    <config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <foo3 xmlns="urn:ietf:params:xml:ns:yang:yt5">
+        <yyy>
+          <!-- # entries: 2..12 -->
+        </yyy>
+        <yyy/>
+      </foo3>
+    </config>
+    """
+
+    [invoke sample-xml-skeleton_config yt5.yang con2/con3/b/bb/e/f/h]
+    """???
+    <?xml version='1.0' encoding='UTF-8'?>
+    <config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <con2 xmlns="urn:ietf:params:xml:ns:yang:yt5">
+        <con3>
+          <b>
+            <bb>
+              <e>
+                <f>
+                  <h/>
+                </f>
+              </e>
+            </bb>
+          </b>
+        </con3>
+      </con2>
+    </config>
+    """
+
+    [invoke sample-xml-skeleton_data yt6.yang bar/zz3]
+    """???
+    <?xml version='1.0' encoding='UTF-8'?>
+    <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <bar xmlns="urn:ietf:params:xml:ns:yang:yt6">
+        <zz3>
+          <!-- # entries: 4..14 -->
+        </zz3>
+        <zz3/>
+        <zz3/>
+        <zz3/>
+      </bar>
+    </data>
+    """
+
+    [invoke sample-xml-skeleton_config yt6.yang foo/bar5]
+    """???
+    <?xml version='1.0' encoding='UTF-8'?>
+    <config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <foo xmlns="urn:ietf:params:xml:ns:yang:yt6">
+        <bar5/>
+      </foo>
+    </config>
+    """
+
+    [invoke sample-xml-skeleton_config yt9.yang con1]
+    """???
+    <?xml version='1.0' encoding='UTF-8'?>
+    <config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <con1 xmlns="urn:ietf:params:xml:ns:yang:yt9">
+        <a2/>
+      </con1>
+    </config>
+    """
+
+    [invoke sample-xml-skeleton_config yt10.yang test/Y]
+    """???
+    <?xml version='1.0' encoding='UTF-8'?>
+    <config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <test xmlns="urn:ietf:params:xml:ns:yang:yt10">
+        <Y/>
+      </test>
+    </config>
+    """

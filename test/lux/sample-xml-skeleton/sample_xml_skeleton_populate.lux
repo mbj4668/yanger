@@ -1,0 +1,233 @@
+# author: lbevemyr@cisco.com
+[doc]
+Test of the yanger sample xml skeleton plugin with populate option
+
+The tests include the option --sample-xml-skeleton-populate which adds which
+adds values for all types specified in a given file. The option is tested with
+both config true (config) and config false (data).
+[enddoc]
+
+
+[macro sample-xml-skeleton_data FILE]
+    ~yanger -f sample-xml-skeleton -p ${DIR} ${DIR}/${FILE}
+    ~ --sample-xml-skeleton-doctype data
+    ! --sample-xml-skeleton-populate population.txt
+[endmacro]
+
+[macro sample-xml-skeleton_config FILE]
+    ~yanger -f sample-xml-skeleton -p ${DIR} ${DIR}/${FILE}
+    ~ --sample-xml-skeleton-doctype config
+    ! --sample-xml-skeleton-populate population.txt
+[endmacro]
+
+[shell test_yanger_sample-xml-skeleton_with_annotations]
+    [timeout 10]
+
+    # use some test modules
+    [global DIR=../tree]
+    [invoke sample-xml-skeleton_data small3.yang]
+    """???
+    <?xml version='1.0' encoding='UTF-8'?>
+    <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"/>
+    """
+    [invoke sample-xml-skeleton_config small3.yang]
+    """???
+    <?xml version='1.0' encoding='UTF-8'?>
+    <config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <dynamic-profiles xmlns="http://xml.juniper.net/junos/10.0R3/junos">
+        <name>populate type string</name>
+        <variables>
+          <name/>
+          <default-value/>
+          <mandatory>populate type string</mandatory>
+        </variables>
+      </dynamic-profiles>
+    </config>
+    """
+
+[shell test_yanger_sample-xml-skeleton_with_annotations_testing]
+    [invoke sample-xml-skeleton_data small4.yang]
+    """???
+    <?xml version='1.0' encoding='UTF-8'?>
+    <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"/>
+    """
+    [invoke sample-xml-skeleton_config small4.yang]
+    """???
+    <?xml version='1.0' encoding='UTF-8'?>
+    <config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <dynamic-profiles xmlns="http://xml.juniper.net/junos/10.0R3/junos">
+        <name>populate type string</name>
+        <inget>
+          <name>populate type string</name>
+          <variables>
+            <name/>
+            <default-value/>
+            <mandatory>populate type string</mandatory>
+          </variables>
+        </inget>
+      </dynamic-profiles>
+    </config>
+    """
+    [invoke sample-xml-skeleton_data small5.yang]
+    """???
+    <?xml version='1.0' encoding='UTF-8'?>
+    <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"/>
+    """
+    [invoke sample-xml-skeleton_config small5.yang]
+    """???
+    <?xml version='1.0' encoding='UTF-8'?>
+    <config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <d xmlns="urn:q">
+        <e/>
+      </d>
+    </config>
+    """
+
+    [invoke sample-xml-skeleton_data a.yang]
+    """???
+    <?xml version='1.0' encoding='UTF-8'?>
+    <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <x xmlns="urn:a">
+        <foo>
+          <bar/>
+          <baz/>
+        </foo>
+      </x>
+    </data>
+    """
+    [invoke sample-xml-skeleton_config a.yang]
+    """???
+    <?xml version='1.0' encoding='UTF-8'?>
+    <config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"/>
+    """
+
+    # use pyang test modules
+    [global DIR=./test_good]
+    [invoke sample-xml-skeleton_data yt5.yang]
+    """???
+    <?xml version='1.0' encoding='UTF-8'?>
+    <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"/>
+    """
+    [invoke sample-xml-skeleton_config yt5.yang]
+    """???
+    <?xml version='1.0' encoding='UTF-8'?>
+    <config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <con2 xmlns="urn:ietf:params:xml:ns:yang:yt5">
+        <con3>
+          <b>
+            <bb>
+              <e>
+                <f>
+                  <g/>
+                  <h/>
+                  <i/>
+                </f>
+              </e>
+              <d/>
+            </bb>
+          </b>
+        </con3>
+      </con2>
+      <foo xmlns="urn:ietf:params:xml:ns:yang:yt5">
+        <foo/>
+      </foo>
+      <foo2 xmlns="urn:ietf:params:xml:ns:yang:yt5">
+        <foo3>
+          <foo/>
+          <foo4>
+            <!-- # entries: 0.. -->
+          </foo4>
+        </foo3>
+        <foo4>
+          <foo/>
+          <foo4>
+            <!-- # entries: 0.. -->
+          </foo4>
+        </foo4>
+      </foo2>
+      <foo3 xmlns="urn:ietf:params:xml:ns:yang:yt5">
+        <foo/>
+        <bar/>
+        <yyy>
+          <!-- # entries: 2..12 -->
+        </yyy>
+        <yyy/>
+        <baz/>
+        <goo/>
+        <zzz>
+          <zzzz/>
+        </zzz>
+      </foo3>
+    </config>
+    """
+
+    [invoke sample-xml-skeleton_data yt6.yang]
+    """???
+    <?xml version='1.0' encoding='UTF-8'?>
+    <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <bar xmlns="urn:ietf:params:xml:ns:yang:yt6">
+        <zz3>
+          <!-- # entries: 4..14 -->
+        </zz3>
+        <zz3/>
+        <zz3/>
+        <zz3/>
+      </bar>
+    </data>
+    """
+
+    [invoke sample-xml-skeleton_config yt6.yang]
+    """???
+    <?xml version='1.0' encoding='UTF-8'?>
+    <config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <foo xmlns="urn:ietf:params:xml:ns:yang:yt6">
+        <bar1/>
+        <bar3/>
+        <bar4/>
+        <bar5/>
+        <x/>
+        <y>populate type string</y>
+        <z/>
+        <xxx/>
+        <zzz/>
+      </foo>
+    </config>
+    """
+
+    [invoke sample-xml-skeleton_data yt9.yang]
+    """???
+    <?xml version='1.0' encoding='UTF-8'?>
+    <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"/>
+    """
+    [invoke sample-xml-skeleton_config yt9.yang]
+    """???
+    <?xml version='1.0' encoding='UTF-8'?>
+    <config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <a1 xmlns="urn:ietf:params:xml:ns:yang:yt9"/>
+      <con1 xmlns="urn:ietf:params:xml:ns:yang:yt9">
+        <a2>populate type string</a2>
+      </con1>
+    </config>
+    """
+
+    [invoke sample-xml-skeleton_data yt10.yang]
+    """???
+    <?xml version='1.0' encoding='UTF-8'?>
+    <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"/>
+    """
+    [invoke sample-xml-skeleton_config yt10.yang]
+    """???
+    <?xml version='1.0' encoding='UTF-8'?>
+    <config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <test xmlns="urn:ietf:params:xml:ns:yang:yt10">
+        <X/>
+        <Y/>
+      </test>
+    </config>
+    """
+
+    [invoke sample-xml-skeleton_data w.yang]
+    """???
+    <?xml version='1.0' encoding='UTF-8'?>
+    <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"/>
+    """
