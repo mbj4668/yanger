@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+            <html>
+                <head><meta name="viewport" content="width=device-width,
+                initial-scale=1">
+                    <style>
+                        ul, #myUL {
+                            list-style-type: none;
+                        }
+                        #myUL {
+                            margin: 0;padding: 0;
+                        }
+                        .caret {
+                            cursor: pointer;
+                            -webkit-user-select: none;
+                            -moz-user-select: none;
+                            -ms-user-select: none;user-select: none;
+                        }
+                        .caret::before {
+                            content: "\25B6";
+                            color: black;
+                            display: inline-block;
+                            margin-right: 6px;
+                        }
+                        .caret-down::before {
+                            -ms-transform: rotate(90deg);
+                            -webkit-transform: rotate(90deg);
+                            transform: rotate(90deg);
+                            }
+                        .nested {
+                            display: none;
+                        }
+                        .active {
+                            display: block;
+                        }
+                        table {
+                            table-layout:fixed;
+                            font-size: 100%;
+                            position: absolute;
+                            left: 42vw;
+                            width: 58vw;
+                            }
+                        .container {
+                            display: inline-flex;
+                        }
+                        .description {
+                            width: 100%;
+                            position: relative;
+                            display: inline-block;
+                        }
+                        .name {
+                            padding-top: 0.4vh;
+                        }
+                        .description .descriptiontext {
+                            visibility: hidden;
+                            background-color: #eee;
+                            color: black;
+                            text-align: left;
+                            font-size: 80%;
+                            padding: 15px;
+                            border-radius: 6px;
+                            position: absolute;
+                            z-index: 1;
+                            top: -5px;
+                            left: 105%;
+                            border: 1px solid black;
+                        }
+                        .description:hover .descriptiontext {
+                            visibility: visible;
+                        }
+                        .headers {
+                            background-color: #fff;
+                            border: 1px solid black;
+                            z-index: 1;
+                        }
+                        .of {
+                            text-overflow: ellipsis;
+                            overflow: hidden;
+                            white-space: nowrap;
+                        }
+                        .dotted_line {
+                            text-decoration:underline;
+                            text-decoration-style: dotted;
+                        }
+                        .padding {
+                            padding-left: 3px;
+                        }
+                    </style>
+                </head>
+            <body>
+                <h2>Yang tree view</h2>
+                <div class="container">
+                    <table class="headers" style="text-align: left;
+                                                          top: 30px;">
+                        <tr class="headers" style="border: 1px
+                                                        solid black;">
+                            <th class="headers">Schema</th>
+                            <th class="headers">Type</th>
+                            <th class="headers">Flags</th>
+                            <th class="headers">Opts</th>
+                            <th class="headers">Status</th>
+                        </rt>
+                    </table>
+                </div>
+                <button onclick="expandFunction()">Expand all</button>
+                <button onclick="closeFunction()">Collapse all</button>
+                
+                <ul id="myUL"><li>
+ <span class="caret">
+     <div class="container">
+         <div class="name">module: small2</div>
+         <table><tr><td>Module</td></tr></table>
+     </div>
+ </span>
+ <ul class="nested">
+<li><span class="caret"><div class="container">
+<div class="name">dynamic-profiles</div>   <table>
+       <tr>
+<td class="of">
+list</td>       <td>
+<div class="of"></div>       </td>
+<td class="of">
+Config</td><td class="of">
+* [name]</td><td class="of">
+Current</td>       </tr>
+   </table>
+</div></span><ul class="nested">
+<li><div class="container">
+&#127808;<div class="description">
+  <div class="name">name</div>
+      <span class="descriptiontext">
+      <pre>
+Name for dynamic profile      </pre>
+ </span>
+</div>
+   <table>
+       <tr>
+<td class="of">
+leaf</td>       <td>
+<div class="description">
+   <div class="of dotted_line">key-attribute-string-type</div>
+       <span class="descriptiontext">
+       <pre>{length = 1 .. 80}</pre>
+    </span>
+</div>
+       </td>
+<td class="of">
+Config</td><td class="of">
+</td><td class="of">
+Current</td>       </tr>
+   </table>
+</div>
+</li><li><span class="caret"><div class="container">
+<div class="name">variables</div>   <table>
+       <tr>
+<td class="of">
+list</td>       <td>
+<div class="of"></div>       </td>
+<td class="of">
+Config</td><td class="of">
+* [name]</td><td class="of">
+Current</td>       </tr>
+   </table>
+</div></span><ul class="nested">
+<li><div class="container">
+&#127808;<div class="description">
+  <div class="name">name</div>
+      <span class="descriptiontext">
+      <pre>
+Name of variable      </pre>
+ </span>
+</div>
+   <table>
+       <tr>
+<td class="of">
+leaf</td>       <td>
+<div class="of">string</div>       </td>
+<td class="of">
+Config</td><td class="of">
+</td><td class="of">
+Current</td>       </tr>
+   </table>
+</div>
+</li><li><div class="container">
+&#127808;<div class="description">
+  <div class="name">default-value</div>
+      <span class="descriptiontext">
+      <pre>
+Default value for variable      </pre>
+ </span>
+</div>
+   <table>
+       <tr>
+<td class="of">
+leaf</td>       <td>
+<div class="of">string</div>       </td>
+<td class="of">
+Config</td><td class="of">
+?</td><td class="of">
+Current</td>       </tr>
+   </table>
+</div>
+</li><li><div class="container">
+&#127808;<div class="description">
+  <div class="name">mandatory</div>
+      <span class="descriptiontext">
+      <pre>
+Variable must be supplied by external server      </pre>
+ </span>
+</div>
+   <table>
+       <tr>
+<td class="of">
+leaf</td>       <td>
+<div class="of">empty</div>       </td>
+<td class="of">
+Config</td><td class="of">
+?</td><td class="of">
+Current</td>       </tr>
+   </table>
+</div>
+</li></ul></li></ul></li></ul></li></ul>
+            <script>
+                var toggler = document.getElementsByClassName("caret");
+                var i;  for (i = 0; i < toggler.length; i++) {
+                    toggler[i].addEventListener("click", function() {
+                        this.parentElement.querySelector(".nested")
+                                        .classList.toggle("active");
+                        this.classList.toggle("caret-down");
+                    });
+                }
+                function expandFunction() {
+                    for (i = 0; i < toggler.length; i++) {
+                        toggler[i].parentElement.querySelector(".nested")
+                                                .classList.add("active");
+                        toggler[i].classList.add("caret-down");
+                    }
+                }
+                function closeFunction() {
+                    for (i = 0; i < toggler.length; i++) {
+                            toggler[i].parentElement.querySelector(".nested")
+                                                  .classList.remove("active");
+                            toggler[i].classList.remove("caret-down");
+                        }
+                    }
+                function stopFunction() {
+                    var http = new XMLHttpRequest();
+                    http.open("GET", 'http://undefined/stop');
+                    http.send();
+                    }
+            </script>
+        </body>
+    </html>
