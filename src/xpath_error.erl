@@ -82,7 +82,7 @@ strerror({nyi2, _M, _L, Str}) ->
 strerror({invalid_xpath_path, _M, _L, _Rsn}) ->
     "Invalid XPath path";
 strerror({invalid_xpath_path_function, _M, _L, Rsn}) ->
-    "Invalid XPath path: function " ++ Rsn ++ "not allowed";
+    "Invalid XPath path: function " ++ Rsn ++ " not allowed";
 strerror({unknown_xpath_axis, _M, _L, Axis}) ->
     "Unknown XPath axis: " ++ ?s2l(Axis);
 strerror({i_bad_data, _M, _L, _Rsn}) ->

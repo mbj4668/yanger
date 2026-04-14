@@ -68,7 +68,7 @@ static ERL_NIF_TERM compile(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
             enif_free(patternstr);
             ret = enif_make_tuple2(
                 env,
-                enif_make_atom(env, "error"),
+                am_error,
                 enif_make_string(env, "Bad Pattern", ERL_NIF_LATIN1));
         }
 
@@ -98,10 +98,11 @@ static ERL_NIF_TERM run_match(ErlNifEnv *env,
         case 0:
             return am_false;
         default:
-            enif_make_tuple2(
-                env,
-                enif_make_atom(env, "error"),
-                enif_make_string(env, "?", ERL_NIF_LATIN1));
+            return
+                enif_make_tuple2(
+                    env,
+                    am_error,
+                    enif_make_string(env, "?", ERL_NIF_LATIN1));
         }
     }
 
@@ -125,10 +126,11 @@ static ERL_NIF_TERM run_match_null(ErlNifEnv *env,
         case 0:
             return am_false;
         default:
-            enif_make_tuple2(
-                env,
-                enif_make_atom(env, "error"),
-                enif_make_string(env, "?", ERL_NIF_LATIN1));
+            return
+                enif_make_tuple2(
+                    env,
+                    am_error,
+                    enif_make_string(env, "?", ERL_NIF_LATIN1));
         }
     }
 
