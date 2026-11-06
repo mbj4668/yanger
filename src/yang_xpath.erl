@@ -65,6 +65,11 @@ compile(Str, NsMap, ExtraFunctions) ->
                   default_ns => DefaultNs,
                   make_atoms => true,
                   functions => ExtraFunctions};
+            {unknown_names_as_binaries, {PrefixNsMap, DefaultNs}} ->
+                #{prefixes => PrefixNsMap,
+                  default_ns => DefaultNs,
+                  unknown_names => binary,
+                  functions => ExtraFunctions};
             {PrefixNsMap, DefaultNs} ->
                 #{prefixes => PrefixNsMap,
                   default_ns => DefaultNs,

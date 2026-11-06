@@ -482,7 +482,7 @@ rewrite_location_steps([{step, Axis, {name, NS_prefix, Tag_str}, Prs}|Steps],
                        Opts) ->
     ensure_axis_permitted(Axis),
     NS = prefix_to_namespace(NS_prefix, Opts),
-    Tag = tag_of(Tag_str),
+    Tag = tag_of(Tag_str, Opts),
     NewName = {name, NS, Tag},
     case rewrite_preds(Prs, Opts) of
         fail ->
@@ -493,7 +493,7 @@ rewrite_location_steps([{step, Axis, {name, NS_prefix, Tag_str}, Prs}|Steps],
     end;
 rewrite_location_steps([{step, Axis, {name, Tag_str}, Prs}|Steps], Opts) ->
     ensure_axis_permitted(Axis),
-    Tag = tag_of(Tag_str),
+    Tag = tag_of(Tag_str, Opts),
     NewName = case maps:get(default_ns, Opts, 0) of
                   0 ->
                       {name, Tag};
@@ -547,10 +547,10 @@ rewrite_location_steps([OtherStep|_], _Opts) ->
 
 rewrite_node_test({name, NS_lst, Tag_lst}, Opts) ->
     NS = prefix_to_namespace(NS_lst, Opts),
-    Tag = tag_of(Tag_lst),
+    Tag = tag_of(Tag_lst, Opts),
     {name, NS, Tag};
-rewrite_node_test({name, Tag_lst}, _Opts) ->
-    Tag = tag_of(Tag_lst),
+rewrite_node_test({name, Tag_lst}, Opts) ->
+    Tag = tag_of(Tag_lst, Opts),
     {name, Tag};
 rewrite_node_test({namespace, NS_lst}, Opts) ->
     NS = prefix_to_namespace(NS_lst, Opts),
@@ -642,8 +642,21 @@ ensure_axis_permitted(_Axis) ->
 %% when ancestor is used, we can in principle switch to another namespace
 %% at the root.)
 
-tag_of(Tag_str) ->
-    list_to_atom(Tag_str).
+%% With unknown_names => binary, a name that is not already an atom
+%% becomes a binary, so an expression from an untrusted source cannot
+%% fill the atom table.
+tag_of(Tag_str, Opts) ->
+    case maps:get(unknown_names, Opts, atom) of
+        atom ->
+            list_to_atom(Tag_str);
+        binary ->
+            try
+                list_to_existing_atom(Tag_str)
+            catch
+                error:badarg ->
+                    list_to_binary(Tag_str)
+            end
+    end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
