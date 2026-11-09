@@ -155,7 +155,7 @@ rewrite_expr({function_call, F, Xs}, Opts) ->
             end,
             NewXs = [rewrite_expr(X, Opts) || X <- Xs],
             if
-                F == 'not' ->
+                F == xp_not ->
                     case NewXs of
                         [fail] ->
                             {function_call, xp_true, []};
@@ -437,36 +437,52 @@ rewrite_path(LocSteps, Opts) ->
 %% Rewrite and check the location step.
 %%
 %% We special-case attribute and namespace axes since their "name tags"
-%% aren't ordinary XML element tags (the latter are resolved by tag_of/1).
+%% aren't ordinary XML element tags (the latter are resolved by tag_of/2).
 %%
 %% NB: this can fail
 
+%% Without make_atoms, we don't create atoms dynamically.  A name that
+%% isn't already an atom can't be a known tag, attribute, or namespace.
 maybe_list_to_atom(Str, Opts) ->
     case maps:get(make_atoms, Opts, false) of
         false ->
-            catch list_to_existing_atom(Str);
+            try
+                {ok, list_to_existing_atom(Str)}
+            catch
+                error:badarg ->
+                    error
+            end;
         true ->
-            list_to_atom(Str)
+            {ok, list_to_atom(Str)}
+    end.
+
+attr_of(Attr_str, Opts) ->
+    case maybe_list_to_atom(Attr_str, Opts) of
+        {ok, Attr} ->
+            Attr;
+        error ->
+            ?xp_exit(attribute_does_not_exist, Attr_str)
+    end.
+
+default_ns_of(DefaultNs, _Opts) when is_atom(DefaultNs) ->
+    DefaultNs;
+default_ns_of(DefaultNs, Opts) ->
+    case maybe_list_to_atom(DefaultNs, Opts) of
+        {ok, NS} ->
+            NS;
+        error ->
+            ?xp_exit(invalid_namespace, DefaultNs)
     end.
 
 rewrite_location_steps([{step, attribute, Name, Prs} | Steps], Opts) ->
     NewName =
         case Name of
             {name, NS_prefix, Tag_str} ->
-                case maybe_list_to_atom(Tag_str, Opts) of
-                    Attr when is_atom(Attr) ->
-                        NS = prefix_to_namespace(NS_prefix, Opts),
-                        {name, NS, Attr};
-                    _ ->
-                        ?xp_exit(attribute_does_not_exist, Tag_str)
-                end;
+                Attr = attr_of(Tag_str, Opts),
+                NS = prefix_to_namespace(NS_prefix, Opts),
+                {name, NS, Attr};
             {name, Attr_str} ->
-                case maybe_list_to_atom(Attr_str, Opts) of
-                    A when is_atom(A) ->
-                        {name, A};
-                    _ ->
-                        ?xp_exit(attribute_does_not_exist, Attr_str)
-                end;
+                {name, attr_of(Attr_str, Opts)};
             NodeTest ->
                 rewrite_node_test(NodeTest, Opts)
         end,
@@ -509,7 +525,7 @@ rewrite_location_steps(
 ) ->
     ensure_axis_permitted(Axis),
     NS = prefix_to_namespace(NS_prefix, Opts),
-    Tag = tag_of(Tag_str),
+    Tag = tag_of(Tag_str, Opts),
     NewName = {name, NS, Tag},
     case rewrite_preds(Prs, Opts) of
         fail ->
@@ -522,13 +538,13 @@ rewrite_location_steps(
     end;
 rewrite_location_steps([{step, Axis, {name, Tag_str}, Prs} | Steps], Opts) ->
     ensure_axis_permitted(Axis),
-    Tag = tag_of(Tag_str),
+    Tag = tag_of(Tag_str, Opts),
     NewName =
         case maps:get(default_ns, Opts, 0) of
             0 ->
                 {name, Tag};
             DefaultNs ->
-                {name, maybe_list_to_atom(DefaultNs, Opts), Tag}
+                {name, default_ns_of(DefaultNs, Opts), Tag}
         end,
     case rewrite_preds(Prs, Opts) of
         fail ->
@@ -584,10 +600,10 @@ rewrite_location_steps([OtherStep | _], _Opts) ->
 
 rewrite_node_test({name, NS_lst, Tag_lst}, Opts) ->
     NS = prefix_to_namespace(NS_lst, Opts),
-    Tag = tag_of(Tag_lst),
+    Tag = tag_of(Tag_lst, Opts),
     {name, NS, Tag};
-rewrite_node_test({name, Tag_lst}, _Opts) ->
-    Tag = tag_of(Tag_lst),
+rewrite_node_test({name, Tag_lst}, Opts) ->
+    Tag = tag_of(Tag_lst, Opts),
     {name, Tag};
 rewrite_node_test({namespace, NS_lst}, Opts) ->
     NS = prefix_to_namespace(NS_lst, Opts),
@@ -672,8 +688,13 @@ ensure_axis_permitted(_Axis) ->
 %% when ancestor is used, we can in principle switch to another namespace
 %% at the root.)
 
-tag_of(Tag_str) ->
-    list_to_atom(Tag_str).
+tag_of(Tag_str, Opts) ->
+    case maybe_list_to_atom(Tag_str, Opts) of
+        {ok, Tag} ->
+            Tag;
+        error ->
+            ?xp_exit(tag_not_in_any_schema, Tag_str)
+    end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
