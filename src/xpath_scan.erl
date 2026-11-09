@@ -69,12 +69,12 @@
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 -define(space, 32).
--define(cr,    13).
--define(lf,    10).
--define(tab,   9).
+-define(cr, 13).
+-define(lf, 10).
+-define(tab, 9).
 
 %% whitespace consists of 'space', 'carriage return', 'line feed' or 'tab'
--define(whitespace(H), H==?space ; H==?cr ; H==?lf ; H==?tab).
+-define(whitespace(H), H == ?space; H == ?cr; H == ?lf; H == ?tab).
 
 -define(L, 1).
 
@@ -86,46 +86,64 @@ tokens(Str) ->
     tokens(strip_ws(Str), []).
 
 tokens([], Acc) ->
-    lists:reverse([{'$end', ?L, '$end'}|Acc]);
+    lists:reverse([{'$end', ?L, '$end'} | Acc]);
 tokens(Str, Acc) ->
     case scan_token(Str, Acc) of
         {rescan, NewStr} ->
             tokens(NewStr, Acc);
         {Token, T} ->
-            tokens(strip_ws(T), [Token|Acc])
+            tokens(strip_ws(T), [Token | Acc])
     end.
 
 %% Expr Tokens
-scan_token("(" ++ T, _A) ->  {{'(', ?L, '('}, T};
-scan_token(")" ++ T, _A) ->  {{')', ?L, ')'}, T};
-scan_token("[" ++ T, _A) ->  {{'[', ?L, '['}, T};
-scan_token("]" ++ T, _A) ->  {{']', ?L, ']'}, T};
-scan_token(".." ++ T, _A) -> {rescan,"parent::node()" ++ T} ;
-                                                % {{'..',?L,'..'}, T};
-scan_token("@" ++ T, _A) ->  {rescan,"attribute::" ++ T};
-                                                % {{'@',?L,'@'},T};
-scan_token("," ++ T, _A) ->  {{',', ?L, ','}, T};
-scan_token("::" ++ T, _A) -> {{'::', ?L, '::'}, T};
-
+scan_token("(" ++ T, _A) ->
+    {{'(', ?L, '('}, T};
+scan_token(")" ++ T, _A) ->
+    {{')', ?L, ')'}, T};
+scan_token("[" ++ T, _A) ->
+    {{'[', ?L, '['}, T};
+scan_token("]" ++ T, _A) ->
+    {{']', ?L, ']'}, T};
+scan_token(".." ++ T, _A) ->
+    {rescan, "parent::node()" ++ T};
+% {{'..',?L,'..'}, T};
+scan_token("@" ++ T, _A) ->
+    {rescan, "attribute::" ++ T};
+% {{'@',?L,'@'},T};
+scan_token("," ++ T, _A) ->
+    {{',', ?L, ','}, T};
+scan_token("::" ++ T, _A) ->
+    {{'::', ?L, '::'}, T};
 %% operators
-scan_token("//" ++ T, _A) -> {rescan,"/descendant-or-self::node()/" ++ T};
-                                                % {{'//',?L,'//'},T};
-scan_token("/" ++ T, _A) ->  {{'/', ?L, '/'}, T};
-scan_token("|" ++ T, _A) ->  {{'|', ?L, '|'}, T};
-scan_token("+" ++ T, _A) ->  {{'+', ?L, '+'}, T};
-scan_token("-" ++ T, _A) ->  {{'-', ?L, '-'}, T};
-scan_token("=" ++ T, _A) ->  {{'=', ?L, '='}, T};
-scan_token("!=" ++ T, _A) -> {{'!=', ?L, '!='}, T};
-scan_token("<=" ++ T, _A) -> {{'<=', ?L, '<='}, T};
-scan_token("<" ++ T, _A) ->  {{'<', ?L, '<'}, T};
-scan_token(">=" ++ T, _A) -> {{'>=', ?L, '>='}, T};
-scan_token(">" ++ T, _A) ->  {{'>', ?L, '>'}, T};
-scan_token("&lt;" ++ T, _A) ->  {{'<', ?L, '<'}, T};
-
+scan_token("//" ++ T, _A) ->
+    {rescan, "/descendant-or-self::node()/" ++ T};
+% {{'//',?L,'//'},T};
+scan_token("/" ++ T, _A) ->
+    {{'/', ?L, '/'}, T};
+scan_token("|" ++ T, _A) ->
+    {{'|', ?L, '|'}, T};
+scan_token("+" ++ T, _A) ->
+    {{'+', ?L, '+'}, T};
+scan_token("-" ++ T, _A) ->
+    {{'-', ?L, '-'}, T};
+scan_token("=" ++ T, _A) ->
+    {{'=', ?L, '='}, T};
+scan_token("!=" ++ T, _A) ->
+    {{'!=', ?L, '!='}, T};
+scan_token("<=" ++ T, _A) ->
+    {{'<=', ?L, '<='}, T};
+scan_token("<" ++ T, _A) ->
+    {{'<', ?L, '<'}, T};
+scan_token(">=" ++ T, _A) ->
+    {{'>=', ?L, '>='}, T};
+scan_token(">" ++ T, _A) ->
+    {{'>', ?L, '>'}, T};
+scan_token("&lt;" ++ T, _A) ->
+    {{'<', ?L, '<'}, T};
 scan_token("*" ++ T, A) ->
     Tok =
         case A of
-            [{X,_,_}|_] ->
+            [{X, _, _} | _] ->
                 case special_token(X) of
                     false ->
                         {'*', ?L, '*'};
@@ -136,35 +154,32 @@ scan_token("*" ++ T, A) ->
                 {'wildcard', ?L, 'wildcard'}
         end,
     {Tok, T};
-
 %% numbers
-scan_token(Str = [H|_], _A) when H >= $0, H =< $9 ->
+scan_token(Str = [H | _], _A) when H >= $0, H =< $9 ->
     scan_number(Str);
-scan_token(Str = [$., H|_], _A) when H >= $0, H =< $9 ->
+scan_token(Str = [$., H | _], _A) when H >= $0, H =< $9 ->
     scan_number(Str);
 scan_token("." ++ T, _A) ->
-%    {{'.', ?L, '.'}, T};
+    %    {{'.', ?L, '.'}, T};
     {rescan, "self::node()" ++ T};
-
 %% Variable Reference
 
-scan_token([$$|T], _A) ->
+scan_token([$$ | T], _A) ->
     {{Prefix, Local}, T1} = scan_name(T),
     case Prefix of
         [] ->
             {{var_reference, ?L, Local}, T1};
         _ ->
-            {{var_reference, ?L, Prefix++":"++Local}, T1}
+            {{var_reference, ?L, Prefix ++ ":" ++ Local}, T1}
     end;
-
-scan_token([H|T], _A) when H == $" ; H == $' -> %"
+%"
+scan_token([H | T], _A) when H == $"; H == $' ->
     {Literal, T1} = scan_literal(T, H, []),
     {{literal, ?L, Literal}, T1};
-
 scan_token(T, A) ->
     {{Prefix, Local}, T1} = scan_name(T),
     case A of
-        [{X,_,_}|_] ->
+        [{X, _, _} | _] ->
             case special_token(X) of
                 false ->
                     operator_name(Prefix, Local, T1);
@@ -175,11 +190,10 @@ scan_token(T, A) ->
             other_name(Prefix, Local, strip_ws(T1))
     end.
 
-operator_name([], "and", T) ->  {{'and', ?L, 'and'}, T};
-operator_name([], "or", T) ->   {{'or', ?L, 'or'}, T};
-operator_name([], "mod", T) ->  {{'mod', ?L, 'mod'}, T};
-operator_name([], "div", T) ->  {{'div', ?L, 'div'}, T}.
-
+operator_name([], "and", T) -> {{'and', ?L, 'and'}, T};
+operator_name([], "or", T) -> {{'or', ?L, 'or'}, T};
+operator_name([], "mod", T) -> {{'mod', ?L, 'mod'}, T};
+operator_name([], "div", T) -> {{'div', ?L, 'div'}, T}.
 
 other_name(Prefix, [], "*" ++ T) ->
     %% [37] NameTest ::= '*' | NCName ':' '*' | QName
@@ -216,53 +230,49 @@ node_type_or_function_name(Prefix, Local, T) ->
     %% no XPath 1.0 function has a namespace prefix => pseudo-fail
     {{function_name, ?L, {undefined_function, Prefix ++ ":" ++ Local}}, T}.
 
-
 %% axis names
-axis([], "ancestor-or-self", T) ->      {{axis, ?L, ancestor_or_self}, T};
-axis([], "ancestor", T) ->              {{axis, ?L, ancestor}, T};
-axis([], "attribute", T) ->             {{axis, ?L, attribute}, T};
-axis([], "child", T) ->                 {{axis, ?L, child}, T};
-axis([], "descendant-or-self", T) ->    {{axis, ?L, descendant_or_self}, T};
-axis([], "descendant", T) ->            {{axis, ?L, descendant}, T};
-axis([], "following-sibling", T) ->     {{axis, ?L, following_sibling}, T};
-axis([], "following", T) ->             {{axis, ?L, following}, T};
-axis([], "namespace", T) ->             {{axis, ?L, namespace}, T};
-axis([], "parent", T) ->                {{axis, ?L, parent}, T};
-axis([], "preceding-sibling", T) ->     {{axis, ?L, preceding_sibling}, T};
-axis([], "preceding", T) ->             {{axis, ?L, preceding}, T};
-axis([], "self", T) ->                  {{axis, ?L, self}, T};
-axis([], Axis, T) ->
-    exit({invalid_axis, Axis, T}).
+axis([], "ancestor-or-self", T) -> {{axis, ?L, ancestor_or_self}, T};
+axis([], "ancestor", T) -> {{axis, ?L, ancestor}, T};
+axis([], "attribute", T) -> {{axis, ?L, attribute}, T};
+axis([], "child", T) -> {{axis, ?L, child}, T};
+axis([], "descendant-or-self", T) -> {{axis, ?L, descendant_or_self}, T};
+axis([], "descendant", T) -> {{axis, ?L, descendant}, T};
+axis([], "following-sibling", T) -> {{axis, ?L, following_sibling}, T};
+axis([], "following", T) -> {{axis, ?L, following}, T};
+axis([], "namespace", T) -> {{axis, ?L, namespace}, T};
+axis([], "parent", T) -> {{axis, ?L, parent}, T};
+axis([], "preceding-sibling", T) -> {{axis, ?L, preceding_sibling}, T};
+axis([], "preceding", T) -> {{axis, ?L, preceding}, T};
+axis([], "self", T) -> {{axis, ?L, self}, T};
+axis([], Axis, T) -> exit({invalid_axis, Axis, T}).
 
-
-
-
-scan_literal([H|T], H, Acc) ->
+scan_literal([H | T], H, Acc) ->
     {lists:reverse(Acc), T};
-scan_literal([H|T], Delim, Acc) ->
-    scan_literal(T, Delim, [H|Acc]);
+scan_literal([H | T], Delim, Acc) ->
+    scan_literal(T, Delim, [H | Acc]);
 scan_literal([], Delim, Acc) ->
     exit({eof_in_quote, Delim, lists:reverse(Acc)}).
 
-scan_name([H1, H2 | T]) when H1 == $: ; H1 == $_ ->
-    if ?whitespace(H2) ->
+scan_name([H1, H2 | T]) when H1 == $:; H1 == $_ ->
+    if
+        ?whitespace(H2) ->
             exit({invalid_name, [H1, H2 | "..."]});
-       true ->
+        true ->
             scan_prefix(T, [H2, H1])
     end;
-scan_name([H|T]) ->
+scan_name([H | T]) ->
     case ?is_letter(H) of
         true ->
             scan_prefix(T, [H]);
         false ->
-            exit({invalid_name, lists:sublist([H|T], 1, 6)})
+            exit({invalid_name, lists:sublist([H | T], 1, 6)})
     end;
 scan_name(Str) ->
     exit({invalid_name, lists:sublist(Str, 1, 6)}).
 
 scan_prefix([], Acc) ->
     {{[], lists:reverse(Acc)}, []};
-scan_prefix(Str = [H|_], Acc) when ?whitespace(H) ->
+scan_prefix(Str = [H | _], Acc) when ?whitespace(H) ->
     {{[], lists:reverse(Acc)}, Str};
 scan_prefix(T = "::" ++ _, Acc) ->
     %% This is the next token
@@ -271,26 +281,25 @@ scan_prefix(":" ++ T, Acc) ->
     {LocalPart, T1} = scan_local_part(T, []),
     Prefix = lists:reverse(Acc),
     {{Prefix, LocalPart}, T1};
-scan_prefix(Str = [H|T], Acc) ->
+scan_prefix(Str = [H | T], Acc) ->
     case is_namechar(H) of
         true ->
-            scan_prefix(T, [H|Acc]);
+            scan_prefix(T, [H | Acc]);
         false ->
             {{[], lists:reverse(Acc)}, Str}
     end.
 
 scan_local_part([], Acc) ->
     {lists:reverse(Acc), []};
-scan_local_part(Str = [H|_], Acc) when ?whitespace(H) ->
+scan_local_part(Str = [H | _], Acc) when ?whitespace(H) ->
     {lists:reverse(Acc), Str};
-scan_local_part(Str = [H|T], Acc) ->
+scan_local_part(Str = [H | T], Acc) ->
     case is_namechar(H) of
         true ->
-            scan_local_part(T, [H|Acc]);
+            scan_local_part(T, [H | Acc]);
         false ->
             {lists:reverse(Acc), Str}
     end.
-
 
 scan_number(T) ->
     scan_number(T, []).
@@ -305,24 +314,22 @@ scan_number("." ++ T, Acc) ->
     {Digits, T1} = scan_digits(T, "." ++ Acc),
     Number = list_to_float(Digits),
     {{number, ?L, Number}, T1};
-scan_number([H|T], Acc) when H >= $0, H =< $9 ->
-    scan_number(T, [H|Acc]);
+scan_number([H | T], Acc) when H >= $0, H =< $9 ->
+    scan_number(T, [H | Acc]);
 scan_number(T, Acc) ->
     {{number, ?L, list_to_integer(lists:reverse(Acc))}, T}.
 
 scan_digits([], Acc) ->
     {lists:reverse(Acc), []};
-scan_digits([H|T], Acc) when H >= $0, H =< $9 ->
-    scan_digits(T, [H|Acc]);
+scan_digits([H | T], Acc) when H >= $0, H =< $9 ->
+    scan_digits(T, [H | Acc]);
 scan_digits(T, Acc) ->
     {lists:reverse(Acc), T}.
 
-
-strip_ws([H|T]) when ?whitespace(H) ->
+strip_ws([H | T]) when ?whitespace(H) ->
     strip_ws(T);
 strip_ws(T) ->
     T.
-
 
 special_token('*') -> true;
 special_token(',') -> true;
@@ -345,26 +352,26 @@ special_token('and') -> true;
 special_token('or') -> true;
 special_token('mod') -> true;
 special_token('div') -> true;
-special_token(_) ->
-    false.
+special_token(_) -> false.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%
 %% from xmerl_lib, R10B-9
 
-is_namechar(X) when X == $. ; X == $- ; X == $_ ; X == $: ->
+is_namechar(X) when X == $.; X == $-; X == $_; X == $: ->
     true;
 is_namechar(X) ->
     case is_letter(X) of
-        true -> true;
+        true ->
+            true;
         false ->
             case is_digit(X) of
-                true -> true;
+                true ->
+                    true;
                 false ->
                     case is_combining_char(X) of
                         true -> true;
-                        false ->
-                            is_extender(X)
+                        false -> is_extender(X)
                     end
             end
     end.
@@ -581,15 +588,13 @@ is_base_char(X) when X >= 16#3041, X =< 16#3094 -> true;
 is_base_char(X) when X >= 16#30A1, X =< 16#30FA -> true;
 is_base_char(X) when X >= 16#3105, X =< 16#312C -> true;
 is_base_char(X) when X >= 16#ac00, X =< 16#d7a3 -> true;
-is_base_char(_) ->
-    false.
+is_base_char(_) -> false.
 
 %% [86] Ideographic
 is_ideographic(X) when X >= 16#4e00, X =< 16#9fa5 -> true;
 is_ideographic(16#3007) -> true;
 is_ideographic(X) when X >= 16#3021, X =< 16#3029 -> true;
-is_ideographic(_) ->
-    false.
+is_ideographic(_) -> false.
 
 %% [87] CombiningChar
 is_combining_char(X) when X >= 16#0300, X =< 16#0345 -> true;

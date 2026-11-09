@@ -5,7 +5,6 @@
 
 -compile(export_all).
 
-
 %% To get a canonical type from a name in the tree for a module
 get_canonical_type(ModName, Name, Ctx) ->
     canonical_type((get_item(ModName, Name, Ctx))#sn.type).
@@ -32,8 +31,10 @@ first_of_all(X) -> X.
 get_modrevs(Ctx) ->
     lists:sort(gb_trees:to_list(Ctx#yctx.modrevs)).
 
-sn_find_name(Name, Sn = #sn{name = Name}) -> Sn;
-sn_find_name(Name, [Sn = #sn{name = Name} | _]) -> Sn;
+sn_find_name(Name, Sn = #sn{name = Name}) ->
+    Sn;
+sn_find_name(Name, [Sn = #sn{name = Name} | _]) ->
+    Sn;
 sn_find_name(Name, [#sn{children = Children} | Sns]) ->
     %% Depth first search
     case sn_find_name(Name, Children) of
@@ -42,13 +43,16 @@ sn_find_name(Name, [#sn{children = Children} | Sns]) ->
         Sn ->
             Sn
     end;
-sn_find_name(_Name, #sn{}) -> undefined;
-sn_find_name(_Name, []) -> undefined.
+sn_find_name(_Name, #sn{}) ->
+    undefined;
+sn_find_name(_Name, []) ->
+    undefined.
 
 %% Shorten an SN tree into a canonical form, where only kind and name
 %% (and any children) are visible.
-canonical_sn(#sn{kind = Kind, name = Name, children = Children})
-  when Children /= [] ->
+canonical_sn(#sn{kind = Kind, name = Name, children = Children}) when
+    Children /= []
+->
     {Kind, Name, canonical_sn(Children)};
 canonical_sn(#sn{kind = Kind, name = Name}) ->
     {Kind, Name};
@@ -70,13 +74,23 @@ compact(L) -> L.
 add_stmt_tree(Ctx, Name, Stmt0) ->
     add_stmt_tree(Ctx, Name, [], Stmt0).
 add_stmt_tree(Ctx0, Name, Opts, Stmt0) ->
-    Ctx1 = if Ctx0 == undefined -> yang:init_ctx(yang:new_ctx([]), []);
-              true -> Ctx0
-           end,
+    Ctx1 =
+        if
+            Ctx0 == undefined -> yang:init_ctx(yang:new_ctx([]), []);
+            true -> Ctx0
+        end,
     Stmt = mk_yang(Name, Opts, Stmt0),
     %%    io:format("yang: ~p\n", [Stmt]),
-    yang:add_parsed_stmt_tree(Ctx1, Stmt, Name, primary, undefined, undefined,
-                              warning, undefined).
+    yang:add_parsed_stmt_tree(
+        Ctx1,
+        Stmt,
+        Name,
+        primary,
+        undefined,
+        undefined,
+        warning,
+        undefined
+    ).
 
 mk_yang(Module, Opts, Stmts) ->
     reset_line_no(Module),
@@ -87,13 +101,14 @@ mk_yang(Module, Opts, Stmts) ->
     ModKeyword = get_opt(mod_keyword, Opts, module),
     io:format("using ModKeyword: ~p\n", [ModKeyword]),
     Body = mk_yang_body(Stmts),
-    [{ModKeyword, ?l2a(Module), Pos1, Hdr ++ Imports ++ Includes ++Body}].
+    [{ModKeyword, ?l2a(Module), Pos1, Hdr ++ Imports ++ Includes ++ Body}].
 
 mk_yang_hdr(Module) ->
-    NameSpace = ?l2a("urn:"++Module),
-    [{'yang-version', <<"1.1">>, next_pos(), []},
-     {namespace, NameSpace, next_pos(), []},
-     {prefix, ?l2a(Module), next_pos(), []}
+    NameSpace = ?l2a("urn:" ++ Module),
+    [
+        {'yang-version', <<"1.1">>, next_pos(), []},
+        {namespace, NameSpace, next_pos(), []},
+        {prefix, ?l2a(Module), next_pos(), []}
     ].
 
 mk_yang_imports(undefined) ->
@@ -119,15 +134,16 @@ mk_yang_body(Stmts) ->
 
 add_pos_to_all(L) when is_list(L) ->
     [add_pos_to_all(X) || X <- L];
-
-add_pos_to_all({A, B}) -> % This is short for something without children
+% This is short for something without children
+add_pos_to_all({A, B}) ->
     {A, B, next_pos(), []};
-add_pos_to_all({A, B, C}) -> % This is short for something with children
+% This is short for something with children
+add_pos_to_all({A, B, C}) ->
     {A, B, next_pos(), add_pos_to_all(C)}.
 
 %% Dirty position functions, not reentrant
 next_pos() ->
-    {"./"++line_no_module()++".yang", next_line_no()}.
+    {"./" ++ line_no_module() ++ ".yang", next_line_no()}.
 
 next_line_no() ->
     put(dirty_line_no, get(dirty_line_no) + 1).

@@ -12,10 +12,13 @@
 -module(xpath_error).
 -export([strerror/1]).
 
--define(s2l(Str), if is_atom(Str) -> atom_to_list(Str);
-                     is_binary(Str) -> binary_to_list(Str);
-                     is_list(Str) -> Str
-                  end).
+-define(s2l(Str),
+    if
+        is_atom(Str) -> atom_to_list(Str);
+        is_binary(Str) -> binary_to_list(Str);
+        is_list(Str) -> Str
+    end
+).
 
 %% *** UNFINISHED ***
 %% - Some (or all) should be wrapped with io_lib:format
@@ -30,7 +33,7 @@ strerror({xpath_scan, {invalid_name, Str}}) ->
     "Invalid name: " ++ Str;
 strerror({xpath_scan, {eof_in_quote, QuoteChar, Str}}) ->
     "Missing end quote " ++ [QuoteChar] ++
-        " while scanning: " ++ [QuoteChar|Str];
+        " while scanning: " ++ [QuoteChar | Str];
 strerror({xpath_scan, _Rsn}) ->
     %% this is a catchall error when xpath_scan dies; the reason can
     %% be a raw exception, so it is not shown
@@ -58,17 +61,20 @@ strerror({undefined_function, _M, _L, {F, A}}) ->
 strerror({invalid_bif_arity, _M, _L, {Bif, N}}) ->
     "Function " ++ ?s2l(Bif) ++
         "() can not be called with " ++ integer_to_list(N) ++
-        " argument" ++ if N /= 1 -> "s"; true -> "" end;
+        " argument" ++
+        if
+            N /= 1 -> "s";
+            true -> ""
+        end;
 strerror({bad_arg, _M, _L, {F, Type}}) ->
-    "Argument to " ++ ?s2l(F) ++ "() could not be converted to type "
-        ++ ?s2l(Type);
+    "Argument to " ++ ?s2l(F) ++ "() could not be converted to type " ++
+        ?s2l(Type);
 strerror({invalid_sort_order_expr, _M, _L, _Rsn}) ->
     %% FIXME better error indication
     "Invalid sort order expression";
 strerror({invalid_expr, _M, _L, _Rsn}) ->
     %% unspecified error
     "Invalid XPath expression";
-
 %%% Runtime or rewrite
 strerror({unknown_node_test, _M, _L, _Rsn}) ->
     "Unknown node test";
@@ -77,7 +83,6 @@ strerror({nyi, M, L, _}) ->
     io_lib:format("Not yet implemented (~p, line ~p)", [M, L]);
 strerror({nyi2, _M, _L, Str}) ->
     io_lib:format("Not yet implemented - ~s", [Str]);
-
 %%% Run-time
 strerror({invalid_xpath_path, _M, _L, _Rsn}) ->
     "Invalid XPath path";
@@ -88,7 +93,7 @@ strerror({unknown_xpath_axis, _M, _L, Axis}) ->
 strerror({i_bad_data, _M, _L, _Rsn}) ->
     "I: Bad data";
 strerror({variable_unbound, _M, _L, VarName}) ->
-    "XPath variable $" ++  VarName ++ " unbound";
+    "XPath variable $" ++ VarName ++ " unbound";
 strerror({unknown_predicate, _M, _L, _Rsn}) ->
     "Unknown predicate";
 strerror({i_bad_lookup_key, _M, _L, _Rsn}) ->
@@ -112,7 +117,5 @@ strerror({i_unable_to_convert_to_number, _M, _L, _Rsn}) ->
     "I: Unable to convert to number";
 strerror({i_parent_of_expression_context, _M, _L, _Ctx}) ->
     "I: Used parent-axis on internal evaluation context";
-
 strerror(_Rsn) ->
     "Unknown XPath error.".
-

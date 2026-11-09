@@ -1,9 +1,12 @@
 -module(yang_xpath).
 
--export([mk_ns_map/1,
-         compile/2, compile/3, compile/5,
-         set_default_namespace/2,
-         get_dep_paths/2, v_dep_path/6]).
+-export([
+    mk_ns_map/1,
+    compile/2, compile/3, compile/5,
+    set_default_namespace/2,
+    get_dep_paths/2,
+    v_dep_path/6
+]).
 
 -export_type([ns_map/0, type/0]).
 -type ns_map() :: term().
@@ -37,38 +40,42 @@ mk_ns_map([{Prefix, ModuleName} | T], M, Map0) ->
 mk_ns_map([], _M, Map) ->
     Map.
 
--spec make_prefix_map(NsMap0 :: #{Prefix :: string() => Ns :: atom()},
-                      DefaultNs :: atom()) ->
-        PrefixNsMap :: any().
+-spec make_prefix_map(
+    NsMap0 :: #{Prefix :: string() => Ns :: atom()},
+    DefaultNs :: atom()
+) ->
+    PrefixNsMap :: any().
 %% Called once per module.  Build some structure for
 %% prefix mapping.  This will be passed to xpath_compile() and
 %% xpath_set_default_namespace() later.
 %% NOTE: We use the modulename instead of the namespace URI in the map.
 make_prefix_map(PrefixNsList, DefaultNs) ->
-    {{make_atoms,
-      xpath_rewrite:prefixes_with_no_default_namespace(PrefixNsList)},
-     DefaultNs}.
+    {{make_atoms, xpath_rewrite:prefixes_with_no_default_namespace(PrefixNsList)}, DefaultNs}.
 
 -spec compile(Str :: binary(), NsMap :: any()) ->
-        {ok, Expr :: any()}
-      | {error, ErrStr :: list()}.
+    {ok, Expr :: any()}
+    | {error, ErrStr :: list()}.
 %% Called when an XPath expression is first defined.  Should detect
 %% unknown prefixes, and when unknown functions are called.
 %% This function must not bind un-prefixed names to the default namespace.
 compile(Str, NsMap) ->
-     compile(Str, NsMap, []).
+    compile(Str, NsMap, []).
 compile(Str, NsMap, ExtraFunctions) ->
     Opts =
         case NsMap of
             {make_atoms, {PrefixNsMap, DefaultNs}} ->
-                #{prefixes => PrefixNsMap,
-                  default_ns => DefaultNs,
-                  make_atoms => true,
-                  functions => ExtraFunctions};
+                #{
+                    prefixes => PrefixNsMap,
+                    default_ns => DefaultNs,
+                    make_atoms => true,
+                    functions => ExtraFunctions
+                };
             {PrefixNsMap, DefaultNs} ->
-                #{prefixes => PrefixNsMap,
-                  default_ns => DefaultNs,
-                  functions => ExtraFunctions}
+                #{
+                    prefixes => PrefixNsMap,
+                    default_ns => DefaultNs,
+                    functions => ExtraFunctions
+                }
         end,
     case xpath_compile(?b2l(Str), Opts) of
         {ok, CompiledXPath} ->
@@ -77,64 +84,93 @@ compile(Str, NsMap, ExtraFunctions) ->
             {error, Mod:strerror(Err)}
     end.
 
--spec compile(Str :: binary(), yang:pos(), #module{},
-              Strict :: boolean(), #yctx{}) ->
-        {ok, Expr :: any(), #yctx{}}
-      | {error, #yctx{}}.
+-spec compile(
+    Str :: binary(),
+    yang:pos(),
+    #module{},
+    Strict :: boolean(),
+    #yctx{}
+) ->
+    {ok, Expr :: any(), #yctx{}}
+    | {error, #yctx{}}.
 %% Called when an XPath expression is first defined.  Should detect
 %% unknown prefixes, and when unknown functions are called.
 %% This function must not bind un-prefixed names to the default namespace.
 compile(Str, Pos, M, Strict, Ctx0) ->
-    #module{name = Name, xpath_ns_map = {PrefixNsMap, _DefaultNs},
-            yang_version = YangVersion} = M,
+    #module{
+        name = Name,
+        xpath_ns_map = {PrefixNsMap, _DefaultNs},
+        yang_version = YangVersion
+    } = M,
     ExtraFunctions =
-        if Strict ->
+        if
+            Strict ->
                 [];
-           true ->
+            true ->
                 Ctx0#yctx.xpath_functions
         end,
     case xpath_compile0(?b2l(Str), ExtraFunctions) of
         {ok, Q} ->
             Prefixes = xpath_rewrite:fold_expr(fun prefix/2, [], Q),
             Ctx2 = lists:foldl(
-                     fun(P, Ctx1) ->
-                             %% The prefix must be marked as used in
-                             %% the target module also.
-                             T = Ctx1#yctx.target_name,
-                             Ctx2 = yang:mark_import_as_used(T, P, Ctx1),
-                             yang:mark_import_as_used(Name, P, Ctx2)
-                     end, Ctx0, Prefixes),
+                fun(P, Ctx1) ->
+                    %% The prefix must be marked as used in
+                    %% the target module also.
+                    T = Ctx1#yctx.target_name,
+                    Ctx2 = yang:mark_import_as_used(T, P, Ctx1),
+                    yang:mark_import_as_used(Name, P, Ctx2)
+                end,
+                Ctx0,
+                Prefixes
+            ),
             case xpath_compile1(Q, PrefixNsMap) of
                 {ok, CompiledXPath} ->
-                    if Strict ->
+                    if
+                        Strict ->
                             try
                                 chk_strict(CompiledXPath, YangVersion),
                                 {ok, CompiledXPath, Ctx2}
                             catch
                                 throw:{illegal_function, Fun, Arity} ->
                                     ErrStr = illegal_function(Fun, Arity),
-                                    {error, add_error(Ctx2, Pos,
-                                                      'YANG_ERR_XPATH',
-                                                      [ErrStr])}
+                                    {error,
+                                        add_error(
+                                            Ctx2,
+                                            Pos,
+                                            'YANG_ERR_XPATH',
+                                            [ErrStr]
+                                        )}
                             end;
-                       true ->
+                        true ->
                             {ok, CompiledXPath, Ctx2}
                     end;
                 {error, {Mod, Err}} ->
-                    {error, add_error(Ctx2, Pos, 'YANG_ERR_XPATH',
-                                      [Mod:strerror(Err)])}
+                    {error,
+                        add_error(
+                            Ctx2,
+                            Pos,
+                            'YANG_ERR_XPATH',
+                            [Mod:strerror(Err)]
+                        )}
             end;
         {error, {Mod, Err}} ->
-            {error, add_error(Ctx0, Pos, 'YANG_ERR_XPATH',
-                              [Mod:strerror(Err)])}
+            {error,
+                add_error(
+                    Ctx0,
+                    Pos,
+                    'YANG_ERR_XPATH',
+                    [Mod:strerror(Err)]
+                )}
     end.
 
 add_error(Ctx, Pos, ErrCode, Args) ->
     yang_error:add_error(Ctx, Pos, ErrCode, Args).
 
 illegal_function(Fun, Arity) ->
-    io_lib:format("function ~p/~p is illegal in strict YANG",
-                  [Fun, Arity]).
+    io_lib:format(
+        "function ~p/~p is illegal in strict YANG",
+        [Fun, Arity]
+    ).
 
 prefix({step, child, {name, Prefix, _}, _}, Prefixes) ->
     add_to_list(?l2a(Prefix), Prefixes);
@@ -147,7 +183,6 @@ add_to_list(X, [H | T]) ->
     [H | add_to_list(X, T)];
 add_to_list(X, []) ->
     [X].
-
 
 -define(err(Rsn), {xpath_error, (Rsn)}).
 
@@ -166,11 +201,13 @@ xpath_compile0(String, ExtraFunctions) ->
             case xpath_parse:parse(Tokens) of
                 {ok, Q} ->
                     Q1 =
-                        if ExtraFunctions /= [] ->
+                        if
+                            ExtraFunctions /= [] ->
                                 xpath_rewrite:map_expr(
-                                  fun(E) -> add_functions(E, ExtraFunctions) end,
-                                  Q);
-                           true ->
+                                    fun(E) -> add_functions(E, ExtraFunctions) end,
+                                    Q
+                                );
+                            true ->
                                 Q
                         end,
                     {ok, Q1};
@@ -194,7 +231,6 @@ add_functions({function_call, {undefined_function, FuncName}, Args} = E, ExtraFu
 add_functions(E, _) ->
     E.
 
-
 %% @doc Second step of compile (rewriting)
 xpath_compile1(AbsQuery, NS_map) ->
     try
@@ -204,35 +240,35 @@ xpath_compile1(AbsQuery, NS_map) ->
             {error, ?err(Rsn)}
     end.
 
-
-
 -spec set_default_namespace(Expr :: any(), PrefixNsMap :: any()) ->
-        Expr1 :: any().
+    Expr1 :: any().
 %% Called when an XPath expression is finally used.
 set_default_namespace(Expr, {_, DefaultNs}) ->
-    F = fun({step, child, {name, Name}, Preds}) ->
-                {step, child, {name, DefaultNs, Name}, Preds};
-           ({function_call, Fn, [E0, {literal, undefined}, E2]})
-              when Fn == 'xp_derived-from';
-                   Fn == 'xp_derived-from-or-self' ->
-                {function_call, Fn, [E0, {literal, DefaultNs}, E2]};
-           (E) ->
-                E
-        end,
+    F = fun
+        ({step, child, {name, Name}, Preds}) ->
+            {step, child, {name, DefaultNs, Name}, Preds};
+        ({function_call, Fn, [E0, {literal, undefined}, E2]}) when
+            Fn == 'xp_derived-from';
+            Fn == 'xp_derived-from-or-self'
+        ->
+            {function_call, Fn, [E0, {literal, DefaultNs}, E2]};
+        (E) ->
+            E
+    end,
     xpath_rewrite:map_expr(F, Expr).
 
-
 chk_strict(Expr, YangVersion) ->
-    F = fun({function_call, Func, Args} = E) ->
-                case is_illegal(Func, YangVersion) of
-                    {true, Name} ->
-                        throw({illegal_function, Name, length(Args)});
-                    _ ->
-                        E
-                end;
-           (E) ->
-                E
-        end,
+    F = fun
+        ({function_call, Func, Args} = E) ->
+            case is_illegal(Func, YangVersion) of
+                {true, Name} ->
+                    throw({illegal_function, Name, length(Args)});
+                _ ->
+                    E
+            end;
+        (E) ->
+            E
+    end,
     xpath_rewrite:map_expr(F, Expr).
 
 %% Ugly.  We should rewrite xpath to not use xp_, and then check
@@ -255,7 +291,6 @@ is_illegal('xp_bnot', _) -> {true, 'bnot'};
 is_illegal('xp_sort-by', _) -> {true, 'sort-by'};
 is_illegal(_, _) -> false.
 
-
 get_dep_paths(XPathExpr, CurNs) ->
     try
         %% FIXME: we always add '.' here - this is probably not correct.
@@ -266,7 +301,7 @@ get_dep_paths(XPathExpr, CurNs) ->
     catch
         throw:false ->
             false;
-        ?CATCH_STACKTRACE(_Class, Error, Stacktrace)
+         ?CATCH_STACKTRACE(_Class, Error, Stacktrace)
             %% FIXME: report if verbose?
             ?liof("internal error: ~p\n~p\n", [Error, Stacktrace]),
             false
@@ -275,12 +310,16 @@ get_dep_paths(XPathExpr, CurNs) ->
 deps(Expr, CurPath, CurNs, DepsAcc) ->
     RecF =
         fun(Exprs) ->
-                {CurPath,
-                 lists:foldl(fun(E, DepsAcc1) ->
-                                     {_, DepsAcc2} =
-                                         deps(E, CurPath, CurNs, DepsAcc1),
-                                     DepsAcc2
-                             end, DepsAcc, Exprs)}
+            {CurPath,
+                lists:foldl(
+                    fun(E, DepsAcc1) ->
+                        {_, DepsAcc2} =
+                            deps(E, CurPath, CurNs, DepsAcc1),
+                        DepsAcc2
+                    end,
+                    DepsAcc,
+                    Exprs
+                )}
         end,
     case Expr of
         {absolute, Path} ->
@@ -315,7 +354,8 @@ deps(Expr, CurPath, CurNs, DepsAcc) ->
         [E | Steps] ->
             {CurPath1, DepsAcc1} = deps(E, CurPath, CurNs, DepsAcc),
             {CurPath, deps_path(Steps, CurPath1, CurNs, DepsAcc1)};
-        _ -> % literal, number, ...
+        % literal, number, ...
+        _ ->
             {CurPath, DepsAcc}
     end.
 
@@ -325,10 +365,12 @@ deps_path([Step | T], CurPath, CurNs, DepsAcc) ->
             CurPath1 =
                 case {Axis, NodeTest} of
                     {parent, {node_type, node}} ->
-                        Ns = '$undefined', % force ns change after ..
-                        if CurPath == ['.'] ->
+                        % force ns change after ..
+                        Ns = '$undefined',
+                        if
+                            CurPath == ['.'] ->
                                 ['..'];
-                           true ->
+                            true ->
                                 ['..' | CurPath]
                         end;
                     {self, {node_type, node}} ->
@@ -353,10 +395,13 @@ deps_path([Step | T], CurPath, CurNs, DepsAcc) ->
                 end,
             DepsAcc1 =
                 lists:foldl(
-                  fun({pred, P}, DepsAcc_0) ->
-                          {_, DepsAcc_1} = deps(P, CurPath1, Ns, DepsAcc_0),
-                          DepsAcc_1
-                  end, DepsAcc, Preds),
+                    fun({pred, P}, DepsAcc_0) ->
+                        {_, DepsAcc_1} = deps(P, CurPath1, Ns, DepsAcc_0),
+                        DepsAcc_1
+                    end,
+                    DepsAcc,
+                    Preds
+                ),
             deps_path(T, CurPath1, Ns, DepsAcc1);
         _X ->
             %?liof("deps_path: unhandled step: ~p\n", [_X]),
@@ -378,34 +423,36 @@ normalize_path(P) ->
     normalize_path(P, is_dep_path_absolute(P), []).
 
 normalize_path([X, '..', Y | T], true, Acc) when Y /= '..' ->
-    X1 = case X of
-             [_Ns|_] ->
-                 X;
-             '..' ->
-                 X;
-             _ ->
-                 case Y of
-                     [Ns|_] ->
-                         [Ns|X];
-                     _ ->
-                         X
-                 end
-         end,
+    X1 =
+        case X of
+            [_Ns | _] ->
+                X;
+            '..' ->
+                X;
+            _ ->
+                case Y of
+                    [Ns | _] ->
+                        [Ns | X];
+                    _ ->
+                        X
+                end
+        end,
     normalize_path(lists:reverse(Acc, [X1 | T]));
 normalize_path([X, '..', Y | T], false, Acc) when X /= '..' ->
-    Y1 = case Y of
-             [_Ns|_] ->
-                 Y;
-             '..' ->
-                 '..';
-             _ ->
-                 case X of
-                     [Ns|_] ->
-                         [Ns|Y];
-                     _ ->
-                         Y
-                 end
-         end,
+    Y1 =
+        case Y of
+            [_Ns | _] ->
+                Y;
+            '..' ->
+                '..';
+            _ ->
+                case X of
+                    [Ns | _] ->
+                        [Ns | Y];
+                    _ ->
+                        Y
+                end
+        end,
     normalize_path(lists:reverse(Acc, [Y1 | T]));
 normalize_path([H | T], IsAbs, Acc) ->
     normalize_path(T, IsAbs, [H | Acc]);
@@ -420,7 +467,7 @@ v_dep_path(Dep, {_, _, Pos, _}, Ctx, Sn, M, Ancestors) ->
     Path = dep_path_to_cursor_path(Dep, Ctx),
     InitCursor =
         case is_dep_path_absolute(Dep) of
-            true  -> yang:mk_cursor(undefined, [], Pos, M, data, Ctx);
+            true -> yang:mk_cursor(undefined, [], Pos, M, data, Ctx);
             false -> yang:mk_cursor(Sn, Ancestors, Pos, M, data, Ctx)
         end,
     case yang:cursor_follow_path(Path, InitCursor, Ctx) of
@@ -442,9 +489,11 @@ dep_path_to_cursor_path0(['..' | T], _) ->
     [parent | dep_path_to_cursor_path0(T, undefined)];
 dep_path_to_cursor_path0(['.' | T], CurModName) ->
     dep_path_to_cursor_path0(T, CurModName);
-dep_path_to_cursor_path0([[ModName|Name] | T], _) ->
-    [{child, {ModName, Name}} |
-     dep_path_to_cursor_path0(T, ModName)];
+dep_path_to_cursor_path0([[ModName | Name] | T], _) ->
+    [
+        {child, {ModName, Name}}
+        | dep_path_to_cursor_path0(T, ModName)
+    ];
 dep_path_to_cursor_path0([Name | T], undefined) ->
     [{child, Name} | dep_path_to_cursor_path0(T, undefined)];
 dep_path_to_cursor_path0([Name | T], CurModName) ->
@@ -455,7 +504,6 @@ dep_path_to_cursor_path0([], _) ->
 is_dep_path_absolute(['..' | _]) -> false;
 is_dep_path_absolute(['.' | _]) -> false;
 is_dep_path_absolute(_) -> true.
-
 
 -ifdef(debug).
 prefixes(Str) ->

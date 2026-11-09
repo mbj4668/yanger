@@ -24,10 +24,12 @@
 -module(xpath_bif).
 
 -export(
-   [string_to_bif/1,
-    bif_type/1,
-    arity_check/2
-   ]).
+    [
+        string_to_bif/1,
+        bif_type/1,
+        arity_check/2
+    ]
+).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%
@@ -43,7 +45,8 @@ string_to_bif(Str) ->
         XP_Bif = list_to_existing_atom("xp_" ++ Str),
         bif_type(XP_Bif),
         XP_Bif
-    catch _:_ ->
+    catch
+        _:_ ->
             {undefined_function, Str}
     end.
 

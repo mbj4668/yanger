@@ -14,35 +14,35 @@
 -include_lib("yanger/include/yang.hrl").
 
 -record(opts, {
-          canonical = false,
-          verbose = false,
-          strict = false,
-          print_error_code = false,
-          path = [],
-          warnings = [],
-          no_warnings = [],
-          errors = [],
-          emit :: 'undefined' | yanger_plugin:emit_fun(),
-          emit_allow_errors = false :: boolean(),
-          transform = [] :: [yanger_plugin:transform_fun()],
-          deviations = [],
-          features = [],
-          conformances = [],
-          outfile,
-          no_deviation_apply = false,
-          max_status :: 'undefined' | yang:yang_status(),
-          debug_print = false,
-          ignore_unknown_features = false
-         }).
+    canonical = false,
+    verbose = false,
+    strict = false,
+    print_error_code = false,
+    path = [],
+    warnings = [],
+    no_warnings = [],
+    errors = [],
+    emit :: 'undefined' | yanger_plugin:emit_fun(),
+    emit_allow_errors = false :: boolean(),
+    transform = [] :: [yanger_plugin:transform_fun()],
+    deviations = [],
+    features = [],
+    conformances = [],
+    outfile,
+    no_deviation_apply = false,
+    max_status :: 'undefined' | yang:yang_status(),
+    debug_print = false,
+    ignore_unknown_features = false
+}).
 
--type error() :: {bad_format, string()}
-               | {bad_transform, string()}
-               | {bad_features, string()}
-               | errors_printed
-               | {file_error, FileName :: string(), FileError :: term()}
-               | {fmt, Fmt :: string, Args :: list()}
-               | format_no_modules
-               .
+-type error() ::
+    {bad_format, string()}
+    | {bad_transform, string()}
+    | {bad_features, string()}
+    | errors_printed
+    | {file_error, FileName :: string(), FileError :: term()}
+    | {fmt, Fmt :: string, Args :: list()}
+    | format_no_modules.
 -opaque opts() :: #opts{}.
 
 vsn() ->
@@ -55,9 +55,11 @@ vsn() ->
 main(Name, Args) ->
     case lists:member("--debug-internal", Args) of
         true ->
-            hidden_apply(debugger,
-                         quick,
-                         [?MODULE, main, [Name, Args -- ["--debug-internal"]]]);
+            hidden_apply(
+                debugger,
+                quick,
+                [?MODULE, main, [Name, Args -- ["--debug-internal"]]]
+            );
         false ->
             case do_main(Name, Args) of
                 ok ->
@@ -121,8 +123,11 @@ create_ctx(PluginPath, Pa, Pz) ->
     %% This is done before command line parsing, in order to
     %% let the plugins register options and output formats.
     Ctx0 = yang:new_ctx(Plugins),
-    Ctx1 = Ctx0#yctx{option_specs = option_specs(Ctx0) ++
-                         Ctx0#yctx.option_specs},
+    Ctx1 = Ctx0#yctx{
+        option_specs =
+            option_specs(Ctx0) ++
+                Ctx0#yctx.option_specs
+    },
     Ctx1.
 
 -spec convert_options(#yctx{}, [getopt:option()]) -> {#yctx{}, opts()}.
@@ -135,34 +140,41 @@ convert_options(Ctx1, Options) ->
     %% Figure out what to do.
     WarningAsError = lists:member(error, Opts#opts.warnings),
     NoPrintWarnings = lists:member(none, Opts#opts.warnings),
-    Ctx3 = Ctx2#yctx{warnings = {WarningAsError,
-                                 NoPrintWarnings,
-                                 Opts#opts.no_warnings,
-                                 Opts#opts.warnings,
-                                 Opts#opts.errors}},
-    Ctx4 = Ctx3#yctx{canonical = Opts#opts.canonical,
-                     verbosity = if Opts#opts.verbose ->
-                                         ?V_NORMAL;
-                                    true ->
-                                         ?V_SILENT
-                                 end,
-                     strict = Opts#opts.strict,
-                     conformances = Opts#opts.conformances,
-                     apply_deviations = not Opts#opts.no_deviation_apply,
-                     max_status = Opts#opts.max_status},
+    Ctx3 = Ctx2#yctx{
+        warnings =
+            {WarningAsError, NoPrintWarnings, Opts#opts.no_warnings, Opts#opts.warnings,
+                Opts#opts.errors}
+    },
+    Ctx4 = Ctx3#yctx{
+        canonical = Opts#opts.canonical,
+        verbosity =
+            if
+                Opts#opts.verbose ->
+                    ?V_NORMAL;
+                true ->
+                    ?V_SILENT
+            end,
+        strict = Opts#opts.strict,
+        conformances = Opts#opts.conformances,
+        apply_deviations = not Opts#opts.no_deviation_apply,
+        max_status = Opts#opts.max_status
+    },
     Ctx5 = yang:init_ctx(Ctx4, Opts#opts.path),
     FeaturesMap =
         lists:foldl(
-          fun({ModName, Features0}, Map) ->
-                  Features =
-                      case yang:map_lookup(ModName, Map) of
-                          none ->
-                              Features0;
-                          {value, Features1} ->
-                              Features0 ++ Features1
-                      end,
-                  yang:map_update(ModName, Features, Map)
-          end, yang:map_new(), opts_features(Opts)),
+            fun({ModName, Features0}, Map) ->
+                Features =
+                    case yang:map_lookup(ModName, Map) of
+                        none ->
+                            Features0;
+                        {value, Features1} ->
+                            Features0 ++ Features1
+                    end,
+                yang:map_update(ModName, Features, Map)
+            end,
+            yang:map_new(),
+            opts_features(Opts)
+        ),
     Ctx6 = Ctx5#yctx{features = FeaturesMap},
     {Ctx6, Opts}.
 
@@ -173,186 +185,209 @@ opts_features(#opts{features = Fs}) -> Fs.
 
 -spec option_specs(#yctx{}) -> [getopt:option_spec()].
 option_specs(Ctx) ->
-    [{help,             $h, "help", undefined,
-      "Show this help message and exit."},
-     {version,          $v, "version", undefined,
-      "Show version number and exit."},
+    [
+        {help, $h, "help", undefined, "Show this help message and exit."},
+        {version, $v, "version", undefined, "Show version number and exit."},
 
-     {verbose,          $V, "verbose", undefined,
-      "Verbose output."},
-     {print_error_code, undefined, "print-error-code", undefined,
-      "On errors, print the error code instead of the error message."},
-     {path,             $p, "path", string,
-      "colon-separated path for YANG modules."},
-     {plugindir,        $P, "plugindir", string,
-      "Load yanger plugins from PLUGINDIR."},
-     {pa,               undefined, "pa", string,
-      "Erlang -pa, for plugins."},
-     {pz,               undefined, "pz", string,
-      "Erlang -pz, for plugins."},
-     {canonical,        $c, "canonical", undefined,
-      "Validate the module(s) according to the canonical YANG order."},
-     {strict,           undefined, "strict", undefined,
-      "Force strict YANG compliance."},
-     {list_errors,      $e, "list-errors", undefined,
-      "Print a listing of all error and warning codes and exit."},
-     {warning,          $W, "warning", atom,
-      "If WARNING is 'error', treat all warnings as errors, "
-      "except any listed WARNING. If WARNING is 'none', do "
-      "not report any warnings."},
-     {no_warning,       $w, "no-warning", atom,
-      "Do not report a warning for WARNING. For a list of "
-      "warnings, use --list-errors."},
-     {error,            $E, "error", atom,
-      "Treat each WARNING as an error.  For a list of "
-      "warnings, use --list-errors."},
-     {format,           $f, "format", atom,
-      "Convert to FORMAT.  Supported formats are: " ++
-          string:join([?a2l(F) || {F, _AE, _M} <- Ctx#yctx.fmts], ",") ++ "."},
-     {transform,        $t, "transform", atom,
-      "Run transformation TRANSFORM (more than one is allowed). "
-      "Available transformations: " ++
-          string:join([?a2l(N) || {N, _M} <- Ctx#yctx.transforms], ",") ++ "."},
-     {max_status,       undefined, "max-status", atom,
-      "Prune all nodes with status less than the given max status.  One of: "
-      "current, deprecated, obsolete"},
-     {deviation_module, undefined, "deviation-module", string,
-      "Apply deviations from MODULE"},
-     %% NOTE: If deviations and/or features are specified, the parsed tree
-     %% will be modified.  This needs to be properly documented.
-     {features,         $F, "features", string,
-      "Features to support, default all."
-      " Format: <modname>:[<feature>,]*"},
-     {ignore_unknown_features, undefined, "ignore-unknown-features", boolean,
-      "Use to suppress errors regarding unknown features"},
+        {verbose, $V, "verbose", undefined, "Verbose output."},
+        {print_error_code, undefined, "print-error-code", undefined,
+            "On errors, print the error code instead of the error message."},
+        {path, $p, "path", string, "colon-separated path for YANG modules."},
+        {plugindir, $P, "plugindir", string, "Load yanger plugins from PLUGINDIR."},
+        {pa, undefined, "pa", string, "Erlang -pa, for plugins."},
+        {pz, undefined, "pz", string, "Erlang -pz, for plugins."},
+        {canonical, $c, "canonical", undefined,
+            "Validate the module(s) according to the canonical YANG order."},
+        {strict, undefined, "strict", undefined, "Force strict YANG compliance."},
+        {list_errors, $e, "list-errors", undefined,
+            "Print a listing of all error and warning codes and exit."},
+        {warning, $W, "warning", atom,
+            "If WARNING is 'error', treat all warnings as errors, "
+            "except any listed WARNING. If WARNING is 'none', do "
+            "not report any warnings."},
+        {no_warning, $w, "no-warning", atom,
+            "Do not report a warning for WARNING. For a list of "
+            "warnings, use --list-errors."},
+        {error, $E, "error", atom,
+            "Treat each WARNING as an error.  For a list of "
+            "warnings, use --list-errors."},
+        {format, $f, "format", atom,
+            "Convert to FORMAT.  Supported formats are: " ++
+                string:join([?a2l(F) || {F, _AE, _M} <- Ctx#yctx.fmts], ",") ++ "."},
+        {transform, $t, "transform", atom,
+            "Run transformation TRANSFORM (more than one is allowed). "
+            "Available transformations: " ++
+                string:join([?a2l(N) || {N, _M} <- Ctx#yctx.transforms], ",") ++ "."},
+        {max_status, undefined, "max-status", atom,
+            "Prune all nodes with status less than the given max status.  One of: "
+            "current, deprecated, obsolete"},
+        {deviation_module, undefined, "deviation-module", string, "Apply deviations from MODULE"},
+        %% NOTE: If deviations and/or features are specified, the parsed tree
+        %% will be modified.  This needs to be properly documented.
+        {features, $F, "features", string,
+            "Features to support, default all."
+            " Format: <modname>:[<feature>,]*"},
+        {ignore_unknown_features, undefined, "ignore-unknown-features", boolean,
+            "Use to suppress errors regarding unknown features"},
 
-     {conformance,      $C, "conformance", string,
-      "Conformance, default implement."
-      " Format: [<modname>:]implement|import"},
-     {outfile,          $o, "output", string,
-      "Write the output to OUTFILE instead of stdout."},
-     {no_deviation_apply, undefined, "no-deviation-apply", undefined,
-      "Do not apply deviations."},
+        {conformance, $C, "conformance", string,
+            "Conformance, default implement."
+            " Format: [<modname>:]implement|import"},
+        {outfile, $o, "output", string, "Write the output to OUTFILE instead of stdout."},
+        {no_deviation_apply, undefined, "no-deviation-apply", undefined,
+            "Do not apply deviations."},
 
-     {debug_print,      undefined, "print", undefined,
-      "DEBUG - print internal format"},
-     {debug_print_all,  undefined, "print-all", undefined,
-      "DEBUG - print internal format"}
+        {debug_print, undefined, "print", undefined, "DEBUG - print internal format"},
+        {debug_print_all, undefined, "print-all", undefined, "DEBUG - print internal format"}
     ].
 
 chk_interactive_options(Name, Options, Ctx) ->
     lists:foreach(
-      fun(Opt) ->
-              case Opt of
-                  help ->
-                      print_usage(Name, Ctx),
-                      delayed_halt(0);
-                  version ->
-                      print_version(Name),
-                      delayed_halt(0);
-                  list_errors ->
-                      yang_error:print_error_codes(Ctx),
-                      delayed_halt(0);
-                  _ ->
-                      ok
-              end
-      end, Options).
+        fun(Opt) ->
+            case Opt of
+                help ->
+                    print_usage(Name, Ctx),
+                    delayed_halt(0);
+                version ->
+                    print_version(Name),
+                    delayed_halt(0);
+                list_errors ->
+                    yang_error:print_error_codes(Ctx),
+                    delayed_halt(0);
+                _ ->
+                    ok
+            end
+        end,
+        Options
+    ).
 
 -spec opts([getopt:option()], #yctx{}) -> opts().
 opts(Options, Ctx) ->
     lists:foldl(
-      fun(Opt, Opts) ->
-              case Opt of
-                  verbose ->
-                      Opts#opts{verbose = true};
-                  canonical ->
-                      Opts#opts{canonical = true};
-                  strict ->
-                      Opts#opts{strict = true};
-                  print_error_code ->
-                      Opts#opts{print_error_code = true};
-                  {path, P} ->
-                      Opts#opts{path = Opts#opts.path ++ string:tokens(P, ":")};
-                  {warning, W} ->
-                      Opts#opts{warnings = [W | Opts#opts.warnings]};
-                  {no_warning, W} ->
-                      Opts#opts{no_warnings = [W | Opts#opts.no_warnings]};
-                  {error, W} ->
-                      Opts#opts{errors = [W | Opts#opts.errors]};
-                  {format, F} ->
-                      case lists:keyfind(F, 1, Ctx#yctx.fmts) of
-                          {F, AllowErrors, EmitFun} ->
-                              Opts#opts{emit = EmitFun,
-                                        emit_allow_errors = AllowErrors};
-                          false ->
-                              throw({error, {bad_format, F}})
-                      end;
-                  {transform, T} ->
-                      case lists:keyfind(T, 1, Ctx#yctx.transforms) of
-                          {T, TransformFun} ->
-                              Opts#opts{transform = Opts#opts.transform ++
-                                            [TransformFun]};
-                          false ->
-                              throw({error, {bad_transform, T}})
-                      end;
-                  {max_status, MaxStatus} ->
-                      case MaxStatus of
-                          current -> ok;
-                          deprecated -> ok;
-                          obsolete -> ok;
-                          _ -> throw({error, {bad_status, MaxStatus}})
-                      end,
-                      Opts#opts{max_status = MaxStatus};
-                  {deviation_module, Dev} ->
-                      Opts#opts{deviations = [Dev | Opts#opts.deviations]};
-                  {features, FStr} ->
-                      case string:tokens(FStr, ":") of
-                          [ModName] ->
-                              Opts#opts{features = [{?l2a(ModName), []} |
-                                                    Opts#opts.features]};
-                          [ModName, Rest] ->
-                              Features =
-                                  [?l2a(F) || F <- string:tokens(Rest, ",")],
-                              Opts#opts{features = [{?l2a(ModName), Features} |
-                                                    Opts#opts.features]};
-                          _ ->
-                              throw({error, {bad_features, FStr}})
-                      end;
-                  {conformance, CStr} ->
-                      case string:tokens(CStr, ":") of
-                          ["import"] ->
-                              Opts#opts{conformances =
-                                            [import |
-                                             Opts#opts.conformances]};
-                          ["implement"] ->
-                              Opts#opts{conformances =
-                                            [implement |
-                                             Opts#opts.conformances]};
-                          [ModName, "import"] ->
-                              Opts#opts{conformances =
-                                            [{?l2a(ModName), import} |
-                                             Opts#opts.conformances]};
-                          [ModName, "implement"] ->
-                              Opts#opts{conformances =
-                                            [{?l2a(ModName), implement} |
-                                             Opts#opts.conformances]};
-                          _ ->
-                              throw({error, {bad_conformance, CStr}})
-                      end;
-                  {outfile, F} ->
-                      Opts#opts{outfile = F};
-                  no_deviation_apply ->
-                      Opts#opts{no_deviation_apply = true};
-                  debug_print ->
-                      Opts#opts{debug_print = true};
-                  debug_print_all ->
-                      Opts#opts{debug_print = all};
-                  {ignore_unknown_features, true} ->
-                      Opts#opts{ignore_unknown_features = true};
-                  _ ->
-                      Opts
-              end
-      end, #opts{}, Options).
+        fun(Opt, Opts) ->
+            case Opt of
+                verbose ->
+                    Opts#opts{verbose = true};
+                canonical ->
+                    Opts#opts{canonical = true};
+                strict ->
+                    Opts#opts{strict = true};
+                print_error_code ->
+                    Opts#opts{print_error_code = true};
+                {path, P} ->
+                    Opts#opts{path = Opts#opts.path ++ string:tokens(P, ":")};
+                {warning, W} ->
+                    Opts#opts{warnings = [W | Opts#opts.warnings]};
+                {no_warning, W} ->
+                    Opts#opts{no_warnings = [W | Opts#opts.no_warnings]};
+                {error, W} ->
+                    Opts#opts{errors = [W | Opts#opts.errors]};
+                {format, F} ->
+                    case lists:keyfind(F, 1, Ctx#yctx.fmts) of
+                        {F, AllowErrors, EmitFun} ->
+                            Opts#opts{
+                                emit = EmitFun,
+                                emit_allow_errors = AllowErrors
+                            };
+                        false ->
+                            throw({error, {bad_format, F}})
+                    end;
+                {transform, T} ->
+                    case lists:keyfind(T, 1, Ctx#yctx.transforms) of
+                        {T, TransformFun} ->
+                            Opts#opts{
+                                transform =
+                                    Opts#opts.transform ++
+                                        [TransformFun]
+                            };
+                        false ->
+                            throw({error, {bad_transform, T}})
+                    end;
+                {max_status, MaxStatus} ->
+                    case MaxStatus of
+                        current -> ok;
+                        deprecated -> ok;
+                        obsolete -> ok;
+                        _ -> throw({error, {bad_status, MaxStatus}})
+                    end,
+                    Opts#opts{max_status = MaxStatus};
+                {deviation_module, Dev} ->
+                    Opts#opts{deviations = [Dev | Opts#opts.deviations]};
+                {features, FStr} ->
+                    case string:tokens(FStr, ":") of
+                        [ModName] ->
+                            Opts#opts{
+                                features = [
+                                    {?l2a(ModName), []}
+                                    | Opts#opts.features
+                                ]
+                            };
+                        [ModName, Rest] ->
+                            Features =
+                                [?l2a(F) || F <- string:tokens(Rest, ",")],
+                            Opts#opts{
+                                features = [
+                                    {?l2a(ModName), Features}
+                                    | Opts#opts.features
+                                ]
+                            };
+                        _ ->
+                            throw({error, {bad_features, FStr}})
+                    end;
+                {conformance, CStr} ->
+                    case string:tokens(CStr, ":") of
+                        ["import"] ->
+                            Opts#opts{
+                                conformances =
+                                    [
+                                        import
+                                        | Opts#opts.conformances
+                                    ]
+                            };
+                        ["implement"] ->
+                            Opts#opts{
+                                conformances =
+                                    [
+                                        implement
+                                        | Opts#opts.conformances
+                                    ]
+                            };
+                        [ModName, "import"] ->
+                            Opts#opts{
+                                conformances =
+                                    [
+                                        {?l2a(ModName), import}
+                                        | Opts#opts.conformances
+                                    ]
+                            };
+                        [ModName, "implement"] ->
+                            Opts#opts{
+                                conformances =
+                                    [
+                                        {?l2a(ModName), implement}
+                                        | Opts#opts.conformances
+                                    ]
+                            };
+                        _ ->
+                            throw({error, {bad_conformance, CStr}})
+                    end;
+                {outfile, F} ->
+                    Opts#opts{outfile = F};
+                no_deviation_apply ->
+                    Opts#opts{no_deviation_apply = true};
+                debug_print ->
+                    Opts#opts{debug_print = true};
+                debug_print_all ->
+                    Opts#opts{debug_print = all};
+                {ignore_unknown_features, true} ->
+                    Opts#opts{ignore_unknown_features = true};
+                _ ->
+                    Opts
+            end
+        end,
+        #opts{},
+        Options
+    ).
 
 -spec run(#yctx{}, opts(), [string()]) -> ok.
 %% throws: {error, error()}.
@@ -489,10 +524,12 @@ validate_features(true = _IgnoreUnknownFeatures, _Ctx) ->
     ok;
 validate_features(_IgnoreUnknownFeatures, #yctx{features = none}) ->
     ok;
-validate_features(false = _IgnoreUnknownFeatures,
-                  #yctx{features = Features} = Ctx) ->
+validate_features(
+    false = _IgnoreUnknownFeatures,
+    #yctx{features = Features} = Ctx
+) ->
     FeaturesLs = yang:map_to_list(Features),
-    [validate_feature(F, Ctx) ||  F <- FeaturesLs].
+    [validate_feature(F, Ctx) || F <- FeaturesLs].
 
 validate_feature({ModuleName, FeatureNames}, #yctx{} = Ctx) ->
     case yang:search_module(Ctx, ModuleName, undefined) of
@@ -505,15 +542,13 @@ validate_feature({ModuleName, FeatureNames}, #yctx{} = Ctx) ->
 
 validate_feature1(FeatureNames, Features) ->
     EvalFun = fun(FeatureName) ->
-                      case yang:map_lookup(FeatureName, Features) of
-                          none ->
-                              throw({error, {bad_features,
-                                             "Feature not found in the module"
-                                            }});
-                          _ ->
-                              ok
-                      end
-              end,
+        case yang:map_lookup(FeatureName, Features) of
+            none ->
+                throw({error, {bad_features, "Feature not found in the module"}});
+            _ ->
+                ok
+        end
+    end,
     lists:foreach(EvalFun, FeatureNames).
 
 print_version(Name) ->
@@ -521,10 +556,11 @@ print_version(Name) ->
 
 print_usage(Name, Ctx) ->
     getopt:usage(
-      Ctx#yctx.option_specs, Name,
-      "<file>...",
-      [{"<file>",
-        "Validate and optionally convert the YANG module in <file>"}]).
+        Ctx#yctx.option_specs,
+        Name,
+        "<file>...",
+        [{"<file>", "Validate and optionally convert the YANG module in <file>"}]
+    ).
 
 print_error(Error) ->
     case Error of
@@ -541,19 +577,27 @@ print_error(Error) ->
         errors_printed ->
             ok;
         {file_error, FileName, FileError} ->
-            io:format(standard_error, "error: ~s: ~s\n",
-                      [FileName, file:format_error(FileError)]);
+            io:format(
+                standard_error,
+                "error: ~s: ~s\n",
+                [FileName, file:format_error(FileError)]
+            );
         {fmt, Fmt, Args} ->
             io:format(standard_error, "error: " ++ Fmt, Args);
         format_no_modules ->
-            io:format(standard_error,
-                      "error: -f but no module file name given\n", []);
+            io:format(
+                standard_error,
+                "error: -f but no module file name given\n",
+                []
+            );
         {emit_crash, Ctx, Opts, Reason, StackTrace} ->
             yang_error:print_errors(Ctx, Opts#opts.print_error_code),
-            io:format(standard_error,
-                      "internal error: the output plugin experienced "
-                      "a fatal error.\n",
-                      []),
+            io:format(
+                standard_error,
+                "internal error: the output plugin experienced "
+                "a fatal error.\n",
+                []
+            ),
             case get_error_mask() of
                 false ->
                     case Reason of
@@ -563,8 +607,10 @@ print_error(Error) ->
                             ok
                     end;
                 _ ->
-                    print_crash({yang_internal_error, {Reason, StackTrace}},
-                                StackTrace)
+                    print_crash(
+                        {yang_internal_error, {Reason, StackTrace}},
+                        StackTrace
+                    )
             end
     end.
 
@@ -587,16 +633,26 @@ print_crash(X, Stacktrace0) ->
 print_internal_error(YANGERROR, Reason, StackTrace) ->
     case YANGERROR of
         "stack" ->
-            local_format_error("internal error\n~p\n~p\n",
-                               [Reason, StackTrace]);
+            local_format_error(
+                "internal error\n~p\n~p\n",
+                [Reason, StackTrace]
+            );
         "pruned-stack" ->
-            local_format_error("internal error: ~p\n~p\n",
-                               [prune_reason(Reason),
-                                prune_stacktrace(StackTrace)]);
+            local_format_error(
+                "internal error: ~p\n~p\n",
+                [
+                    prune_reason(Reason),
+                    prune_stacktrace(StackTrace)
+                ]
+            );
         "super-pruned" ->
-            local_format_error("internal error: ~p\n~p\n",
-                               [prune_reason(Reason),
-                                superprune_stacktrace(StackTrace)]);
+            local_format_error(
+                "internal error: ~p\n~p\n",
+                [
+                    prune_reason(Reason),
+                    superprune_stacktrace(StackTrace)
+                ]
+            );
         DepthStr ->
             case (catch ?l2i(DepthStr)) of
                 {'EXIT', _} ->
@@ -604,8 +660,10 @@ print_internal_error(YANGERROR, Reason, StackTrace) ->
                 Depth ->
                     ok
             end,
-            local_format_error("~P\n~P\n",
-                               [Reason, Depth, StackTrace, Depth])
+            local_format_error(
+                "~P\n~P\n",
+                [Reason, Depth, StackTrace, Depth]
+            )
     end.
 
 local_format_error(Format, Data) ->
@@ -621,11 +679,11 @@ prune_reason(A) when is_atom(A) ->
 prune_reason(_) ->
     [].
 
-superprune_stacktrace([{M,F,A,L}|_]) ->
-    [{M,F,prune_args(A),L}].
+superprune_stacktrace([{M, F, A, L} | _]) ->
+    [{M, F, prune_args(A), L}].
 
 prune_stacktrace(Trace) ->
-    [{M,F,prune_args(A),L} || {M,F,A,L} <- Trace].
+    [{M, F, prune_args(A), L} || {M, F, A, L} <- Trace].
 
 prune_args(A) when is_list(A) ->
     length(A);
@@ -657,7 +715,7 @@ get_error_mask() ->
     os:getenv("YANGERROR").
 
 delayed_halt(Code) ->
-    erlang:halt(Code, [{flush,true}]).
+    erlang:halt(Code, [{flush, true}]).
 
 debug_print(_, Modules, Fd) ->
     lists:foreach(fun(M) -> pp_module(M, Fd) end, Modules).
@@ -672,15 +730,20 @@ pp_module(M, Fd) ->
     pp_children(M#module.children, Fd, "  ").
 
 -define(format_record(Rec, Name),
-        format_record(Rec, Name, record_info(fields, Name))).
--define(frec(Rec, Name),?format_record(Rec,Name)).
+    format_record(Rec, Name, record_info(fields, Name))
+).
+-define(frec(Rec, Name), ?format_record(Rec, Name)).
 
 pp_children([H | T], Fd, Indent) ->
-    io:format(Fd, "~s~s ~p (cfg: ~p)\n",
-              [Indent, H#sn.kind, H#sn.name, H#sn.config]),
-    if H#sn.type /= undefined ->
+    io:format(
+        Fd,
+        "~s~s ~p (cfg: ~p)\n",
+        [Indent, H#sn.kind, H#sn.name, H#sn.config]
+    ),
+    if
+        H#sn.type /= undefined ->
             io:format(Fd, "~s  type: ~s\n", [Indent, ?frec(H#sn.type, type)]);
-       true ->
+        true ->
             ok
     end,
     pp_children(H#sn.children, Fd, "  " ++ Indent),
@@ -700,35 +763,46 @@ pp_identites([{_, H} | T], Fd, Indent) ->
 pp_identites([], _Fd, _Indent) ->
     ok.
 
-
 format_record(Record, Name, Fields) ->
     case tuple_to_list(Record) of
         [Name | Rest] ->
-            io_lib:format("record ~w {\n~s", [Name,
-                                            format_record(Rest, Fields)]);
+            io_lib:format("record ~w {\n~s", [
+                Name,
+                format_record(Rest, Fields)
+            ]);
         _X ->
             "badrecord"
     end.
 
 format_record([], []) ->
     [];
-format_record([Val|Vals], [F|Fs]) when is_integer(Val);
-                                       Val == [];
-                                       is_atom(Val);
-                                       is_float(Val)->
-    Curly = if Vals == [] -> " }";
-               true -> ","
-            end,
-    [io_lib:format("     ~w = ~w~s\n", [F,Val,Curly]),
-     format_record(Vals, Fs)];
-format_record([Val|Vals], [F|Fs]) ->
+format_record([Val | Vals], [F | Fs]) when
+    is_integer(Val);
+    Val == [];
+    is_atom(Val);
+    is_float(Val)
+->
+    Curly =
+        if
+            Vals == [] -> " }";
+            true -> ","
+        end,
+    [
+        io_lib:format("     ~w = ~w~s\n", [F, Val, Curly]),
+        format_record(Vals, Fs)
+    ];
+format_record([Val | Vals], [F | Fs]) ->
     case is_string(Val) of
         true ->
-            [io_lib:format("     ~w = \"~s\"\n", [F,Val]),
-             format_record(Vals, Fs)];
+            [
+                io_lib:format("     ~w = \"~s\"\n", [F, Val]),
+                format_record(Vals, Fs)
+            ];
         false ->
-            [io_lib:format("     ~w = ~p~n", [F, Val]),
-             format_record(Vals, Fs)]
+            [
+                io_lib:format("     ~w = ~p~n", [F, Val]),
+                format_record(Vals, Fs)
+            ]
     end.
 
 is_string(L) when is_list(L) ->
@@ -736,10 +810,13 @@ is_string(L) when is_list(L) ->
 is_string(_) ->
     false.
 
-all_integer([H|T]) when is_integer(H),
-                        $A < H, H < $z ->
+all_integer([H | T]) when
+    is_integer(H),
+    $A < H,
+    H < $z
+->
     all_integer(T);
-all_integer([_|_]) ->
+all_integer([_ | _]) ->
     false;
 all_integer([]) ->
     true.

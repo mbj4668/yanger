@@ -11,17 +11,19 @@
 %% then P will fail (ie, generate no solutions) and can be pruned.
 
 -module(xpath_rewrite).
--export([q/1, q/2,
-         prefixes_with_no_default_namespace/1,
-         prefixes_with_default_namespace/2,
-         preds_contain_position/1,
-         pred_contains_last/1,
-         get_position_or_last/2,
-         rewrite_expr/2,
-         find_variables_expr/1, find_variables_expr/2,
-         is_node_set/1, is_node_set/2,
-         map_expr/2, fold_expr/3
-        ]).
+-export([
+    q/1, q/2,
+    prefixes_with_no_default_namespace/1,
+    prefixes_with_default_namespace/2,
+    preds_contain_position/1,
+    pred_contains_last/1,
+    get_position_or_last/2,
+    rewrite_expr/2,
+    find_variables_expr/1, find_variables_expr/2,
+    is_node_set/1, is_node_set/2,
+    map_expr/2,
+    fold_expr/3
+]).
 
 -define(xp_exit(Tag, Rsn), exit({(Tag), ?MODULE, ?LINE, (Rsn)})).
 
@@ -32,15 +34,15 @@ q(Q) ->
 
 q(Q, Opts) ->
     case rewrite_expr(Q, Opts) of
-        {absolute, _}=Path ->
+        {absolute, _} = Path ->
             Path;
-        {relative, _}=Path ->
+        {relative, _} = Path ->
             Path;
-        {union, _}=Paths ->
+        {union, _} = Paths ->
             Paths;
         Paths when is_list(Paths) ->
             Paths;
-        {path, filter, {_,_}}=E ->
+        {path, filter, {_, _}} = E ->
             E;
         fail ->
             fail;
@@ -59,19 +61,23 @@ q(Q, Opts) ->
 
 rewrite_expr(Expr, {make_atoms, {Prefixes, DefaultNs}}) ->
     %% legacy NS_map argumet - convert to Opts map
-    rewrite_expr(Expr, #{prefixes => Prefixes,
-                         default_ns => DefaultNs,
-                         make_atoms => true});
+    rewrite_expr(Expr, #{
+        prefixes => Prefixes,
+        default_ns => DefaultNs,
+        make_atoms => true
+    });
 rewrite_expr(Expr, {Prefixes, DefaultNs}) ->
     %% legacy NS_map argumet - convert to Opts map
-    rewrite_expr(Expr, #{prefixes => Prefixes,
-                         default_ns => DefaultNs});
+    rewrite_expr(Expr, #{
+        prefixes => Prefixes,
+        default_ns => DefaultNs
+    });
 rewrite_expr({absolute, Path}, Opts) ->
     mk_absolute(rewrite_path(Path, Opts));
 rewrite_expr({relative, Path}, Opts) ->
     mk_relative(rewrite_path(Path, Opts));
 rewrite_expr({union, Paths}, Opts) ->
-    mk_union([ rewrite_expr(Path, Opts) || Path <- Paths ]);
+    mk_union([rewrite_expr(Path, Opts) || Path <- Paths]);
 rewrite_expr({comp, Op, E1, E2}, Opts) ->
     mk_comp(Op, rewrite_expr(E1, Opts), rewrite_expr(E2, Opts));
 rewrite_expr({arith, Op, E1, E2}, Opts) ->
@@ -82,11 +88,11 @@ rewrite_expr({bool, 'and', E1, E2}, Opts) ->
     mk_and(rewrite_expr(E1, Opts), rewrite_expr(E2, Opts));
 rewrite_expr({function_call, 'xp_sort-by', [E1, E2]}, Opts) ->
     Pred =
-        {pred, {comp,'=', {bool, true},
-                {function_call,'xp_sort-by', [rewrite_expr(E2, Opts)]}}},
+        {pred, {comp, '=', {bool, true}, {function_call, 'xp_sort-by', [rewrite_expr(E2, Opts)]}}},
     insert_sort_order_pred(rewrite_expr(E1, Opts), Pred);
-rewrite_expr({function_call, Fun, [E1, E2]}, Opts)
-  when Fun == 'xp_derived-from' orelse Fun == 'xp_derived-from-or-self' ->
+rewrite_expr({function_call, Fun, [E1, E2]}, Opts) when
+    Fun == 'xp_derived-from' orelse Fun == 'xp_derived-from-or-self'
+->
     %% This is unfortunate.  If E2 is a string literal (which it will be
     %% in most cases), we resolve the prefix and call xp_derived-from/3.
     %% If it is not a string literal, then hopefully it is a node-set
@@ -99,25 +105,29 @@ rewrite_expr({function_call, Fun, [E1, E2]}, Opts)
         {literal, Str} ->
             case xpath_scan:tokens(Str) of
                 [{name, _, {Prefix, LocalName}}, {'$end', _, '$end'}] ->
-                    NS = case maps:get(default_ns, Opts, 0) of
-                             0 when Prefix == [] ->
-                                 undefined;
-                             DefaultNs when Prefix == [] ->
-                                 DefaultNs;
-                             _ ->
-                                 prefix_to_namespace(Prefix, Opts)
-                         end,
-                    {function_call, Fun,
-                     [rewrite_expr(E1, Opts),
-                      {literal, NS},
-                      {literal, LocalName}]};
+                    NS =
+                        case maps:get(default_ns, Opts, 0) of
+                            0 when Prefix == [] ->
+                                undefined;
+                            DefaultNs when Prefix == [] ->
+                                DefaultNs;
+                            _ ->
+                                prefix_to_namespace(Prefix, Opts)
+                        end,
+                    {function_call, Fun, [
+                        rewrite_expr(E1, Opts),
+                        {literal, NS},
+                        {literal, LocalName}
+                    ]};
                 _ ->
                     fail
             end;
         _E2_RW ->
-            ?xp_exit(nyi2,
-                     "currently second argument must be a literal string")
-            %{function_call, Fun, [rewrite_expr(E1, Opts), E2_RW]}
+            ?xp_exit(
+                nyi2,
+                "currently second argument must be a literal string"
+            )
+        %{function_call, Fun, [rewrite_expr(E1, Opts), E2_RW]}
     end;
 rewrite_expr({function_call, F, Xs}, Opts) ->
     case F of
@@ -138,10 +148,12 @@ rewrite_expr({function_call, F, Xs}, Opts) ->
                     ok;
                 false ->
                     %% was run-time error
-                    ?xp_exit(invalid_bif_arity,
-                             {lists:nthtail(3, atom_to_list(F)), length(Xs)})
+                    ?xp_exit(
+                        invalid_bif_arity,
+                        {lists:nthtail(3, atom_to_list(F)), length(Xs)}
+                    )
             end,
-            NewXs = [ rewrite_expr(X, Opts) || X <- Xs ],
+            NewXs = [rewrite_expr(X, Opts) || X <- Xs],
             if
                 F == 'not' ->
                     case NewXs of
@@ -161,13 +173,13 @@ rewrite_expr({negative, X}, Opts) ->
         E ->
             {arith, '-', {number, 0}, E}
     end;
-rewrite_expr({number, _}=E, _Opts) ->
+rewrite_expr({number, _} = E, _Opts) ->
     E;
-rewrite_expr({literal, _}=E, _Opts) ->
+rewrite_expr({literal, _} = E, _Opts) ->
     E;
-rewrite_expr({bool, _}=E, _Opts) ->
+rewrite_expr({bool, _} = E, _Opts) ->
     E;
-rewrite_expr({var, _}=E, _Opts) ->
+rewrite_expr({var, _} = E, _Opts) ->
     E;
 rewrite_expr({path_expr, {function_call, {undefined_function, F}, Xs}}, _) ->
     ?xp_exit(undefined_function, {F, length(Xs)});
@@ -188,7 +200,7 @@ rewrite_expr({path_expr, E = {function_call, F, _}}, Opts) ->
     end;
 rewrite_expr({path_expr, E}, Opts) ->
     rewrite_expr(E, Opts);
-rewrite_expr([E0|Steps0], Opts) ->
+rewrite_expr([E0 | Steps0], Opts) ->
     case rewrite_path(Steps0, Opts) of
         fail ->
             fail;
@@ -207,8 +219,10 @@ rewrite_expr(Other, _Opts) ->
 
 %% position or last
 preds_contain_position(Preds) ->
-    lists:any(fun({pred, P}) -> pred_contains_position(P) end,
-              Preds).
+    lists:any(
+        fun({pred, P}) -> pred_contains_position(P) end,
+        Preds
+    ).
 
 pred_contains_position({absolute, _Path}) ->
     false;
@@ -229,8 +243,10 @@ pred_contains_position({function_call, xp_position, []}) ->
 pred_contains_position({function_call, xp_last, []}) ->
     true;
 pred_contains_position({function_call, _F, Xs}) ->
-    lists:any(fun(X) -> pred_contains_position(X) end,
-              Xs);
+    lists:any(
+        fun(X) -> pred_contains_position(X) end,
+        Xs
+    );
 pred_contains_position({negative, X}) ->
     pred_contains_position(X);
 pred_contains_position({number, _}) ->
@@ -241,7 +257,7 @@ pred_contains_position({bool, _}) ->
     false;
 pred_contains_position({var, _}) ->
     false;
-pred_contains_position([_|_]) ->
+pred_contains_position([_ | _]) ->
     false;
 pred_contains_position(_Other) ->
     false.
@@ -251,7 +267,7 @@ pred_contains_position(_Other) ->
 %% 'last' only if a predicate after the first one contains last()
 get_position_or_last([], _) ->
     false;
-get_position_or_last([{pred, Pred}|Preds], _SkipFirstPredIfLast = true) ->
+get_position_or_last([{pred, Pred} | Preds], _SkipFirstPredIfLast = true) ->
     get_position_or_last1(Preds, 2, get_position(Pred, false));
 get_position_or_last(Preds, _SkipFirstPredIfLast = false) ->
     get_position_or_last1(Preds, 1, false).
@@ -259,10 +275,13 @@ get_position_or_last(Preds, _SkipFirstPredIfLast = false) ->
 get_position_or_last1(Preds, Start, Res) ->
     try
         {_, R} =
-            lists:foldl(fun({pred, P}, {N, Res0}) ->
-                                {N+1, get_position_or_last(P, N, Res0)}
-                        end,
-                        {Start, Res}, Preds),
+            lists:foldl(
+                fun({pred, P}, {N, Res0}) ->
+                    {N + 1, get_position_or_last(P, N, Res0)}
+                end,
+                {Start, Res},
+                Preds
+            ),
         R
     catch
         throw:RR ->
@@ -278,7 +297,6 @@ pred_contains_last({pred, P}) ->
             true
     end.
 
-
 get_position({function_call, xp_position, []}, _Res) ->
     position;
 get_position({comp, _Op, E1, E2}, Res0) ->
@@ -291,8 +309,11 @@ get_position({bool, _Op, E1, E2}, Res0) ->
     Res1 = get_position(E1, Res0),
     get_position(E2, Res1);
 get_position({function_call, _F, Xs}, Res0) ->
-    lists:foldl(fun(X, R) -> get_position(X, R) end,
-                Res0, Xs);
+    lists:foldl(
+        fun(X, R) -> get_position(X, R) end,
+        Res0,
+        Xs
+    );
 get_position({negative, X}, Res) ->
     get_position(X, Res);
 get_position(_, Res) ->
@@ -312,13 +333,15 @@ get_position_or_last({bool, _Op, E1, E2}, N, Res0) ->
     Res1 = get_position_or_last(E1, N, Res0),
     get_position_or_last(E2, N, Res1);
 get_position_or_last({function_call, _F, Xs}, N, Res0) ->
-    lists:foldl(fun(X, R) -> get_position_or_last(X, N, R) end,
-                Res0, Xs);
+    lists:foldl(
+        fun(X, R) -> get_position_or_last(X, N, R) end,
+        Res0,
+        Xs
+    );
 get_position_or_last({negative, X}, N, Res) ->
     get_position_or_last(X, N, Res);
 get_position_or_last(_, _, Res) ->
     Res.
-
 
 %%
 
@@ -326,21 +349,19 @@ mk_comp(_Op, fail, _) ->
     fail;
 mk_comp(_Op, _, fail) ->
     fail;
-
 %% rewrite "count(E) != 0" to "boolean(E)" (including variations)
-mk_comp('>',  {function_call, xp_count, [E]}, {number, 0}) ->
+mk_comp('>', {function_call, xp_count, [E]}, {number, 0}) ->
     mk_fn_boolean(E);
 mk_comp('!=', {function_call, xp_count, [E]}, {number, 0}) ->
     mk_fn_boolean(E);
-mk_comp('=',  {function_call, xp_count, [E]}, {number, 0}) ->
+mk_comp('=', {function_call, xp_count, [E]}, {number, 0}) ->
     mk_fn_not(mk_fn_boolean(E));
-mk_comp('>',  {number, 0}, {function_call, xp_count, [E]}) ->
+mk_comp('>', {number, 0}, {function_call, xp_count, [E]}) ->
     mk_fn_boolean(E);
 mk_comp('!=', {number, 0}, {function_call, xp_count, [E]}) ->
     mk_fn_boolean(E);
-mk_comp('=',  {number, 0}, {function_call, xp_count, [E]}) ->
+mk_comp('=', {number, 0}, {function_call, xp_count, [E]}) ->
     mk_fn_not(mk_fn_boolean(E));
-
 mk_comp(Op, X, Y) ->
     {comp, Op, X, Y}.
 
@@ -389,7 +410,7 @@ mk_union([]) ->
 mk_union([P]) ->
     P;
 mk_union(Ps) ->
-    case [ P || P <- Ps, P =/= fail] of
+    case [P || P <- Ps, P =/= fail] of
         [] ->
             fail;
         [P] ->
@@ -428,7 +449,7 @@ maybe_list_to_atom(Str, Opts) ->
             list_to_atom(Str)
     end.
 
-rewrite_location_steps([{step, attribute, Name, Prs}|Steps], Opts) ->
+rewrite_location_steps([{step, attribute, Name, Prs} | Steps], Opts) ->
     NewName =
         case Name of
             {name, NS_prefix, Tag_str} ->
@@ -453,10 +474,12 @@ rewrite_location_steps([{step, attribute, Name, Prs}|Steps], Opts) ->
         fail ->
             ?xp_exit(loc_step_predicates_fail, Prs);
         NewPrs ->
-            [{step, attribute, NewName, NewPrs}|
-             rewrite_location_steps(Steps, Opts)]
+            [
+                {step, attribute, NewName, NewPrs}
+                | rewrite_location_steps(Steps, Opts)
+            ]
     end;
-rewrite_location_steps([{step, namespace, Name, Prs}|Steps], Opts) ->
+rewrite_location_steps([{step, namespace, Name, Prs} | Steps], Opts) ->
     NewName =
         case Name of
             {name, NS_prefix, Tag_str} ->
@@ -475,11 +498,15 @@ rewrite_location_steps([{step, namespace, Name, Prs}|Steps], Opts) ->
         fail ->
             ?xp_exit(loc_step_predicates_fail, Prs);
         NewPrs ->
-            [{step, namespace, NewName, NewPrs}|
-             rewrite_location_steps(Steps, Opts)]
+            [
+                {step, namespace, NewName, NewPrs}
+                | rewrite_location_steps(Steps, Opts)
+            ]
     end;
-rewrite_location_steps([{step, Axis, {name, NS_prefix, Tag_str}, Prs}|Steps],
-                       Opts) ->
+rewrite_location_steps(
+    [{step, Axis, {name, NS_prefix, Tag_str}, Prs} | Steps],
+    Opts
+) ->
     ensure_axis_permitted(Axis),
     NS = prefix_to_namespace(NS_prefix, Opts),
     Tag = tag_of(Tag_str),
@@ -488,50 +515,60 @@ rewrite_location_steps([{step, Axis, {name, NS_prefix, Tag_str}, Prs}|Steps],
         fail ->
             ?xp_exit(loc_step_predicates_fail, Prs);
         NewPrs ->
-            [{step, Axis, NewName, NewPrs}|
-             rewrite_location_steps(Steps, Opts)]
+            [
+                {step, Axis, NewName, NewPrs}
+                | rewrite_location_steps(Steps, Opts)
+            ]
     end;
-rewrite_location_steps([{step, Axis, {name, Tag_str}, Prs}|Steps], Opts) ->
+rewrite_location_steps([{step, Axis, {name, Tag_str}, Prs} | Steps], Opts) ->
     ensure_axis_permitted(Axis),
     Tag = tag_of(Tag_str),
-    NewName = case maps:get(default_ns, Opts, 0) of
-                  0 ->
-                      {name, Tag};
-                  DefaultNs ->
-                      {name, maybe_list_to_atom(DefaultNs, Opts), Tag}
-              end,
+    NewName =
+        case maps:get(default_ns, Opts, 0) of
+            0 ->
+                {name, Tag};
+            DefaultNs ->
+                {name, maybe_list_to_atom(DefaultNs, Opts), Tag}
+        end,
     case rewrite_preds(Prs, Opts) of
         fail ->
             ?xp_exit(loc_step_predicates_fail, Prs);
         NewPrs ->
-            [{step, Axis, NewName, NewPrs}|
-             rewrite_location_steps(Steps, Opts)]
+            [
+                {step, Axis, NewName, NewPrs}
+                | rewrite_location_steps(Steps, Opts)
+            ]
     end;
-rewrite_location_steps([{step, descendant_or_self,
-                         {node_type, node} = NodeTest, []}|Steps], Opts) ->
+rewrite_location_steps(
+    [{step, descendant_or_self, {node_type, node} = NodeTest, []} | Steps], Opts
+) ->
     Prs =
         case Steps of
-            [{step,child,NodeTest0,_}|_] when element(1,NodeTest0) == name ->
+            [{step, child, NodeTest0, _} | _] when element(1, NodeTest0) == name ->
                 NodeTest1 = rewrite_node_test(NodeTest0, Opts),
-                [{pred,{relative,[{step,child,NodeTest1,[]}]}}];
+                [{pred, {relative, [{step, child, NodeTest1, []}]}}];
             _ ->
                 []
         end,
-    [{step, descendant_or_self, NodeTest, Prs}|
-     rewrite_location_steps(Steps, Opts)];
-rewrite_location_steps([{step, Axis, NodeTest, Prs}|Steps], Opts) ->
+    [
+        {step, descendant_or_self, NodeTest, Prs}
+        | rewrite_location_steps(Steps, Opts)
+    ];
+rewrite_location_steps([{step, Axis, NodeTest, Prs} | Steps], Opts) ->
     ensure_axis_permitted(Axis),
     case rewrite_preds(Prs, Opts) of
         fail ->
             ?xp_exit(loc_step_predicates_fail, Prs);
         NewPrs ->
             NewNodeTest = rewrite_node_test(NodeTest, Opts),
-            [{step, Axis, NewNodeTest, NewPrs}|
-             rewrite_location_steps(Steps, Opts)]
+            [
+                {step, Axis, NewNodeTest, NewPrs}
+                | rewrite_location_steps(Steps, Opts)
+            ]
     end;
 rewrite_location_steps([], _Opts) ->
     [];
-rewrite_location_steps([OtherStep|_], _Opts) ->
+rewrite_location_steps([OtherStep | _], _Opts) ->
     ?xp_exit(internal_error, {unknown_location_step, OtherStep}).
 
 %% The following node tests can appear:
@@ -557,14 +594,14 @@ rewrite_node_test({namespace, NS_lst}, Opts) ->
     {namespace, NS};
 rewrite_node_test(wildcard, _Opts) ->
     wildcard;
-rewrite_node_test({node_type, _T}=NodeTest, _Opts) ->
+rewrite_node_test({node_type, _T} = NodeTest, _Opts) ->
     NodeTest;
 rewrite_node_test(NodeTest, _Opts) ->
     ?xp_exit(unknown_node_test, NodeTest).
 
 %% If any predicate fails, the location step fails.
 
-rewrite_preds([P|Ps], Opts) ->
+rewrite_preds([P | Ps], Opts) ->
     case rewrite_pred(P, Opts) of
         fail ->
             fail;
@@ -573,7 +610,7 @@ rewrite_preds([P|Ps], Opts) ->
                 fail ->
                     fail;
                 NewPs ->
-                    [NewP|NewPs]
+                    [NewP | NewPs]
             end
     end;
 rewrite_preds([], _Opts) ->
@@ -594,29 +631,22 @@ rewrite_pred({pred, P}, Opts) ->
                         xpath_bif:bif_type(F)
                 end,
             case FunctionType of
-                number -> %% mbj: trial-and-error fix
-                    {pred, {comp,'=',
-                            {function_call,xp_position,[]},
-                            NewP}};
+                %% mbj: trial-and-error fix
+                number ->
+                    {pred, {comp, '=', {function_call, xp_position, []}, NewP}};
                 literal ->
-                    {pred, {comp,'!=',
-                            {literal, ""},
-                            NewP}};
+                    {pred, {comp, '!=', {literal, ""}, NewP}};
                 boolean ->
-                    {pred, {comp,'=',
-                            {bool, true},
-                            NewP}};
+                    {pred, {comp, '=', {bool, true}, NewP}};
                 _ ->
                     {pred, NewP}
             end;
-        {number,_N} = NewP -> %% mbj: trial-and-error fix
-            {pred, {comp,'=',
-                    {function_call,xp_position,[]},
-                    NewP}};
-        {arith,_,_,_} = Expr -> %% mbj: trial-and-error fix
-            {pred, {comp,'=',
-                    {function_call,xp_position,[]},
-                    Expr}};
+        %% mbj: trial-and-error fix
+        {number, _N} = NewP ->
+            {pred, {comp, '=', {function_call, xp_position, []}, NewP}};
+        %% mbj: trial-and-error fix
+        {arith, _, _, _} = Expr ->
+            {pred, {comp, '=', {function_call, xp_position, []}, Expr}};
         NewP ->
             {pred, NewP}
     end.
@@ -658,15 +688,15 @@ insert_sort_order_pred({union, Paths}, Pred) ->
 insert_sort_order_pred({path, filter, _} = E, Pred) ->
     %% XXX This can't be right...
     {path, filter, E, Pred};
-insert_sort_order_pred([Expr|Steps], Pred) ->
-    [Expr|isop_path(Steps, Pred)];
+insert_sort_order_pred([Expr | Steps], Pred) ->
+    [Expr | isop_path(Steps, Pred)];
 insert_sort_order_pred(_Expr, _Pred) ->
     ?xp_exit(invalid_sort_order_expr, "").
 
 isop_path([{step, Axis, NodeTest, Preds}], Pred) ->
-    [{step, Axis, NodeTest, [Pred|Preds]}];
-isop_path([Step|Steps], Pred) ->
-    [Step|isop_path(Steps, Pred)].
+    [{step, Axis, NodeTest, [Pred | Preds]}];
+isop_path([Step | Steps], Pred) ->
+    [Step | isop_path(Steps, Pred)].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%
@@ -721,15 +751,17 @@ find_variables_expr({literal, _}, Acc) ->
 find_variables_expr({bool, _}, Acc) ->
     Acc;
 find_variables_expr({var, VariableName}, Acc) ->
-    [list_to_binary(VariableName)|Acc];
-find_variables_expr({path_expr, {function_call, {undefined_function, _F}, Xs}},
-                    Acc) ->
+    [list_to_binary(VariableName) | Acc];
+find_variables_expr(
+    {path_expr, {function_call, {undefined_function, _F}, Xs}},
+    Acc
+) ->
     lists:foldl(fun find_variables_expr/2, Acc, Xs);
 find_variables_expr({path_expr, {function_call, _F, Xs}}, Acc) ->
     lists:foldl(fun find_variables_expr/2, Acc, Xs);
 find_variables_expr({path_expr, E}, Acc) ->
     find_variables_expr(E, Acc);
-find_variables_expr([E0|Steps0], Acc) ->
+find_variables_expr([E0 | Steps0], Acc) ->
     find_variables_expr(E0, find_variables_path(Steps0, Acc));
 find_variables_expr({path, filter, {Expr, Pred}}, Acc) ->
     find_variables_pred(Pred, find_variables_expr(Expr, Acc));
@@ -740,7 +772,7 @@ find_variables_expr(_, Acc) ->
 %%
 find_variables_preds([], Acc) ->
     Acc;
-find_variables_preds([P|Ps], Acc) ->
+find_variables_preds([P | Ps], Acc) ->
     find_variables_preds(Ps, find_variables_pred(P, Acc)).
 
 find_variables_pred({pred, P}, Acc) ->
@@ -750,13 +782,13 @@ find_variables_pred({pred, P}, Acc) ->
 %%
 find_variables_path([], Acc) ->
     Acc;
-find_variables_path([{step, _, _, Preds}|Steps], Acc) ->
+find_variables_path([{step, _, _, Preds} | Steps], Acc) ->
     find_variables_path(Steps, find_variables_preds(Preds, Acc)).
 
 is_node_set(E) ->
     is_node_set(E, #{}).
 
-is_node_set([{step, _, _, _}|_], _) ->
+is_node_set([{step, _, _, _} | _], _) ->
     true;
 is_node_set({absolute, _Path}, _) ->
     true;
@@ -796,7 +828,7 @@ is_node_set({var, _VariableName}, _) ->
     false;
 is_node_set({path_expr, _}, _) ->
     true;
-is_node_set([E0|_Steps0], Opts) ->
+is_node_set([E0 | _Steps0], Opts) ->
     is_node_set(E0, Opts);
 is_node_set({path, filter, _}, _) ->
     true;
@@ -827,7 +859,8 @@ map_expr(F, Expr) ->
             F({path, filter, {map_expr(F, E), map_expr(F, Pred)}});
         [E | Steps] ->
             [map_expr(F, E) | map_path(F, Steps)];
-        _ -> % literal, number, ...
+        % literal, number, ...
+        _ ->
             F(Expr)
     end.
 
@@ -838,7 +871,8 @@ map_path(_, []) ->
 
 map_preds(F, [{pred, E} | T]) ->
     [{pred, map_expr(F, E)} | map_preds(F, T)];
-map_preds(F, [H | T]) -> % can be 'fail'
+% can be 'fail'
+map_preds(F, [H | T]) ->
     [H | map_preds(F, T)];
 map_preds(_, []) ->
     [].
@@ -869,7 +903,8 @@ fold_expr(F, Acc, Expr) ->
             F(Expr, fold_expr(F, fold_expr(F, Acc, Pred), E));
         [E | Steps] ->
             fold_expr(F, fold_path(F, Acc, Steps), E);
-        _ -> % literal, number, ...
+        % literal, number, ...
+        _ ->
             F(Expr, Acc)
     end.
 
@@ -880,8 +915,8 @@ fold_path(_, Acc, []) ->
 
 fold_preds(F, Acc, [{pred, E} | T]) ->
     fold_preds(F, fold_expr(F, Acc, E), T);
-fold_preds(F, Acc, [_H | T]) -> % can be 'fail'
+% can be 'fail'
+fold_preds(F, Acc, [_H | T]) ->
     fold_preds(F, Acc, T);
 fold_preds(_, Acc, []) ->
     Acc.
-

@@ -1,8 +1,10 @@
 -module(yang_if_feature).
--export([parse/1,
-         resolve_prefixes/4,
-         eval/2,
-         get_features/1]).
+-export([
+    parse/1,
+    resolve_prefixes/4,
+    eval/2,
+    get_features/1
+]).
 
 -export([map_expr/2, fold_expr/3]).
 -export([expr2str/1]).
@@ -11,10 +13,11 @@
 
 -include_lib("yanger/include/yang.hrl").
 
--type expr() :: {'or', expr(), expr()}
-              | {'and', expr(), expr()}
-              | {'not', expr()}
-              | {identifier, yang:yang_identifier()}.
+-type expr() ::
+    {'or', expr(), expr()}
+    | {'and', expr(), expr()}
+    | {'not', expr()}
+    | {identifier, yang:yang_identifier()}.
 
 %%   if-feature-expr     = "(" if-feature-expr ")" /
 %%                         if-feature-expr sep boolean-operator sep
@@ -83,19 +86,24 @@ factor(Str0) ->
             {{identifier, Identifier}, Str1}
     end.
 
-
--define(is_ws(X), (X == $\s orelse X == $\t orelse
-                   X == $\n orelse X == $\r)).
+-define(is_ws(X),
+    (X == $\s orelse X == $\t orelse
+        X == $\n orelse X == $\r)
+).
 -define(is_sep(X), (?is_ws(X) orelse (X) == $( orelse (X) == $))).
--define(is_identifier1(X), ((X >= $a andalso X =< $z)
-                            orelse (X >= $A andalso X =< $Z)
-                            orelse (X == $_))).
--define(is_identifier2(X), ((X >= $a andalso X =< $z)
-                            orelse (X >= $A andalso X =< $Z)
-                            orelse (X >= $0 andalso X =< $9)
-                            orelse (X == $_)
-                            orelse (X == $.)
-                            orelse (X == $-))).
+-define(is_identifier1(X),
+    ((X >= $a andalso X =< $z) orelse
+        (X >= $A andalso X =< $Z) orelse
+        (X == $_))
+).
+-define(is_identifier2(X),
+    ((X >= $a andalso X =< $z) orelse
+        (X >= $A andalso X =< $Z) orelse
+        (X >= $0 andalso X =< $9) orelse
+        (X == $_) orelse
+        (X == $.) orelse
+        (X == $-))
+).
 
 get_tok(S0) ->
     S1 = skip_ws(S0),
@@ -141,7 +149,7 @@ return_identifier(S, Acc, Pre) ->
     end.
 
 -spec resolve_prefixes(expr(), yang:pos(), #module{}, #yctx{}) ->
-          {undefined | expr(), #yctx{}}.
+    {undefined | expr(), #yctx{}}.
 resolve_prefixes(Expr, Pos, M, Ctx0) ->
     case Expr of
         {Op, ExprL, ExprR} ->
@@ -173,9 +181,11 @@ resolve_prefixes(Expr, Pos, M, Ctx0) ->
             end
     end.
 
--spec eval(expr(),
-           none | yang:map(ModName :: atom(), [FeatureName :: atom()])) ->
-          boolean().
+-spec eval(
+    expr(),
+    none | yang:map(ModName :: atom(), [FeatureName :: atom()])
+) ->
+    boolean().
 eval(_, none) ->
     false;
 eval(Expr, FMap) ->
@@ -185,7 +195,7 @@ eval(Expr, FMap) ->
         {'and', ExprL, ExprR} ->
             eval(ExprL, FMap) andalso eval(ExprR, FMap);
         {'not', ExprR} ->
-            not(eval(ExprR, FMap));
+            not (eval(ExprR, FMap));
         {identifier, {ModuleName, Name}} ->
             case yang:map_lookup(ModuleName, FMap) of
                 {value, GivenFeatures} ->
