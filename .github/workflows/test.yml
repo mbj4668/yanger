@@ -37,6 +37,16 @@ jobs:
         run: |
           pip3 install pyang
 
+      - name: Debug pyang
+        run: |
+          set +e
+          echo "PATH=$PATH"
+          which -a pyang || true
+          head -3 "$(which pyang)" || true
+          pyang --version; echo "exit=$?"
+          cd test/lux/tree
+          pyang --no-path-recurse --ignore-errors -f tree -p . small2.yang; echo "exit=$?"
+
       - name: Install lux
         run: |
           git clone https://github.com/hawk/lux.git
@@ -51,3 +61,11 @@ jobs:
           source env.sh
           make
           make test
+
+      - name: Upload lux logs
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: lux-logs-otp-${{matrix.otp}}
+          path: test/lux/**/lux_logs/
+          if-no-files-found: ignore
