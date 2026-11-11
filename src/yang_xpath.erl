@@ -51,15 +51,23 @@ mk_ns_map([], _M, Map) ->
 make_prefix_map(PrefixNsList, DefaultNs) ->
     {{make_atoms, xpath_rewrite:prefixes_with_no_default_namespace(PrefixNsList)}, DefaultNs}.
 
--spec compile(Str :: binary(), NsMap :: any()) ->
+-spec compile(Str :: binary(), xpath_rewrite:opts() | xpath_rewrite:legacy_ns_map()) ->
     {ok, Expr :: any()}
     | {error, ErrStr :: list()}.
 %% Called when an XPath expression is first defined.  Should detect
 %% unknown prefixes, and when unknown functions are called.
 %% This function must not bind un-prefixed names to the default namespace.
-compile(Str, NsMap) ->
+compile(Str, Opts) when is_map(Opts) ->
+    case xpath_compile(?b2l(Str), Opts) of
+        {ok, CompiledXPath} ->
+            {ok, CompiledXPath};
+        {error, {Mod, Err}} ->
+            {error, Mod:strerror(Err)}
+    end;
+compile(Str, NsMap) when is_tuple(NsMap) ->
     compile(Str, NsMap, []).
-compile(Str, NsMap, ExtraFunctions) ->
+
+compile(Str, NsMap, ExtraFunctions) when is_tuple(NsMap) ->
     Opts =
         case NsMap of
             {make_atoms, {PrefixNsMap, DefaultNs}} ->
@@ -76,12 +84,7 @@ compile(Str, NsMap, ExtraFunctions) ->
                     functions => ExtraFunctions
                 }
         end,
-    case xpath_compile(?b2l(Str), Opts) of
-        {ok, CompiledXPath} ->
-            {ok, CompiledXPath};
-        {error, {Mod, Err}} ->
-            {error, Mod:strerror(Err)}
-    end.
+    compile(Str, Opts).
 
 -spec compile(
     Str :: binary(),
