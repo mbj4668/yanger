@@ -19,7 +19,6 @@
 -include_lib("yanger/include/yang.hrl").
 
 %%% XPath functions.
-%%% Currently uses Tail-f XPath code.  Could use xmerl instead.
 
 %% NOTE: we map prefix to modulename, not to the module's namespace.  The
 %% reason for this is that we always want to check these expressions towards
@@ -67,7 +66,7 @@ compile(Str, NsMap, ExtraFunctions) ->
                 #{
                     prefixes => PrefixNsMap,
                     default_ns => DefaultNs,
-                    make_atoms => true,
+                    str_type => make_atoms,
                     functions => ExtraFunctions
                 };
             {PrefixNsMap, DefaultNs} ->

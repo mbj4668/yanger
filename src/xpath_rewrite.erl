@@ -25,13 +25,64 @@
     fold_expr/3
 ]).
 
+-export_type([
+    opts/0,
+    str_type/0,
+    namespace/0,
+    legacy_ns_map/0,
+    expr/0,
+    pred/0
+]).
+
+%% How names (tags, attributes and the default namespace) found in the
+%% expression are represented in the result:
+%%   existing_atoms (default) - as atoms, but only if the atom already
+%%       exists; otherwise the name is unknown (path fails / error)
+%%   make_atoms - as atoms, created if needed
+%%   make_binaries - as binaries
+%%   existing_atoms_or_binaries - as atoms if the atom already exists,
+%%       otherwise as binaries
+-type str_type() ::
+    existing_atoms
+    | make_atoms
+    | make_binaries
+    | existing_atoms_or_binaries.
+
+%% A namespace from the prefixes map is used as is.
+-type namespace() :: atom() | binary().
+
+-type opts() :: #{
+    %% Maps namespace prefixes to namespaces.
+    prefixes => #{Prefix :: string() => namespace()},
+    %% The namespace for unprefixed names; 0 means no default namespace.
+    %% A string is converted according to str_type.
+    default_ns => 0 | atom() | string(),
+    str_type => str_type(),
+    %% Legacy; make_atoms => true is the same as str_type => make_atoms.
+    make_atoms => boolean(),
+    %% Extra (non-builtin) functions.
+    functions => [{Name :: atom(), Arity :: arity(), Type :: atom()}]
+}.
+
+%% Legacy form of opts().
+-type legacy_ns_map() ::
+    {Prefixes :: #{string() => namespace()}, DefaultNs :: 0 | atom() | string()}
+    | {make_atoms,
+        {Prefixes :: #{string() => namespace()}, DefaultNs :: 0 | atom() | string()}}.
+
+%% A parsed or rewritten XPath expression.
+-type expr() :: term().
+-type pred() :: {pred, expr()}.
+
 -define(xp_exit(Tag, Rsn), exit({(Tag), ?MODULE, ?LINE, (Rsn)})).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+-spec q(Q :: expr()) -> expr() | fail.
 q(Q) ->
     q(Q, empty_namespace_opts()).
 
+-spec q(Q :: expr(), Opts :: opts() | legacy_ns_map()) -> expr() | fail.
 q(Q, Opts) ->
     case rewrite_expr(Q, Opts) of
         {absolute, _} = Path ->
@@ -59,12 +110,14 @@ q(Q, Opts) ->
 %% a namespace (or a namespace prefix?)
 %% = which should it be?
 
+-spec rewrite_expr(Expr :: expr(), Opts :: opts() | legacy_ns_map()) ->
+    expr() | fail.
 rewrite_expr(Expr, {make_atoms, {Prefixes, DefaultNs}}) ->
     %% legacy NS_map argumet - convert to Opts map
     rewrite_expr(Expr, #{
         prefixes => Prefixes,
         default_ns => DefaultNs,
-        make_atoms => true
+        str_type => make_atoms
     });
 rewrite_expr(Expr, {Prefixes, DefaultNs}) ->
     %% legacy NS_map argumet - convert to Opts map
@@ -72,25 +125,35 @@ rewrite_expr(Expr, {Prefixes, DefaultNs}) ->
         prefixes => Prefixes,
         default_ns => DefaultNs
     });
-rewrite_expr({absolute, Path}, Opts) ->
+rewrite_expr(Expr, #{make_atoms := MakeAtoms} = Opts0) ->
+    %% legacy make_atoms option - convert to str_type
+    Opts = maps:remove(make_atoms, Opts0),
+    case MakeAtoms of
+        true -> rewrite_expr(Expr, Opts#{str_type => make_atoms});
+        false -> rewrite_expr(Expr, Opts)
+    end;
+rewrite_expr(Expr, Opts) ->
+    rewrite_expr0(Expr, Opts).
+
+rewrite_expr0({absolute, Path}, Opts) ->
     mk_absolute(rewrite_path(Path, Opts));
-rewrite_expr({relative, Path}, Opts) ->
+rewrite_expr0({relative, Path}, Opts) ->
     mk_relative(rewrite_path(Path, Opts));
-rewrite_expr({union, Paths}, Opts) ->
-    mk_union([rewrite_expr(Path, Opts) || Path <- Paths]);
-rewrite_expr({comp, Op, E1, E2}, Opts) ->
-    mk_comp(Op, rewrite_expr(E1, Opts), rewrite_expr(E2, Opts));
-rewrite_expr({arith, Op, E1, E2}, Opts) ->
-    {arith, Op, rewrite_expr(E1, Opts), rewrite_expr(E2, Opts)};
-rewrite_expr({bool, 'or', E1, E2}, Opts) ->
-    mk_or(rewrite_expr(E1, Opts), rewrite_expr(E2, Opts));
-rewrite_expr({bool, 'and', E1, E2}, Opts) ->
-    mk_and(rewrite_expr(E1, Opts), rewrite_expr(E2, Opts));
-rewrite_expr({function_call, 'xp_sort-by', [E1, E2]}, Opts) ->
+rewrite_expr0({union, Paths}, Opts) ->
+    mk_union([rewrite_expr0(Path, Opts) || Path <- Paths]);
+rewrite_expr0({comp, Op, E1, E2}, Opts) ->
+    mk_comp(Op, rewrite_expr0(E1, Opts), rewrite_expr0(E2, Opts));
+rewrite_expr0({arith, Op, E1, E2}, Opts) ->
+    {arith, Op, rewrite_expr0(E1, Opts), rewrite_expr0(E2, Opts)};
+rewrite_expr0({bool, 'or', E1, E2}, Opts) ->
+    mk_or(rewrite_expr0(E1, Opts), rewrite_expr0(E2, Opts));
+rewrite_expr0({bool, 'and', E1, E2}, Opts) ->
+    mk_and(rewrite_expr0(E1, Opts), rewrite_expr0(E2, Opts));
+rewrite_expr0({function_call, 'xp_sort-by', [E1, E2]}, Opts) ->
     Pred =
-        {pred, {comp, '=', {bool, true}, {function_call, 'xp_sort-by', [rewrite_expr(E2, Opts)]}}},
-    insert_sort_order_pred(rewrite_expr(E1, Opts), Pred);
-rewrite_expr({function_call, Fun, [E1, E2]}, Opts) when
+        {pred, {comp, '=', {bool, true}, {function_call, 'xp_sort-by', [rewrite_expr0(E2, Opts)]}}},
+    insert_sort_order_pred(rewrite_expr0(E1, Opts), Pred);
+rewrite_expr0({function_call, Fun, [E1, E2]}, Opts) when
     Fun == 'xp_derived-from' orelse Fun == 'xp_derived-from-or-self'
 ->
     %% This is unfortunate.  If E2 is a string literal (which it will be
@@ -101,7 +164,7 @@ rewrite_expr({function_call, Fun, [E1, E2]}, Opts) when
     %%   derived-from(., concat("x:", name))
     %% in order to implement this correctly, we'd have to keep the prefix map
     %% from the YANG module...
-    case rewrite_expr(E2, Opts) of
+    case rewrite_expr0(E2, Opts) of
         {literal, Str} ->
             case xpath_scan:tokens(Str) of
                 [{name, _, {Prefix, LocalName}}, {'$end', _, '$end'}] ->
@@ -115,7 +178,7 @@ rewrite_expr({function_call, Fun, [E1, E2]}, Opts) when
                                 prefix_to_namespace(Prefix, Opts)
                         end,
                     {function_call, Fun, [
-                        rewrite_expr(E1, Opts),
+                        rewrite_expr0(E1, Opts),
                         {literal, NS},
                         {literal, LocalName}
                     ]};
@@ -127,9 +190,9 @@ rewrite_expr({function_call, Fun, [E1, E2]}, Opts) when
                 nyi2,
                 "currently second argument must be a literal string"
             )
-        %{function_call, Fun, [rewrite_expr(E1, Opts), E2_RW]}
+        %{function_call, Fun, [rewrite_expr0(E1, Opts), E2_RW]}
     end;
-rewrite_expr({function_call, F, Xs}, Opts) ->
+rewrite_expr0({function_call, F, Xs}, Opts) ->
     case F of
         {undefined_function, F_name} ->
             %% was fail
@@ -153,7 +216,7 @@ rewrite_expr({function_call, F, Xs}, Opts) ->
                         {lists:nthtail(3, atom_to_list(F)), length(Xs)}
                     )
             end,
-            NewXs = [rewrite_expr(X, Opts) || X <- Xs],
+            NewXs = [rewrite_expr0(X, Opts) || X <- Xs],
             if
                 F == xp_not ->
                     case NewXs of
@@ -166,24 +229,24 @@ rewrite_expr({function_call, F, Xs}, Opts) ->
                     {function_call, F, NewXs}
             end
     end;
-rewrite_expr({negative, X}, Opts) ->
-    case rewrite_expr(X, Opts) of
+rewrite_expr0({negative, X}, Opts) ->
+    case rewrite_expr0(X, Opts) of
         {number, N} ->
             {number, 0 - N};
         E ->
             {arith, '-', {number, 0}, E}
     end;
-rewrite_expr({number, _} = E, _Opts) ->
+rewrite_expr0({number, _} = E, _Opts) ->
     E;
-rewrite_expr({literal, _} = E, _Opts) ->
+rewrite_expr0({literal, _} = E, _Opts) ->
     E;
-rewrite_expr({bool, _} = E, _Opts) ->
+rewrite_expr0({bool, _} = E, _Opts) ->
     E;
-rewrite_expr({var, _} = E, _Opts) ->
+rewrite_expr0({var, _} = E, _Opts) ->
     E;
-rewrite_expr({path_expr, {function_call, {undefined_function, F}, Xs}}, _) ->
+rewrite_expr0({path_expr, {function_call, {undefined_function, F}, Xs}}, _) ->
     ?xp_exit(undefined_function, {F, length(Xs)});
-rewrite_expr({path_expr, E = {function_call, F, _}}, Opts) ->
+rewrite_expr0({path_expr, E = {function_call, F, _}}, Opts) ->
     FunctionType =
         case lists:keyfind(F, 1, maps:get(functions, Opts, [])) of
             {F, _Arity, Type} ->
@@ -194,30 +257,31 @@ rewrite_expr({path_expr, E = {function_call, F, _}}, Opts) ->
     case FunctionType of
         nodeset ->
             %% Make us evaluate this as a path expression
-            rewrite_expr([E], Opts);
+            rewrite_expr0([E], Opts);
         _ ->
-            rewrite_expr(E, Opts)
+            rewrite_expr0(E, Opts)
     end;
-rewrite_expr({path_expr, E}, Opts) ->
-    rewrite_expr(E, Opts);
-rewrite_expr([E0 | Steps0], Opts) ->
+rewrite_expr0({path_expr, E}, Opts) ->
+    rewrite_expr0(E, Opts);
+rewrite_expr0([E0 | Steps0], Opts) ->
     case rewrite_path(Steps0, Opts) of
         fail ->
             fail;
         Steps ->
-            case rewrite_expr(E0, Opts) of
+            case rewrite_expr0(E0, Opts) of
                 fail ->
                     fail;
                 E ->
                     [E | Steps]
             end
     end;
-rewrite_expr({path, filter, {Expr, Pred}}, Opts) ->
-    {path, filter, {rewrite_expr(Expr, Opts), rewrite_pred(Pred, Opts)}};
-rewrite_expr(Other, _Opts) ->
+rewrite_expr0({path, filter, {Expr, Pred}}, Opts) ->
+    {path, filter, {rewrite_expr0(Expr, Opts), rewrite_pred(Pred, Opts)}};
+rewrite_expr0(Other, _Opts) ->
     ?xp_exit(internal_error, {unhandled_expr, Other}).
 
 %% position or last
+-spec preds_contain_position([pred()]) -> boolean().
 preds_contain_position(Preds) ->
     lists:any(
         fun({pred, P}) -> pred_contains_position(P) end,
@@ -265,6 +329,8 @@ pred_contains_position(_Other) ->
 %% Ret: false | {last,N} | position
 %% Where N is the first predicate that contains last().  Returns
 %% 'last' only if a predicate after the first one contains last()
+-spec get_position_or_last(Preds :: [pred()], SkipFirstPredIfLast :: boolean()) ->
+    false | {last, pos_integer()} | position.
 get_position_or_last([], _) ->
     false;
 get_position_or_last([{pred, Pred} | Preds], _SkipFirstPredIfLast = true) ->
@@ -288,6 +354,7 @@ get_position_or_last1(Preds, Start, Res) ->
             RR
     end.
 
+-spec pred_contains_last(pred()) -> boolean().
 pred_contains_last({pred, P}) ->
     try
         get_position_or_last(P, 1, false),
@@ -443,21 +510,30 @@ rewrite_path(LocSteps, Opts) ->
 
 %% Without make_atoms, we don't create atoms dynamically.  A name that
 %% isn't already an atom can't be a known tag, attribute, or namespace.
-maybe_list_to_atom(Str, Opts) ->
-    case maps:get(make_atoms, Opts, false) of
-        false ->
+conv_str(Str, Opts) ->
+    case maps:get(str_type, Opts, existing_atoms) of
+        existing_atoms ->
             try
                 {ok, list_to_existing_atom(Str)}
             catch
                 error:badarg ->
                     error
             end;
-        true ->
-            {ok, list_to_atom(Str)}
+        make_atoms ->
+            {ok, list_to_atom(Str)};
+        make_binaries ->
+            {ok, list_to_binary(Str)};
+        existing_atoms_or_binaries ->
+            try
+                {ok, list_to_existing_atom(Str)}
+            catch
+                error:badarg ->
+                    {ok, list_to_binary(Str)}
+            end
     end.
 
 attr_of(Attr_str, Opts) ->
-    case maybe_list_to_atom(Attr_str, Opts) of
+    case conv_str(Attr_str, Opts) of
         {ok, Attr} ->
             Attr;
         error ->
@@ -467,7 +543,7 @@ attr_of(Attr_str, Opts) ->
 default_ns_of(DefaultNs, _Opts) when is_atom(DefaultNs) ->
     DefaultNs;
 default_ns_of(DefaultNs, Opts) ->
-    case maybe_list_to_atom(DefaultNs, Opts) of
+    case conv_str(DefaultNs, Opts) of
         {ok, NS} ->
             NS;
         error ->
@@ -635,7 +711,7 @@ rewrite_preds([], _Opts) ->
 %%
 
 rewrite_pred({pred, P}, Opts) ->
-    case rewrite_expr(P, Opts) of
+    case rewrite_expr0(P, Opts) of
         fail ->
             fail;
         {function_call, F, _Args} = NewP ->
@@ -689,7 +765,7 @@ ensure_axis_permitted(_Axis) ->
 %% at the root.)
 
 tag_of(Tag_str, Opts) ->
-    case maybe_list_to_atom(Tag_str, Opts) of
+    case conv_str(Tag_str, Opts) of
         {ok, Tag} ->
             Tag;
         error ->
@@ -733,9 +809,14 @@ prefix_to_namespace(Prefix, Opts) ->
             ?xp_exit(invalid_namespace_prefix, Prefix)
     end.
 
+-spec prefixes_with_default_namespace(
+    NS_prefixes :: #{string() => namespace()}, Dflt :: string()
+) -> legacy_ns_map().
 prefixes_with_default_namespace(NS_prefixes, Dflt) when is_list(Dflt) ->
     {NS_prefixes, Dflt}.
 
+-spec prefixes_with_no_default_namespace(NS_prefixes :: #{string() => namespace()}) ->
+    legacy_ns_map().
 prefixes_with_no_default_namespace(NS_prefixes) ->
     No_dflt = 0,
     {NS_prefixes, No_dflt}.
@@ -744,9 +825,12 @@ empty_namespace_opts() ->
     #{}.
 
 %% Find variables in expressions
+-spec find_variables_expr(expr()) -> [VariableName :: term()].
 find_variables_expr(E) ->
     lists:usort(find_variables_expr(E, [])).
 
+-spec find_variables_expr(expr(), Acc :: [VariableName :: term()]) ->
+    [VariableName :: term()].
 find_variables_expr({absolute, Path}, Acc) ->
     find_variables_path(Path, Acc);
 find_variables_expr({relative, Path}, Acc) ->
@@ -806,9 +890,11 @@ find_variables_path([], Acc) ->
 find_variables_path([{step, _, _, Preds} | Steps], Acc) ->
     find_variables_path(Steps, find_variables_preds(Preds, Acc)).
 
+-spec is_node_set(expr()) -> boolean().
 is_node_set(E) ->
     is_node_set(E, #{}).
 
+-spec is_node_set(expr(), Opts :: opts()) -> boolean().
 is_node_set([{step, _, _, _} | _], _) ->
     true;
 is_node_set({absolute, _Path}, _) ->
@@ -856,6 +942,8 @@ is_node_set({path, filter, _}, _) ->
 is_node_set(_, _) ->
     false.
 
+%% F is applied bottom-up to every sub-expression and location step.
+-spec map_expr(F :: fun((expr()) -> expr()), Expr :: expr()) -> expr().
 map_expr(F, Expr) ->
     case Expr of
         {absolute, Path} ->
@@ -899,6 +987,8 @@ map_preds(_, []) ->
     [].
 
 %% F :: fun(Expr, Acc) -> Acc'
+%% F is applied bottom-up to every sub-expression and location step.
+-spec fold_expr(F :: fun((expr(), Acc) -> Acc), Acc, Expr :: expr()) -> Acc.
 fold_expr(F, Acc, Expr) ->
     FoldExprF = fun(Expr1, Acc1) -> fold_expr(F, Acc1, Expr1) end,
     case Expr of

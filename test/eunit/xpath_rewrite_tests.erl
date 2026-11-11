@@ -87,6 +87,15 @@ unknown_tag_in_predicate_test() ->
 unknown_tag_is_created_with_make_atoms_test() ->
     Name = "xpr_test_make_atom_tag",
     assert_not_atom(Name),
+    Res = rewrite("/" ++ Name, #{str_type => make_atoms}),
+    ?assertEqual(
+        {absolute, [{step, child, {name, list_to_existing_atom(Name)}, []}]},
+        Res
+    ).
+
+unknown_tag_is_created_with_legacy_make_atoms_test() ->
+    Name = "xpr_test_make_atom_tag_legacy",
+    assert_not_atom(Name),
     Res = rewrite("/" ++ Name, #{make_atoms => true}),
     ?assertEqual(
         {absolute, [{step, child, {name, list_to_existing_atom(Name)}, []}]},
@@ -94,7 +103,7 @@ unknown_tag_is_created_with_make_atoms_test() ->
     ).
 
 %% The legacy {make_atoms, {Prefixes, DefaultNs}} argument.
-unknown_tag_is_created_with_legacy_make_atoms_test() ->
+unknown_tag_is_created_with_legacy_make_atoms_ns_test() ->
     Name = "xpr_test_make_atom_legacy",
     assert_not_atom(Name),
     Res = xpath_rewrite:rewrite_expr(
@@ -191,6 +200,136 @@ default_ns_unknown_string_is_created_with_make_atoms_test() ->
     ?assertEqual(
         {absolute, [{step, child, {name, list_to_existing_atom(Name), known_tag}, []}]},
         Res
+    ).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% str_type option
+
+%% existing_atoms (the default), given explicitly.
+str_type_existing_atoms_known_tag_test() ->
+    ?assertEqual(
+        {absolute, [{step, child, {name, known_tag}, []}]},
+        rewrite("/known_tag", #{str_type => existing_atoms})
+    ).
+
+str_type_existing_atoms_unknown_tag_test() ->
+    Name = "xpr_test_no_atom_st_ea_tag",
+    ?assertEqual(fail, rewrite("/" ++ Name, #{str_type => existing_atoms})),
+    assert_not_atom(Name).
+
+%% make_atoms => false is the same as the default.
+legacy_make_atoms_false_unknown_tag_test() ->
+    Name = "xpr_test_no_atom_ma_false_tag",
+    ?assertEqual(fail, rewrite("/" ++ Name, #{make_atoms => false})),
+    assert_not_atom(Name).
+
+%% make_binaries - every name becomes a binary, even known atoms.
+str_type_make_binaries_known_tag_test() ->
+    ?assertEqual(
+        {absolute, [{step, child, {name, <<"known_tag">>}, []}]},
+        rewrite("/known_tag", #{str_type => make_binaries})
+    ).
+
+str_type_make_binaries_unknown_tag_test() ->
+    Name = "xpr_test_no_atom_st_mb_tag",
+    ?assertEqual(
+        {absolute, [{step, child, {name, list_to_binary(Name)}, []}]},
+        rewrite("/" ++ Name, #{str_type => make_binaries})
+    ),
+    assert_not_atom(Name).
+
+str_type_make_binaries_tag_with_prefix_test() ->
+    Name = "xpr_test_no_atom_st_mb_ptag",
+    ?assertEqual(
+        {absolute, [{step, child, {name, known_ns, list_to_binary(Name)}, []}]},
+        rewrite("/p:" ++ Name, (prefixes())#{str_type => make_binaries})
+    ),
+    assert_not_atom(Name).
+
+%% A prefix mapped to a binary namespace is passed through as is.
+str_type_make_binaries_binary_ns_prefix_test() ->
+    Tag = "xpr_test_no_atom_st_mb_bns_tag",
+    Attr = "xpr_test_no_atom_st_mb_bns_attr",
+    NS = <<"urn:xpr-test:binary-ns">>,
+    ?assertEqual(
+        {absolute, [
+            {step, child, {name, NS, list_to_binary(Tag)}, []},
+            {step, attribute, {name, NS, list_to_binary(Attr)}, []}
+        ]},
+        rewrite(
+            "/p:" ++ Tag ++ "/@p:" ++ Attr,
+            #{prefixes => #{"p" => NS}, str_type => make_binaries}
+        )
+    ),
+    assert_not_atom(Tag),
+    assert_not_atom(Attr).
+
+str_type_make_binaries_attr_test() ->
+    Name = "xpr_test_no_atom_st_mb_attr",
+    ?assertEqual(
+        {absolute, [
+            {step, child, {name, <<"known_tag">>}, []},
+            {step, attribute, {name, list_to_binary(Name)}, []}
+        ]},
+        rewrite("/known_tag/@" ++ Name, #{str_type => make_binaries})
+    ),
+    assert_not_atom(Name).
+
+str_type_make_binaries_default_ns_test() ->
+    Name = "xpr_test_no_atom_st_mb_ns",
+    ?assertEqual(
+        {absolute, [{step, child, {name, list_to_binary(Name), <<"known_tag">>}, []}]},
+        rewrite("/known_tag", #{default_ns => Name, str_type => make_binaries})
+    ),
+    assert_not_atom(Name).
+
+%% existing_atoms_or_binaries - known names become atoms, unknown
+%% names become binaries.
+str_type_existing_atoms_or_binaries_known_tag_test() ->
+    ?assertEqual(
+        {absolute, [{step, child, {name, known_tag}, []}]},
+        rewrite("/known_tag", #{str_type => existing_atoms_or_binaries})
+    ).
+
+str_type_existing_atoms_or_binaries_unknown_tag_test() ->
+    Name = "xpr_test_no_atom_st_eaob_tag",
+    ?assertEqual(
+        {absolute, [{step, child, {name, list_to_binary(Name)}, []}]},
+        rewrite("/" ++ Name, #{str_type => existing_atoms_or_binaries})
+    ),
+    assert_not_atom(Name).
+
+str_type_existing_atoms_or_binaries_attr_test() ->
+    Name = "xpr_test_no_atom_st_eaob_attr",
+    ?assertEqual(
+        {absolute, [
+            {step, child, {name, known_tag}, []},
+            {step, attribute, {name, known_attr}, []},
+            {step, attribute, {name, list_to_binary(Name)}, []}
+        ]},
+        rewrite(
+            "/known_tag/@known_attr/@" ++ Name,
+            #{str_type => existing_atoms_or_binaries}
+        )
+    ),
+    assert_not_atom(Name).
+
+str_type_existing_atoms_or_binaries_default_ns_test() ->
+    Name = "xpr_test_no_atom_st_eaob_ns",
+    ?assertEqual(
+        {absolute, [{step, child, {name, list_to_binary(Name), known_tag}, []}]},
+        rewrite("/known_tag", #{
+            default_ns => Name,
+            str_type => existing_atoms_or_binaries
+        })
+    ),
+    assert_not_atom(Name),
+    ?assertEqual(
+        {absolute, [{step, child, {name, known_ns, known_tag}, []}]},
+        rewrite("/known_tag", #{
+            default_ns => "known_ns",
+            str_type => existing_atoms_or_binaries
+        })
     ).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
