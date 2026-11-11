@@ -36,16 +36,10 @@ jobs:
       - name: Install pyang
         run: |
           pip3 install pyang
-
-      - name: Debug pyang
-        run: |
-          set +e
-          echo "PATH=$PATH"
-          which -a pyang || true
-          head -3 "$(which pyang)" || true
-          pyang --version; echo "exit=$?"
-          cd test/lux/tree
-          pyang --no-path-recurse --ignore-errors -f tree -p . small2.yang; echo "exit=$?"
+          # Point pyang at its installed modules.  Without this, a pip
+          # user install (as on ubuntu-26.04) makes pyang 2.7.1 call
+          # pkgutil.find_loader, which was removed in Python 3.14.
+          echo "YANG_INSTALL=$(python3 -m site --user-base)/share" >> "$GITHUB_ENV"
 
       - name: Install lux
         run: |
