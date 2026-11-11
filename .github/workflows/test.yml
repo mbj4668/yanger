@@ -2,13 +2,26 @@ on: push
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{matrix.os}}
     name: OTP ${{matrix.otp}}
     strategy:
+      fail-fast: false
       matrix:
-        otp: ['24', '25', '26']
+        include:
+          # hex.pm only has OTP 24 builds up to ubuntu-22.04,
+          # and OTP 25 builds up to ubuntu-24.04
+          - otp: '24'
+            os: ubuntu-22.04
+          - otp: '25'
+            os: ubuntu-24.04
+          - otp: '26'
+            os: ubuntu-latest
+          - otp: '27'
+            os: ubuntu-latest
+          - otp: '28'
+            os: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
 
       - uses: erlef/setup-beam@v1
         with:
