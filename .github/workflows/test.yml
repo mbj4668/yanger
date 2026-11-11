@@ -36,6 +36,9 @@ jobs:
       - name: Install pyang
         run: |
           pip3 install pyang
+          # pip may fall back to a user install (e.g. on ubuntu-26.04),
+          # which puts the pyang script in ~/.local/bin
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Install lux
         run: |
