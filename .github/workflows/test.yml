@@ -36,6 +36,10 @@ jobs:
       - name: Install pyang
         run: |
           pip3 install pyang
+          # Point pyang at its installed modules.  Without this, a pip
+          # user install (as on ubuntu-26.04) makes pyang 2.7.1 call
+          # pkgutil.find_loader, which was removed in Python 3.14.
+          echo "YANG_INSTALL=$(python3 -m site --user-base)/share" >> "$GITHUB_ENV"
 
       - name: Install lux
         run: |
@@ -51,3 +55,11 @@ jobs:
           source env.sh
           make
           make test
+
+      - name: Upload lux logs
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: lux-logs-otp-${{matrix.otp}}
+          path: test/lux/**/lux_logs/
+          if-no-files-found: ignore
